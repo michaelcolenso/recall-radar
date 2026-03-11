@@ -1,82 +1,242 @@
-# NHTSA Recall Engine — Agentic Build Instructions
+# RecallRadar — Agentic Build Instructions for Cloudflare Workers + Agents
 
-> **Purpose**: This document is a complete, self-contained instruction set for an agentic coding assistant (Claude Code, Cursor Agent, Copilot Workspace, etc.) to build a production-grade Programmatic SEO web application from scratch. Follow every phase in sequence. Do not skip steps. Do not improvise architecture — follow these specs exactly.
-
------
-
-## Project Overview
-
-You are building **RecallRadar** — a high-traffic programmatic SEO application that:
-
-1. Ingests raw vehicle recall and safety data from the NHTSA (National Highway Traffic Safety Administration) government APIs
-1. Enriches the raw bureaucratic text using an LLM to make it human-readable
-1. Stores everything in a relational PostgreSQL database
-1. Serves it via a lightning-fast, statically-generated Next.js frontend optimized for Google indexing
-
-The business model: capture long-tail search traffic for queries like “2020 Toyota Camry recalls”, “Ford F-150 brake recall”, etc. — thousands of unique pages generated programmatically from structured data.
+> **For**: An agentic coding assistant (Claude Code, Cursor Agent, Copilot Workspace, Windsurf, etc.)
+> 
+> **What you are building**: A production-grade Programmatic SEO web application that ingests U.S. government vehicle recall data, enriches it with AI, and serves tens of thousands of SEO-optimized pages from the Cloudflare edge.
+> 
+> **Rule**: Read the linked documentation BEFORE writing code for each phase. The Cloudflare platform has specific patterns and constraints. Do not guess — read the docs first.
 
 -----
 
-## Tech Stack (Do Not Deviate)
+## TABLE OF CONTENTS
 
-|Layer          |Technology                                      |Notes                                    |
-|---------------|------------------------------------------------|-----------------------------------------|
-|Framework      |Next.js 14+ (App Router)                        |Use ISR (Incremental Static Regeneration)|
-|Database       |PostgreSQL                                      |Hosted on Supabase or Vercel Postgres    |
-|ORM            |Prisma                                          |Schema-first, type-safe                  |
-|LLM Enrichment |Anthropic Claude 3.5 Haiku OR OpenAI GPT-4o-mini|Cost-effective for high volume           |
-|Styling        |Tailwind CSS + shadcn/ui                        |Clean, trust-inspiring design            |
-|Validation     |Zod                                             |Validate all external API responses      |
-|Language       |TypeScript (strict mode)                        |Everywhere — no plain JS files           |
-|Package Manager|npm                                             |Standard lockfile                        |
+1. [Pre-Build: Read These Docs First](#pre-build-read-these-docs-first)
+1. [Project Overview](#project-overview)
+1. [Architecture & Tech Stack](#architecture--tech-stack)
+1. [Repository Structure](#repository-structure)
+1. [Phase 1: Project Init & D1 Database Schema](#phase-1-project-initialization--d1-database-schema)
+1. [Phase 2: Ingestion Workflow](#phase-2-data-ingestion-via-cloudflare-workflow)
+1. [Phase 3: LLM Enrichment Workflow](#phase-3-llm-enrichment-via-cloudflare-workflow)
+1. [Phase 4: Hono SSR Frontend + KV Cache](#phase-4-frontend--hono-ssr--kv-page-cache)
+1. [Phase 5: Technical SEO](#phase-5-technical-seo)
+1. [Phase 6: Pipeline Agent (Admin + Monitoring)](#phase-6-pipeline-agent-admin--monitoring)
+1. [Phase 7: Deployment & Verification](#phase-7-deployment--verification)
+1. [Error Recovery](#error-recovery)
+1. [Architecture Decision Records](#architecture-decision-records)
 
 -----
 
-## Repository Structure (Create This Exactly)
+## PRE-BUILD: READ THESE DOCS FIRST
+
+**CRITICAL**: Before writing ANY code, you MUST read these documentation pages to understand the platform primitives. Each link is annotated with what to look for.
+
+### Cloudflare Workers (the compute layer)
+
+|Doc                   |What to learn                                                      |URL                                                              |
+|----------------------|-------------------------------------------------------------------|-----------------------------------------------------------------|
+|Workers Overview      |Understand V8 isolate model, env bindings, module syntax           |https://developers.cloudflare.com/workers/                       |
+|Workers Get Started   |Project scaffolding with `create-cloudflare`, wrangler.jsonc config|https://developers.cloudflare.com/workers/get-started/guide/     |
+|Wrangler Configuration|All binding types, cron triggers, migrations, environment variables|https://developers.cloudflare.com/workers/wrangler/configuration/|
+|Workers Runtime APIs  |`fetch`, `scheduled`, `ExecutionContext`, environment bindings     |https://developers.cloudflare.com/workers/runtime-apis/          |
+
+### Cloudflare D1 (the database)
+
+|Doc                  |What to learn                                                                  |URL                                                         |
+|---------------------|-------------------------------------------------------------------------------|------------------------------------------------------------|
+|D1 Overview          |SQLite semantics, 10GB per database, read replicas                             |https://developers.cloudflare.com/d1/                       |
+|D1 Get Started       |Create database, run schema, local vs remote execution                         |https://developers.cloudflare.com/d1/get-started/           |
+|D1 Worker Binding API|`env.DB.prepare()`, `.bind()`, `.run()`, `.all()`, `.first()`, batch operations|https://developers.cloudflare.com/d1/worker-api/            |
+|D1 SQL Statements    |SQLite-compatible SQL, supported PRAGMAs, FTS5, JSON functions                 |https://developers.cloudflare.com/d1/sql-api/sql-statements/|
+|D1 Data Import       |Load data from SQL files, CSV import                                           |https://developers.cloudflare.com/d1/import-export/import/  |
+
+### Cloudflare Workflows (durable execution for pipelines)
+
+|Doc                      |What to learn                                                        |URL                                                                     |
+|-------------------------|---------------------------------------------------------------------|------------------------------------------------------------------------|
+|Workflows Overview       |What durable execution means, step-based programming model           |https://developers.cloudflare.com/workflows/                            |
+|Build Your First Workflow|`WorkflowEntrypoint`, `step.do()`, `step.sleep()`, retry config      |https://developers.cloudflare.com/workflows/get-started/guide/          |
+|Workers API for Workflows|`WorkflowStep`, `WorkflowEvent`, `NonRetryableError`, step limits    |https://developers.cloudflare.com/workflows/build/workers-api/          |
+|Rules of Workflows       |Idempotency, state hibernation, no in-memory state between steps     |https://developers.cloudflare.com/workflows/build/rules-of-workflows/   |
+|Trigger Workflows        |`env.MY_WORKFLOW.create()`, `.get()`, `.status()`, bindings          |https://developers.cloudflare.com/workflows/build/trigger-workflows/    |
+|Sleeping and Retrying    |Backoff strategies, `WorkflowStepConfig`, timeout config             |https://developers.cloudflare.com/workflows/build/sleeping-and-retrying/|
+|Build a Durable AI Agent |Agent + Workflow integration, `AgentWorkflow`, `broadcastToClients()`|https://developers.cloudflare.com/workflows/get-started/durable-agents/ |
+
+### Cloudflare Agents SDK (stateful orchestration)
+
+|Doc                       |What to learn                                                              |URL                                                                         |
+|--------------------------|---------------------------------------------------------------------------|----------------------------------------------------------------------------|
+|Agents Overview           |What agents are, Durable Object foundation, SQL + state                    |https://developers.cloudflare.com/agents/                                   |
+|Agents Quick Start        |Create an agent, `this.setState`, `this.sql`, wrangler config              |https://developers.cloudflare.com/agents/getting-started/quick-start/       |
+|Agents API Reference      |Full `Agent` class API, lifecycle methods, properties                      |https://developers.cloudflare.com/agents/api-reference/agents-api/          |
+|Agent Class Internals     |How Agent extends DurableObject, state storage, SQL API, RPC               |https://developers.cloudflare.com/agents/concepts/agent-class/              |
+|Store and Sync State      |`setState()`, `onStateChanged()`, `this.sql` template tag, when to use each|https://developers.cloudflare.com/agents/api-reference/store-and-sync-state/|
+|Schedule Tasks            |`this.schedule()`, cron strings, `onScheduledTask()`                       |https://developers.cloudflare.com/agents/api-reference/schedule-tasks/      |
+|Run Workflows from Agents |`runWorkflow()`, `AgentWorkflow`, progress callbacks, state updates        |https://developers.cloudflare.com/agents/api-reference/run-workflows/       |
+|Callable Methods          |`@callable()` decorator, RPC from clients, stream support                  |https://developers.cloudflare.com/agents/api-reference/callable-methods/    |
+|Configuration             |Durable Object bindings, migrations, `new_sqlite_classes`                  |https://developers.cloudflare.com/agents/api-reference/configuration/       |
+|Workflows Concept (Agents)|Agent + Workflow patterns, durable vs non-durable operations               |https://developers.cloudflare.com/agents/concepts/workflows/                |
+
+### Workers KV (edge cache)
+
+|Doc           |What to learn                                                       |URL                                              |
+|--------------|--------------------------------------------------------------------|-------------------------------------------------|
+|KV Overview   |Eventually consistent key-value store, edge caching                 |https://developers.cloudflare.com/kv/            |
+|KV Get Started|Create namespace, `env.KV.get()`, `.put()`, `.delete()`, TTL options|https://developers.cloudflare.com/kv/get-started/|
+
+### Hono (HTTP framework)
+
+|Doc            |What to learn                                                       |URL                                                     |
+|---------------|--------------------------------------------------------------------|--------------------------------------------------------|
+|Hono on Workers|Setup, bindings as generics, `c.env`, `export default app`          |https://hono.dev/docs/getting-started/cloudflare-workers|
+|Hono Routing   |Path parameters, groups, middleware, error handling                 |https://hono.dev/docs/api/routing                       |
+|Hono Context   |`c.req`, `c.res`, `c.json()`, `c.html()`, `c.text()`, `c.notFound()`|https://hono.dev/docs/api/context                       |
+
+### Drizzle ORM (type-safe database access)
+
+|Doc                    |What to learn                                           |URL                                             |
+|-----------------------|--------------------------------------------------------|------------------------------------------------|
+|Drizzle with D1        |D1 adapter setup, `drizzle(env.DB)`, query patterns     |https://orm.drizzle.team/docs/get-started/d1-new|
+|Drizzle Schema (SQLite)|`sqliteTable`, column types, indexes, unique constraints|https://orm.drizzle.team/docs/schemas/sqlite    |
+|Drizzle Kit            |`drizzle-kit generate`, migration files, config         |https://orm.drizzle.team/docs/kit-overview      |
+
+### NHTSA API (the data source)
+
+|Doc                 |What to learn                           |URL                            |
+|--------------------|----------------------------------------|-------------------------------|
+|NHTSA Recalls API   |Vehicle recall lookup by make/model/year|https://www.nhtsa.gov/nhtsa-api|
+|vPIC API (All Makes)|Get all vehicle makes and models        |https://vpic.nhtsa.dot.gov/api/|
+
+### GitHub Reference Projects
+
+|Repo             |Why to study it                                |URL                                         |
+|-----------------|-----------------------------------------------|--------------------------------------------|
+|Agents Starter   |Reference for Agent + WebSocket + tools pattern|https://github.com/cloudflare/agents-starter|
+|Agents SDK source|Canonical patterns, examples directory         |https://github.com/cloudflare/agents        |
+
+-----
+
+## PROJECT OVERVIEW
+
+**RecallRadar** is a high-traffic programmatic SEO application that:
+
+1. **Ingests** raw vehicle recall data from the NHTSA (National Highway Traffic Safety Administration) government APIs
+1. **Enriches** the raw bureaucratic text using an LLM to make it human-readable
+1. **Stores** everything in a Cloudflare D1 (SQLite) database
+1. **Serves** it via edge-rendered, KV-cached HTML pages optimized for Google indexing
+1. **Orchestrates** pipelines via Cloudflare Workflows (durable execution with auto-retry)
+1. **Monitors** via a stateful Cloudflare Agent with built-in SQL and scheduling
+
+**Business model**: Capture long-tail search traffic for queries like “2020 Toyota Camry recalls”, “Ford F-150 brake recall”, etc. — thousands of unique pages generated programmatically from structured data.
+
+**Target search queries** (each becomes a unique page):
+
+- `{Year} {Make} {Model} recalls` (e.g., “2020 Toyota Camry recalls”)
+- `{Make} recalls` (e.g., “Ford recalls”)
+- `{Make} {Model} recalls` (e.g., “Honda CR-V recalls”)
+
+-----
+
+## ARCHITECTURE & TECH STACK
+
+### System Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     CLOUDFLARE EDGE NETWORK                      │
+│                                                                  │
+│  ┌─────────────┐    ┌──────────┐    ┌────────────────────────┐  │
+│  │  Hono Worker │───>│ D1 (SQL) │    │   Workers KV (cache)   │  │
+│  │  (SSR pages) │    └──────────┘    │   Rendered HTML pages  │  │
+│  │  (API routes)│                     └────────────────────────┘  │
+│  └─────────────┘                                                 │
+│         │                                                        │
+│  ┌──────┴──────────────────────┐                                 │
+│  │       Pipeline Agent        │     ┌─────────────────────────┐ │
+│  │  (Durable Object + SQLite)  │────>│  Ingestion Workflow     │ │
+│  │  - Scheduling               │     │  (durable, auto-retry)  │ │
+│  │  - Run history              │     │  NHTSA API → D1         │ │
+│  │  - WebSocket admin UI       │     └─────────────────────────┘ │
+│  │  - Stats dashboard          │                                 │
+│  │                             │     ┌─────────────────────────┐ │
+│  │                             │────>│  Enrichment Workflow    │ │
+│  │                             │     │  (durable, auto-retry)  │ │
+│  │                             │     │  D1 → LLM → D1         │ │
+│  └─────────────────────────────┘     └─────────────────────────┘ │
+│                                                                  │
+│  ┌──────────────┐                                                │
+│  │ Cron Trigger  │  Monday 2AM: ingestion / Monday 4AM: enrich   │
+│  └──────────────┘                                                │
+└──────────────────────────────────────────────────────────────────┘
+          ▲                              ▲
+          │ HTTP requests                │ NHTSA API calls
+          │ (users + Googlebot)          │ (government data)
+```
+
+### Stack Table
+
+|Layer              |Technology                    |Why                                                          |
+|-------------------|------------------------------|-------------------------------------------------------------|
+|HTTP Framework     |**Hono v4** on Workers        |Ultra-fast, familiar Express-like API, native Workers support|
+|Database           |**Cloudflare D1**             |Serverless SQLite, global read replicas, zero provisioning   |
+|ORM                |**Drizzle ORM** (D1 adapter)  |Type-safe, lightweight, edge-compatible (no binary engine)   |
+|Ingestion Pipeline |**Cloudflare Workflows**      |Durable steps with automatic retry, survives crashes         |
+|Enrichment Pipeline|**Cloudflare Workflows**      |Per-recall LLM calls as individually retryable steps         |
+|Admin Orchestrator |**Agents SDK**                |Stateful Durable Object with SQL, scheduling, WebSocket      |
+|LLM Enrichment     |**Anthropic Claude 3.5 Haiku**|Cost-effective for high volume, JSON mode                    |
+|Page Cache         |**Workers KV**                |Edge-cached HTML, TTL-based expiration (ISR equivalent)      |
+|Validation         |**Zod**                       |Validate all external API responses                          |
+|Language           |**TypeScript** (strict mode)  |Everywhere — no plain JS files                               |
+|Deployment         |**Wrangler**                  |CLI for deploy, D1 management, secrets                       |
+
+**Do NOT use**: Next.js, Prisma, PostgreSQL, Vercel, Supabase, or any external database. Everything runs on Cloudflare.
+
+-----
+
+## REPOSITORY STRUCTURE
+
+Create this structure exactly:
 
 ```
 recall-radar/
-├── prisma/
-│   └── schema.prisma
 ├── src/
-│   ├── app/
-│   │   ├── layout.tsx                          # Root layout
-│   │   ├── page.tsx                            # Homepage
-│   │   ├── sitemap.ts                          # Dynamic sitemap generator
-│   │   ├── robots.ts                           # Robots.txt
-│   │   ├── [makeSlug]/
-│   │   │   ├── page.tsx                        # Make landing page
-│   │   │   ├── [modelSlug]/
-│   │   │   │   ├── page.tsx                    # Model landing page
-│   │   │   │   └── [year]/
-│   │   │   │       └── page.tsx                # Vehicle year recall page (money page)
-│   ├── components/
-│   │   ├── ui/                                 # shadcn/ui components
-│   │   ├── header.tsx
-│   │   ├── footer.tsx
-│   │   ├── recall-card.tsx
-│   │   ├── severity-badge.tsx
-│   │   ├── local-dealer-lead-gen.tsx            # Monetization placeholder
-│   │   ├── vehicle-breadcrumbs.tsx
-│   │   ├── search-bar.tsx
-│   │   └── json-ld.tsx                         # Structured data component
+│   ├── index.ts                              # Main Worker entry (Hono app + scheduled handler)
+│   ├── env.ts                                # Env type definition for all bindings
+│   ├── agents/
+│   │   └── pipeline-agent.ts                 # Admin Agent (scheduling, monitoring, RPC)
+│   ├── workflows/
+│   │   ├── ingestion-workflow.ts             # NHTSA data ingestion (durable execution)
+│   │   └── enrichment-workflow.ts            # LLM enrichment (durable execution)
+│   ├── routes/
+│   │   ├── pages.ts                          # HTML page routes (SSR + KV cache)
+│   │   ├── api.ts                            # Admin JSON API routes
+│   │   └── seo.ts                            # sitemap.xml, robots.txt
+│   ├── templates/
+│   │   ├── layout.ts                         # Base HTML shell (head, nav, footer)
+│   │   ├── home.ts                           # Homepage template
+│   │   ├── make-page.ts                      # Make landing page
+│   │   ├── model-page.ts                     # Model landing page
+│   │   ├── year-page.ts                      # Vehicle year page (THE MONEY PAGE)
+│   │   └── components/
+│   │       ├── recall-card.ts                # Individual recall card
+│   │       ├── severity-badge.ts             # Color-coded severity indicator
+│   │       ├── breadcrumbs.ts                # Navigation breadcrumbs
+│   │       ├── dealer-lead-gen.ts            # Monetization placeholder
+│   │       └── json-ld.ts                    # Structured data helpers
 │   ├── lib/
-│   │   ├── db.ts                               # Prisma client singleton
-│   │   ├── nhtsa-client.ts                     # NHTSA API wrapper
-│   │   ├── rate-limiter.ts                     # Throttle + retry + backoff
-│   │   ├── enrichment.ts                       # LLM enrichment pipeline
-│   │   ├── severity.ts                         # Component → severity classifier
-│   │   ├── utils.ts                            # slugify, date parsing, helpers
-│   │   └── constants.ts                        # Popular makes, year ranges, config
-│   └── scripts/
-│       ├── ingest.ts                           # Phase 2: Data ingestion CLI
-│       ├── enrich.ts                           # Phase 3: LLM enrichment CLI
-│       └── seed-test-data.ts                   # Dev seeding script
+│   │   ├── nhtsa-client.ts                   # NHTSA API wrapper with Zod schemas
+│   │   ├── enrichment.ts                     # LLM enrichment function (Anthropic)
+│   │   ├── severity.ts                       # Component string → severity classifier
+│   │   ├── cache.ts                          # KV page cache read-through helper
+│   │   ├── utils.ts                          # slugify, date parsing, HTML escaping
+│   │   └── constants.ts                      # Popular makes list, year ranges
+│   └── db/
+│       ├── schema.ts                         # Drizzle schema definition (all tables)
+│       └── migrations/
+│           └── 0000_initial.sql              # Generated by drizzle-kit
 ├── public/
-│   └── og-default.png                          # Default Open Graph image
-├── .env.example
-├── .env.local                                  # Git-ignored
-├── next.config.ts
+│   └── styles.css                            # Compiled Tailwind CSS (build artifact)
+├── drizzle.config.ts                         # Drizzle Kit configuration
+├── wrangler.jsonc                            # Cloudflare Workers config (bindings, crons, etc.)
 ├── tailwind.config.ts
 ├── tsconfig.json
 ├── package.json
@@ -85,232 +245,245 @@ recall-radar/
 
 -----
 
-## PHASE 1: Project Initialization & Database Schema
+## PHASE 1: Project Initialization & D1 Database Schema
 
-### Step 1.1: Initialize the Project
+### Step 1.1: Scaffold the project
 
 ```bash
-npx create-next-app@latest recall-radar \
-  --typescript \
-  --tailwind \
-  --eslint \
-  --app \
-  --src-dir \
-  --import-alias "@/*" \
-  --no-turbo
+npm create cloudflare@latest recall-radar -- --type=worker --lang=ts
 cd recall-radar
 ```
 
-### Step 1.2: Install Dependencies
+### Step 1.2: Install all dependencies
 
 ```bash
-# Core
-npm install prisma @prisma/client zod
+# HTTP framework
+npm install hono
 
-# LLM (install BOTH — we support either provider)
-npm install @anthropic-ai/sdk openai
+# Database ORM
+npm install drizzle-orm
+npm install -D drizzle-kit
 
-# UI
-npx shadcn@latest init
-npx shadcn@latest add badge card separator button input
+# Agents SDK
+npm install agents
 
-# Dev
-npm install -D tsx @types/node
+# LLM client
+npm install @anthropic-ai/sdk
+
+# Validation
+npm install zod
+
+# Tailwind (build-time CSS only)
+npm install -D tailwindcss @tailwindcss/cli
 ```
 
-### Step 1.3: Initialize Prisma
+### Step 1.3: Create D1 database and KV namespace
 
 ```bash
-npx prisma init --datasource-provider postgresql
+npx wrangler d1 create recall-radar-db
+npx wrangler kv namespace create PAGE_CACHE
 ```
 
-### Step 1.4: Create the Database Schema
+Save the returned `database_id` and `id` values for `wrangler.jsonc`.
 
-Write the following to `prisma/schema.prisma`. This is the exact schema — do not add or remove fields:
+### Step 1.4: Write `wrangler.jsonc`
 
-```prisma
-generator client {
-  provider = "prisma-client-js"
-}
+This is the central configuration file. It declares ALL bindings — D1, KV, Workflows, Durable Objects (Agent), cron triggers, and environment variables.
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+```jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "recall-radar",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-05-01",
+  "compatibility_flags": ["nodejs_compat"],
 
-// ─── MAKE ───────────────────────────────────────────────────────
-// Top-level manufacturer. One row per brand.
-// ────────────────────────────────────────────────────────────────
-model Make {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique                        // "Ford"
-  slug      String   @unique                        // "ford"
-  nhtsaId   Int?     @unique @map("nhtsa_id")       // NHTSA MakeId for API joins
-  models    Model[]
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  // D1 Database
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "recall-radar-db",
+      "database_id": "<paste-your-database-id>"
+    }
+  ],
 
-  @@index([slug])
-  @@map("makes")
-}
+  // KV for page cache
+  "kv_namespaces": [
+    {
+      "binding": "PAGE_CACHE",
+      "id": "<paste-your-kv-namespace-id>"
+    }
+  ],
 
-// ─── MODEL ──────────────────────────────────────────────────────
-// Vehicle model tied to a make. Compound unique on (makeId, slug).
-// ────────────────────────────────────────────────────────────────
-model Model {
-  id           Int           @id @default(autoincrement())
-  makeId       Int           @map("make_id")
-  make         Make          @relation(fields: [makeId], references: [id], onDelete: Cascade)
-  name         String                                // "F-150"
-  slug         String                                // "f-150"
-  vehicleYears VehicleYear[]
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+  // Workflows (durable execution for pipelines)
+  "workflows": [
+    {
+      "name": "ingestion-workflow",
+      "binding": "INGESTION_WORKFLOW",
+      "class_name": "IngestionWorkflow"
+    },
+    {
+      "name": "enrichment-workflow",
+      "binding": "ENRICHMENT_WORKFLOW",
+      "class_name": "EnrichmentWorkflow"
+    }
+  ],
 
-  @@unique([makeId, slug])
-  @@index([makeId])
-  @@index([slug])
-  @@map("models")
-}
+  // Agent (Durable Object with built-in SQLite)
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PIPELINE_AGENT",
+        "class_name": "PipelineAgent"
+      }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["PipelineAgent"] }
+  ],
 
-// ─── VEHICLE YEAR ───────────────────────────────────────────────
-// A specific model-year combination. This is the "page entity" in pSEO.
-// ────────────────────────────────────────────────────────────────
-model VehicleYear {
-  id        Int      @id @default(autoincrement())
-  modelId   Int      @map("model_id")
-  model     Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
-  year      Int
-  recalls   Recall[]
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  // Weekly cron triggers
+  "triggers": {
+    "crons": ["0 2 * * 1", "0 4 * * 1"]
+  },
 
-  @@unique([modelId, year])
-  @@index([modelId])
-  @@index([year])
-  @@map("vehicle_years")
-}
+  // Public env vars (non-secret)
+  "vars": {
+    "SITE_URL": "https://recallradar.com"
+  }
 
-// ─── RECALL ─────────────────────────────────────────────────────
-// Individual recall campaign. Raw + LLM-enriched text columns.
-// ────────────────────────────────────────────────────────────────
-model Recall {
-  id                   Int            @id @default(autoincrement())
-  vehicleYearId        Int            @map("vehicle_year_id")
-  vehicleYear          VehicleYear    @relation(fields: [vehicleYearId], references: [id], onDelete: Cascade)
-  nhtsaCampaignNumber  String         @unique @map("nhtsa_campaign_number")
-  reportReceivedDate   DateTime?      @map("report_received_date")
-  component            String
-  manufacturer         String?
-
-  // Raw NHTSA text (verbatim bureaucratic language)
-  summaryRaw           String         @map("summary_raw") @db.Text
-  consequenceRaw       String         @map("consequence_raw") @db.Text
-  remedyRaw            String         @map("remedy_raw") @db.Text
-
-  // LLM-enriched text (human-readable — populated by Phase 3)
-  summaryEnriched      String?        @map("summary_enriched") @db.Text
-  consequenceEnriched  String?        @map("consequence_enriched") @db.Text
-  remedyEnriched       String?        @map("remedy_enriched") @db.Text
-  enrichedAt           DateTime?      @map("enriched_at")
-
-  // Auto-classified severity for UI badges
-  severityLevel        SeverityLevel  @default(UNKNOWN) @map("severity_level")
-
-  createdAt            DateTime       @default(now()) @map("created_at")
-  updatedAt            DateTime       @updatedAt @map("updated_at")
-
-  @@index([vehicleYearId])
-  @@index([nhtsaCampaignNumber])
-  @@index([component])
-  @@index([severityLevel])
-  @@map("recalls")
-}
-
-enum SeverityLevel {
-  CRITICAL    // Engine, Brakes, Steering, Fuel System
-  HIGH        // Air Bags, Seat Belts, Suspension
-  MEDIUM      // Electrical, Lighting, Visibility, Tires
-  LOW         // Labels, Accessories, Cosmetic
-  UNKNOWN
-}
-
-// ─── INGESTION LOG ──────────────────────────────────────────────
-// Audit trail for pipeline runs. Enables debugging + idempotency.
-// ────────────────────────────────────────────────────────────────
-model IngestionLog {
-  id           Int       @id @default(autoincrement())
-  runType      String    @map("run_type")
-  targetMake   String?   @map("target_make")
-  targetModel  String?   @map("target_model")
-  status       String
-  recordsFound Int       @default(0) @map("records_found")
-  recordsSaved Int       @default(0) @map("records_saved")
-  errorMessage String?   @map("error_message") @db.Text
-  startedAt    DateTime  @default(now()) @map("started_at")
-  completedAt  DateTime? @map("completed_at")
-
-  @@index([runType, status])
-  @@map("ingestion_logs")
+  // SECRETS (set via `wrangler secret put`):
+  // - ANTHROPIC_API_KEY
+  // - ADMIN_TOKEN
 }
 ```
 
-### Step 1.5: Generate Client & Push Schema
+### Step 1.5: Write the Env type (`src/env.ts`)
 
-```bash
-npx prisma generate
-npx prisma db push
-```
-
-### Step 1.6: Create Prisma Client Singleton
-
-Write `src/lib/db.ts`:
+Every binding declared in `wrangler.jsonc` must appear here for TypeScript:
 
 ```typescript
-import { PrismaClient } from "@prisma/client";
-
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
-
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+export interface Env {
+  DB: D1Database;
+  PAGE_CACHE: KVNamespace;
+  INGESTION_WORKFLOW: Workflow;
+  ENRICHMENT_WORKFLOW: Workflow;
+  PIPELINE_AGENT: DurableObjectNamespace;
+  ANTHROPIC_API_KEY: string;
+  ADMIN_TOKEN: string;
+  SITE_URL: string;
+}
 ```
 
-### Step 1.7: Verify
+### Step 1.6: Write the Drizzle schema (`src/db/schema.ts`)
 
-Run `npx prisma studio` — confirm all tables are visible and empty. Close it and continue.
+**IMPORTANT D1/SQLite constraints to know:**
+
+- No `SERIAL` type — use `integer().primaryKey({ autoIncrement: true })`
+- No native `BOOLEAN` — use `INTEGER` (0/1)
+- No native `TIMESTAMP` — store as ISO 8601 `TEXT` strings
+- `ON CONFLICT` / upsert patterns use SQLite syntax
+
+Define these tables:
+
+#### `makes` table
+
+- `id` INTEGER PRIMARY KEY autoincrement
+- `name` TEXT NOT NULL UNIQUE — e.g., “TOYOTA”
+- `slug` TEXT NOT NULL UNIQUE — e.g., “toyota”
+- `nhtsa_id` INTEGER UNIQUE — NHTSA Make_ID for API lookups
+- `created_at` TEXT (ISO datetime)
+- `updated_at` TEXT (ISO datetime)
+- Index on `slug`
+
+#### `models` table
+
+- `id` INTEGER PRIMARY KEY autoincrement
+- `make_id` INTEGER NOT NULL → references `makes.id` CASCADE
+- `name` TEXT NOT NULL — e.g., “Camry”
+- `slug` TEXT NOT NULL — e.g., “camry”
+- `created_at`, `updated_at` TEXT
+- UNIQUE constraint on `(make_id, slug)`
+- Indexes on `make_id`, `slug`
+
+#### `vehicle_years` table
+
+- `id` INTEGER PRIMARY KEY autoincrement
+- `model_id` INTEGER NOT NULL → references `models.id` CASCADE
+- `year` INTEGER NOT NULL
+- `created_at`, `updated_at` TEXT
+- UNIQUE constraint on `(model_id, year)`
+- Indexes on `model_id`, `year`
+
+#### `recalls` table — the core data table
+
+- `id` INTEGER PRIMARY KEY autoincrement
+- `vehicle_year_id` INTEGER NOT NULL → references `vehicle_years.id` CASCADE
+- `nhtsa_campaign_number` TEXT NOT NULL UNIQUE — the canonical recall ID
+- `report_received_date` TEXT (ISO datetime, nullable)
+- `component` TEXT NOT NULL — e.g., “FUEL SYSTEM, GASOLINE:DELIVERY:FUEL PUMP”
+- `manufacturer` TEXT (nullable)
+- `summary_raw` TEXT NOT NULL — verbatim NHTSA bureaucratic language
+- `consequence_raw` TEXT NOT NULL
+- `remedy_raw` TEXT NOT NULL
+- `summary_enriched` TEXT (nullable — populated by enrichment workflow)
+- `consequence_enriched` TEXT (nullable)
+- `remedy_enriched` TEXT (nullable)
+- `enriched_at` TEXT (nullable — ISO datetime, set when enrichment completes)
+- `severity_level` TEXT NOT NULL DEFAULT “UNKNOWN” — one of: CRITICAL, HIGH, MEDIUM, LOW, UNKNOWN
+- `created_at`, `updated_at` TEXT
+- Indexes on `vehicle_year_id`, `nhtsa_campaign_number`, `component`, `severity_level`
+
+#### `ingestion_logs` table — audit trail
+
+- `id` INTEGER PRIMARY KEY autoincrement
+- `run_type` TEXT NOT NULL
+- `target_make` TEXT (nullable)
+- `status` TEXT NOT NULL
+- `records_found` INTEGER DEFAULT 0
+- `records_saved` INTEGER DEFAULT 0
+- `error_message` TEXT (nullable)
+- `started_at` TEXT NOT NULL
+- `completed_at` TEXT (nullable)
+- Index on `(run_type, status)`
+
+### Step 1.7: Generate and apply the migration
+
+```bash
+npx drizzle-kit generate
+npx wrangler d1 execute recall-radar-db --local --file=src/db/migrations/0000_initial.sql
+npx wrangler d1 execute recall-radar-db --remote --file=src/db/migrations/0000_initial.sql
+```
+
+### Step 1.8: Verify Phase 1
+
+```bash
+npx wrangler d1 execute recall-radar-db --local --command "SELECT name FROM sqlite_master WHERE type='table'"
+```
+
+You should see: `makes`, `models`, `vehicle_years`, `recalls`, `ingestion_logs` (plus any Drizzle migration tracking tables).
 
 -----
 
-## PHASE 2: Data Ingestion Engine
+## PHASE 2: Data Ingestion via Cloudflare Workflow
 
-### Step 2.1: Rate Limiter (`src/lib/rate-limiter.ts`)
+### Conceptual briefing
 
-Build a resilient HTTP fetcher with these exact specifications:
+The ingestion pipeline calls two NHTSA APIs to populate the database. **Cloudflare Workflows** replace the hand-rolled retry logic from the original spec. Each `step.do()` is:
 
-- **Minimum delay between requests**: 500ms (NHTSA doesn’t publish rate limits; be conservative)
-- **Timeout per request**: 30 seconds, using `AbortController`
-- **Retry strategy**: 3 retries with exponential backoff (base 2000ms, so: 2s → 4s → 8s)
-- **Trigger retries on**: HTTP 429 (rate limited), HTTP 5xx (server error), timeout/abort, network errors
-- **Hard fail on**: HTTP 4xx (except 429) — these are bad requests, retrying won’t help
-- **Logging**: Print retry attempts with attempt number and delay to stdout
-- **Stats tracking**: Expose a `getRequestStats()` function that returns total request count
+- Automatically retried on failure (configurable: count, backoff, timeout)
+- Memoized — if the workflow restarts, completed steps are skipped
+- Observable in the Cloudflare dashboard
 
-The function signature must be:
+**Read these docs before coding this phase:**
 
-```typescript
-export async function throttledFetch<T>(
-  url: string,
-  schema?: z.ZodType<T>,  // Optional Zod schema for response validation
-  label?: string,          // Human-readable label for logs
-): Promise<T>
-```
+- https://developers.cloudflare.com/workflows/get-started/guide/
+- https://developers.cloudflare.com/workflows/build/rules-of-workflows/
+- https://developers.cloudflare.com/workflows/build/workers-api/
 
-If a Zod schema is provided, validate the JSON response against it and throw on validation failure. This catches bad NHTSA data early.
+### Step 2.1: NHTSA Client (`src/lib/nhtsa-client.ts`)
 
-### Step 2.2: NHTSA API Client (`src/lib/nhtsa-client.ts`)
-
-Wrap the two NHTSA API endpoints. Every response shape MUST be validated with Zod.
+Build a wrapper around three NHTSA API endpoints. Every response MUST be validated with Zod.
 
 **Endpoint 1 — Get All Makes (vPIC API)**
 
@@ -318,34 +491,15 @@ Wrap the two NHTSA API endpoints. Every response shape MUST be validated with Zo
 GET https://vpic.nhtsa.dot.gov/api/vehicles/GetAllMakes?format=json
 ```
 
-Response shape (create Zod schema for this):
+Returns `{ Count: number, Results: [{ Make_ID: number, Make_Name: string }] }` — note **capital** `Results`.
 
-```json
-{
-  "Count": 1100,
-  "Results": [
-    { "Make_ID": 440, "Make_Name": "FORD" },
-    { "Make_ID": 441, "Make_Name": "TOYOTA" }
-  ]
-}
-```
-
-**Endpoint 2 — Get Models for a Make (vPIC API)**
+**Endpoint 2 — Get Models for Make (vPIC API)**
 
 ```
 GET https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeId/{makeId}?format=json
 ```
 
-Response shape:
-
-```json
-{
-  "Count": 50,
-  "Results": [
-    { "Make_ID": 440, "Make_Name": "FORD", "Model_ID": 1801, "Model_Name": "F-150" }
-  ]
-}
-```
+Returns `{ Count: number, Results: [{ Make_ID, Make_Name, Model_ID, Model_Name }] }` — capital `Results`.
 
 **Endpoint 3 — Get Recalls by Vehicle (Recalls API)**
 
@@ -353,30 +507,39 @@ Response shape:
 GET https://api.nhtsa.gov/recalls/recallsByVehicle?make={make}&model={model}&modelYear={year}
 ```
 
-Response shape:
+Returns `{ Count: number, results: [{ NHTSACampaignNumber, ReportReceivedDate, Component, Summary, Consequence, Remedy, Manufacturer }] }` — **lowercase** `results`.
 
-```json
-{
-  "Count": 3,
-  "results": [
-    {
-      "NHTSACampaignNumber": "20V682000",
-      "ReportReceivedDate": "04/11/2020",
-      "Component": "FUEL SYSTEM, GASOLINE:DELIVERY:FUEL PUMP",
-      "Summary": "Toyota is recalling certain...",
-      "Consequence": "If the fuel pump fails...",
-      "Remedy": "Toyota will notify owners...",
-      "Manufacturer": "Toyota Motor Engineering & Manufacturing"
-    }
-  ]
-}
-```
+**Critical details:**
 
-**IMPORTANT**: The vPIC API uses `Results` (capital R) while the Recalls API uses `results` (lowercase r). Your Zod schemas must match this exactly.
+- URL-encode make and model parameters (vehicle names contain spaces, hyphens, ampersands)
+- Use a 30-second `AbortController` timeout per request
+- Do NOT build a custom retry/backoff system — Workflows handle this
+- Write Zod schemas for each response shape and `.parse()` the JSON
 
-**IMPORTANT**: URL-encode the make and model parameters — vehicle names contain spaces, hyphens, slashes, and ampersands.
+### Step 2.2: Utility Functions (`src/lib/utils.ts`)
 
-**Popular Makes Filter**: NHTSA returns 1,100+ makes including trailers, buses, and industrial equipment. Define a `POPULAR_MAKES` set of ~35 major passenger-vehicle brands to focus the initial ingestion:
+**`slugify(name: string): string`** — Convert vehicle names to URL-safe slugs:
+
+- Lowercase → replace non-alphanumeric (except hyphens) with hyphens → collapse consecutive hyphens → trim edges
+- Must pass: `"F-150 Lightning" → "f-150-lightning"`, `"MERCEDES-BENZ" → "mercedes-benz"`, `"CR-V" → "cr-v"`, `"RAV4" → "rav4"`
+
+**`classifySeverity(component: string): SeverityLevel`** — Keyword matching in priority order:
+
+- CRITICAL: ENGINE, FUEL SYSTEM, BRAKES, STEERING, POWER TRAIN
+- HIGH: AIR BAGS, SEAT BELTS, CHILD SEAT, SUSPENSION, STRUCTURE
+- MEDIUM: ELECTRICAL, LIGHTING, VISIBILITY, WINDSHIELD, TIRES
+- LOW: LABELS, EQUIPMENT, EXTERIOR LIGHTING
+- UNKNOWN: anything else
+
+**`parseNhtsaDate(raw: string | null): string | null`** — Handle multiple date formats:
+
+- `"01/15/2024"` → ISO string (MM/DD/YYYY)
+- `"/Date(1705276800000)/"` → ISO string (.NET JSON date)
+- `null` → `null`
+
+### Step 2.3: Constants (`src/lib/constants.ts`)
+
+Define `POPULAR_MAKES` — a `Set<string>` of ~35 major passenger-vehicle brands. NHTSA returns 1,100+ makes including trailers and buses; we filter to these:
 
 ```
 ACURA, ALFA ROMEO, AUDI, BMW, BUICK, CADILLAC, CHEVROLET, CHRYSLER,
@@ -386,136 +549,68 @@ MITSUBISHI, NISSAN, PORSCHE, RAM, RIVIAN, SUBARU, TESLA, TOYOTA,
 VOLKSWAGEN, VOLVO
 ```
 
-### Step 2.3: Utility Functions (`src/lib/utils.ts`)
+Also define `DEFAULT_YEAR_START = 2015` and `DEFAULT_YEAR_END = new Date().getFullYear()`.
 
-**`slugify(name: string): string`**
+### Step 2.4: Ingestion Workflow (`src/workflows/ingestion-workflow.ts`)
 
-Convert vehicle names to URL-safe slugs. Requirements:
+**Read first:** https://developers.cloudflare.com/workflows/build/workers-api/
 
-- Lowercase everything
-- Replace non-alphanumeric characters (except hyphens) with hyphens
-- Collapse multiple consecutive hyphens into one
-- Trim leading/trailing hyphens
-- Preserve internal hyphens (critical for names like “F-150”, “CR-V”, “MERCEDES-BENZ”)
+This Workflow accepts parameters:
 
-Test cases the function must pass:
-
-```
-"F-150 Lightning"  → "f-150-lightning"
-"MERCEDES-BENZ"    → "mercedes-benz"
-"CR-V"             → "cr-v"
-"  Grand Cherokee " → "grand-cherokee"
-"RAV4"             → "rav4"
-"3 Series"         → "3-series"
-```
-
-**`classifySeverity(component: string): SeverityLevel`**
-
-Map NHTSA component strings to severity levels. NHTSA components are uppercase, often pipe-delimited or colon-delimited (e.g., “AIR BAGS:FRONTAL:DRIVER SIDE”, “ENGINE AND ENGINE COOLING”). Use substring matching, checking in priority order CRITICAL → HIGH → MEDIUM → LOW:
-
-|Severity|Component Keywords                                                         |
-|--------|---------------------------------------------------------------------------|
-|CRITICAL|ENGINE, FUEL SYSTEM, BRAKES, BRAKE, STEERING, POWER TRAIN, POWERTRAIN      |
-|HIGH    |AIR BAG, AIR BAGS, SEAT BELT, SEAT BELTS, CHILD SEAT, SUSPENSION, STRUCTURE|
-|MEDIUM  |ELECTRICAL, LIGHTING, VISIBILITY, WINDSHIELD, WIPERS, TIRES                |
-|LOW     |LABELS, EQUIPMENT, EXTERIOR LIGHTING                                       |
-|UNKNOWN |Anything else                                                              |
-
-**`parseNhtsaDate(raw: string | null | undefined): Date | null`**
-
-Parse NHTSA date strings which come in multiple formats:
-
-- `"01/15/2024"` → standard MM/DD/YYYY
-- `"/Date(1705276800000)/"` → .NET JSON date format (milliseconds since epoch)
-- `null` / `undefined` → return `null`
-- Anything else → attempt `new Date(raw)`, return `null` if invalid
-
-### Step 2.4: Ingestion Script (`src/scripts/ingest.ts`)
-
-Build a CLI script that orchestrates the full ingestion pipeline. This script must:
-
-**Accept CLI flags:**
-
-|Flag            |Description                                        |Default     |
-|----------------|---------------------------------------------------|------------|
-|`--makes-only`  |Sync makes from NHTSA and stop                     |false       |
-|`--recalls`     |Skip make sync, go straight to models + recalls    |false       |
-|`--make "Ford"` |Process only a single make (case-insensitive match)|all popular |
-|`--year-start N`|First year to fetch recalls for                    |2015        |
-|`--year-end N`  |Last year to fetch recalls for                     |current year|
-|`--all-makes`   |Include all 1,100+ NHTSA makes, not just popular   |false       |
-|`--limit N`     |Max number of makes to process (alphabetical)      |unlimited   |
-|`--dry-run`     |Sync makes + models but skip recall fetching       |false       |
-
-**Pipeline steps:**
-
-1. **Sync Makes** (skip if `--recalls`): Fetch all makes from vPIC, filter to popular (or all if `--all-makes`), upsert into `makes` table. Log the run to `ingestion_logs`.
-1. **Sync Models**: For each make in the database (filtered by `--make` or `--limit`), fetch models from vPIC and upsert into `models` table.
-1. **Fetch Recalls**: For each model, iterate from `yearStart` to `yearEnd`. For each year:
-- Call the Recalls API
-- If recalls exist, upsert a `VehicleYear` row
-- Upsert each recall into the `recalls` table
-- Auto-classify severity using `classifySeverity()`
-- Add a 300ms courtesy delay between years (on top of the rate limiter’s 500ms floor)
-
-**Error handling requirements:**
-
-- If a single year/model combination fails, log the error and continue to the next one. Do NOT abort the entire pipeline.
-- Wrap the entire pipeline in try/catch. On fatal error, log to `ingestion_logs` with status “failed” and the error message.
-- Always call `prisma.$disconnect()` in a `finally` block.
-
-**All database writes MUST be upserts** — the script must be safe to re-run multiple times without creating duplicate rows.
-
-**Print a summary at the end:**
-
-```
-═══════════════════════════════════
-  PIPELINE COMPLETE
-═══════════════════════════════════
-  Makes processed:   35
-  Models upserted:   1,247
-  Recalls upserted:  8,432
-  API requests:      12,884
-  Total time:        847.2s
-═══════════════════════════════════
-```
-
-### Step 2.5: Add npm scripts to `package.json`
-
-```json
-{
-  "scripts": {
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:studio": "prisma studio",
-    "ingest": "npx tsx src/scripts/ingest.ts",
-    "ingest:makes": "npx tsx src/scripts/ingest.ts --makes-only",
-    "ingest:single": "npx tsx src/scripts/ingest.ts --make",
-    "enrich": "npx tsx src/scripts/enrich.ts"
-  }
+```typescript
+interface IngestionParams {
+  mode: "full" | "makes-only" | "single-make";
+  targetMake?: string;        // For single-make mode
+  yearStart?: number;
+  yearEnd?: number;
+  allMakes?: boolean;         // Include non-popular makes
+  limitMakes?: number;        // Cap number of makes
+  dryRun?: boolean;           // Skip actual recall fetching
 }
 ```
 
-### Step 2.6: Verify Phase 2
+**Workflow steps (each is a `step.do()`):**
 
-Run:
+1. **`fetch-all-makes`** — Call vPIC API, return makes array. Retry config: 3 retries, exponential backoff from 2s, 60s timeout.
+1. **`filter-and-upsert-makes`** — Filter to popular/target, upsert into D1 `makes` table using `INSERT ... ON CONFLICT (slug) DO UPDATE`. Return filtered make list.
+1. **`fetch-models-{makeSlug}`** (one step PER make) — Call vPIC models API for this make. If make #12 fails, makes 1–11 are already persisted.
+1. **`upsert-models-{makeSlug}`** (one step PER make) — Upsert into D1 `models` table.
+1. **`recalls-{makeSlug}-batch-{n}`** — For each make, batch models into groups of 5. For each model in the batch, iterate years from `yearStart` to `yearEnd`:
+- Call the Recalls API
+- If recalls exist, upsert `vehicle_years` row
+- Upsert each recall with auto-classified severity
+- Add 300ms courtesy delay between years
+- If a single model-year fails, log error and continue (do NOT fail the batch)
+1. **`log-ingestion-run`** — Write to `ingestion_logs` table with final counts.
 
-```bash
-npm run ingest -- --make "Toyota" --year-start 2023 --year-end 2024
-npx prisma studio
+**All database writes MUST be upserts** — `INSERT ... ON CONFLICT ... DO UPDATE`. The workflow must be safe to re-run.
+
+**Step limit awareness**: Workers Paid allows 10,000 steps per Workflow. For 35 makes × ~40 models × 10 years, you need batching. Use `MODELS_PER_BATCH = 5` to keep step count manageable. If you need more, use smaller year ranges per run.
+
+### Step 2.5: Admin API to trigger ingestion
+
+In `src/routes/api.ts`, create:
+
+```
+POST /api/admin/ingest   — triggers IngestionWorkflow with params from request body
+GET  /api/admin/ingest/:id — returns workflow status
 ```
 
-Confirm that makes, models, vehicle_years, and recalls tables are populated. Confirm recall rows have `summaryRaw`, `consequenceRaw`, `remedyRaw` filled but `summaryEnriched`, etc. are NULL.
+Authenticate with `Authorization: Bearer {ADMIN_TOKEN}`.
+
+### Step 2.6: Cron trigger
+
+In the Worker’s `scheduled` handler, trigger ingestion on `0 2 * * 1` (Monday 2 AM UTC).
 
 -----
 
-## PHASE 3: LLM Enrichment Pipeline
+## PHASE 3: LLM Enrichment via Cloudflare Workflow
 
 ### Step 3.1: Enrichment Function (`src/lib/enrichment.ts`)
 
-Build a function that takes raw NHTSA recall text and returns human-readable versions via LLM.
+Takes raw NHTSA text, returns human-readable JSON via Claude Haiku.
 
-**System prompt** (use this EXACTLY — it has been prompt-engineered for optimal output):
+**System prompt** (use exactly):
 
 ```
 You are an expert, empathetic automotive mechanic explaining a vehicle recall to an average car owner. Your job is to translate this bureaucratic government recall notice into simple, urgent (but not panic-inducing) language.
@@ -538,310 +633,162 @@ Output ONLY valid JSON with exactly these three keys:
 Do not include any text outside the JSON object. No markdown, no code fences, no preamble.
 ```
 
-**User prompt template:**
+**Config**: Model `claude-3-5-haiku-20241022`, `max_tokens: 500`, `temperature: 0.3`.
 
-```
-Recall Component: {component}
+**Retry**: If JSON parsing fails, retry once with “respond in valid JSON only” appended. If still fails, return `null` (skip this recall).
 
-Original Summary: {summaryRaw}
+### Step 3.2: Enrichment Workflow (`src/workflows/enrichment-workflow.ts`)
 
-Original Consequence: {consequenceRaw}
-
-Original Remedy: {remedyRaw}
-```
-
-**LLM provider logic:**
-
-- Check for `ANTHROPIC_API_KEY` env var first → use Claude 3.5 Haiku (`claude-3-5-haiku-20241022`)
-- Else check for `OPENAI_API_KEY` → use GPT-4o-mini (`gpt-4o-mini`)
-- If neither is set, throw a clear error message
-
-**Response handling:**
-
-- Parse the JSON response from the LLM
-- Validate with Zod that all three keys (`summary`, `consequence`, `remedy`) are present and are non-empty strings
-- If parsing fails, retry once with an explicit “respond in valid JSON only” follow-up
-- If retry fails, log a warning and skip this recall (leave enriched fields NULL)
-
-**Cost controls:**
-
-- Set `max_tokens: 500` (these should be short responses)
-- Use temperature 0.3 (we want consistency, not creativity)
-
-The function signature:
+Parameters:
 
 ```typescript
-interface EnrichmentResult {
-  summary: string;
-  consequence: string;
-  remedy: string;
+interface EnrichmentParams {
+  batchSize?: number;        // Default: 50
+  targetMake?: string;
+  concurrency?: number;      // Default: 3
+  dryRun?: boolean;
 }
-
-export async function enrichRecall(recall: {
-  component: string;
-  summaryRaw: string;
-  consequenceRaw: string;
-  remedyRaw: string;
-}): Promise<EnrichmentResult | null>
 ```
 
-### Step 3.2: Enrichment Script (`src/scripts/enrich.ts`)
+**Steps:**
 
-Build a CLI script that processes unenriched recalls in batches.
+1. **`fetch-unenriched-batch-{offset}`** — Query recalls where `enriched_at IS NULL`, ordered by `created_at ASC`, `LIMIT batchSize`.
+1. **`enrich-batch-{n}-chunk-{m}`** — Process `concurrency` recalls in parallel with `Promise.allSettled`. For each:
+- Call `enrichRecall()` with the Anthropic API key
+- On success: UPDATE recall row with enriched text + set `enriched_at`
+- On failure: log warning, skip
+1. Repeat batches until no more unenriched recalls remain.
+1. **`log-enrichment-run`** — Write counts to `ingestion_logs`.
 
-**CLI flags:**
+### Step 3.3: Cron trigger
 
-|Flag             |Description                                    |Default|
-|-----------------|-----------------------------------------------|-------|
-|`--batch-size N` |Recalls to process per batch                   |50     |
-|`--make "Ford"`  |Only enrich recalls for a specific make        |all    |
-|`--concurrency N`|Parallel LLM calls (respect API rate limits)   |3      |
-|`--dry-run`      |Show what would be enriched without calling LLM|false  |
-
-**Logic:**
-
-1. Query recalls where `enrichedAt IS NULL`, ordered by `createdAt ASC`
-1. Process in batches of `--batch-size`
-1. For each recall in the batch, call `enrichRecall()`
-1. On success, update the recall row with enriched text + set `enrichedAt = now()`
-1. On failure, log warning and move to next recall
-1. Print progress every batch: `Enriched 50/8,432 recalls (0.6%)...`
-1. Print final summary with success/fail counts and estimated API cost
-
-**Rate limiting for LLM APIs:**
-
-- Anthropic: ~50 requests/minute on free tier, ~1000/minute on paid
-- OpenAI: ~500 requests/minute on Tier 1
-- Use a simple concurrency pool (`Promise.allSettled` with max N concurrent)
-- Add 200ms delay between individual calls as a safety buffer
-
-### Step 3.3: Verify Phase 3
-
-Run:
-
-```bash
-npm run enrich -- --make "Toyota" --batch-size 10
-npx prisma studio
-```
-
-Confirm recall rows now have `summaryEnriched`, `consequenceEnriched`, `remedyEnriched` populated and `enrichedAt` is set. Read the enriched text — it should be plain English, not government jargon.
+Trigger enrichment on `0 4 * * 1` (Monday 4 AM UTC, 2 hours after ingestion).
 
 -----
 
-## PHASE 4: Next.js Frontend
+## PHASE 4: Frontend — Hono SSR + KV Page Cache
 
-### Step 4.1: Root Layout (`src/app/layout.tsx`)
+### Design approach
 
-- Set default metadata: title “RecallRadar — Vehicle Recall Safety Database”, description targeting core SEO keywords
-- Use Inter font from `next/font/google`
-- Include a clean header with the site name and a search bar component
-- Include a footer with disclaimer: “RecallRadar is not affiliated with NHTSA. Data sourced from the National Highway Traffic Safety Administration public API.”
+Instead of a React framework, you render HTML strings server-side in Hono route handlers and cache the output in Workers KV. This gives you ISR-equivalent behavior:
 
-### Step 4.2: Homepage (`src/app/page.tsx`)
+- **Cache HIT**: ~0ms, served from the nearest Cloudflare edge node
+- **Cache MISS**: Render from D1 query, store in KV with TTL, return
+- **TTL expiry**: Next request triggers a fresh render
 
-- Hero section: “Is Your Car Safe?” headline, subtext about checking recalls
-- Search bar (client component) that autocompletes make → model → year
-- Grid of popular makes with their logos (or styled text cards) linking to `/[makeSlug]`
-- Stats section pulling live counts from DB: “X recalls tracked across Y vehicles from Z manufacturers”
-- ISR config: `revalidate = 86400` (refresh daily)
+### Step 4.1: KV Cache Helper (`src/lib/cache.ts`)
 
-### Step 4.3: Make Page (`src/app/[makeSlug]/page.tsx`)
-
-**Data fetching:**
+Build a `cachedPage()` function:
 
 ```typescript
-// Fetch make by slug, include all models with recall counts
-const make = await prisma.make.findUnique({
-  where: { slug: params.makeSlug },
-  include: {
-    models: {
-      include: {
-        vehicleYears: {
-          include: { _count: { select: { recalls: true } } }
-        }
-      },
-      orderBy: { name: "asc" }
-    }
-  }
-});
+async function cachedPage(
+  env: Env,
+  cacheKey: string,
+  options: { ttl: number },
+  render: () => Promise<string>
+): Promise<Response>
 ```
 
-**Page content:**
+- Check `env.PAGE_CACHE.get(cacheKey)`
+- If found, return with `X-Cache: HIT` header
+- If miss, call `render()`, `env.PAGE_CACHE.put(cacheKey, html, { expirationTtl })`, return with `X-Cache: MISS`
+- Set `Cache-Control: public, max-age={ttl}, stale-while-revalidate=3600`
 
-- Breadcrumb: Home > [Make]
-- H1: “[Make] Vehicle Recalls & Safety Issues”
-- Table or card grid of all models with their year ranges and total recall counts
-- Link each model to `/[makeSlug]/[modelSlug]`
-- ISR config: `revalidate = 86400`
+### Step 4.2: HTML Templates
 
-**`generateStaticParams`**: Query all makes and return their slugs for static generation.
+Build template functions that return HTML strings. Use Tailwind CSS classes. No React, no JSX — plain template literals.
 
-**`generateMetadata`**: Title = “[Make] Recalls — Complete Safety Database | RecallRadar”
+**Layout** (`src/templates/layout.ts`):
 
-### Step 4.4: Model Page (`src/app/[makeSlug]/[modelSlug]/page.tsx`)
+- HTML shell with `<head>` (charset, viewport, title, description, canonical, OG tags, JSON-LD injection slots, stylesheet link)
+- Sticky header with site name + search input
+- Main content area
+- Footer with NHTSA disclaimer
 
-**Data fetching:** Fetch model by slug + make slug. Include vehicle years with recall counts.
+**Component: Severity Badge** — Color-coded `<span>` with Tailwind classes:
 
-**Page content:**
+- CRITICAL: `bg-red-600 text-white` → “Critical Safety Issue”
+- HIGH: `bg-orange-500 text-white` → “High Priority”
+- MEDIUM: `bg-yellow-500 text-black` → “Moderate Concern”
+- LOW: `bg-slate-400 text-white` → “Minor Issue”
+- UNKNOWN: `bg-gray-300 text-gray-700` → “Under Review”
 
-- Breadcrumb: Home > [Make] > [Model]
-- H1: “[Make] [Model] Recalls by Year”
-- Grid of year cards, each showing: year, number of recalls, highest severity badge
-- Link each year to `/[makeSlug]/[modelSlug]/[year]`
+**Component: Recall Card** — Displays one recall with severity badge, campaign number, component, date, and enriched text (falling back to raw text with “Original NHTSA language” note).
 
-**`generateStaticParams`**: Query all models with their makes.
+**Component: Dealer Lead Gen** — Monetization placeholder: zip code input + “Find Nearby Dealers” CTA button. Visual distinction (blue background card). Non-functional for now.
 
-**`generateMetadata`**: Title = “[Make] [Model] Recalls — Safety Issues by Year | RecallRadar”
+### Step 4.3: Page Routes (`src/routes/pages.ts`)
 
-### Step 4.5: Vehicle Year Page — THE MONEY PAGE (`src/app/[makeSlug]/[modelSlug]/[year]/page.tsx`)
+Create a Hono router with these routes:
 
-This is the most important page. It targets the exact long-tail query people search: “2020 Toyota Camry recall”.
+**`GET /`** — Homepage
 
-**Data fetching:**
+- Hero: “Is Your Car Safe?”
+- Stats from D1: total recalls, vehicles, makes
+- Grid of all makes as clickable cards linking to `/{makeSlug}`
+- KV cache TTL: 86400 (24 hours)
 
-```typescript
-const vehicleYear = await prisma.vehicleYear.findFirst({
-  where: {
-    year: parseInt(params.year),
-    model: {
-      slug: params.modelSlug,
-      make: { slug: params.makeSlug }
-    }
-  },
-  include: {
-    model: { include: { make: true } },
-    recalls: { orderBy: { reportReceivedDate: "desc" } }
-  }
-});
+**`GET /:makeSlug`** — Make landing page
+
+- Breadcrumb: Home > {Make}
+- H1: “{Make} Vehicle Recalls & Safety Issues”
+- Grid of models with year ranges and recall counts
+- D1 query joins `makes`, `models`, `vehicle_years`, `recalls` for counts
+- KV cache TTL: 86400
+
+**`GET /:makeSlug/:modelSlug`** — Model landing page
+
+- Breadcrumb: Home > {Make} > {Model}
+- H1: “{Make} {Model} Recalls by Year”
+- Grid of year cards with recall counts and highest severity badge
+- KV cache TTL: 86400
+
+**`GET /:makeSlug/:modelSlug/:year`** — **THE MONEY PAGE**
+
+- Breadcrumb: Home > {Make} > {Model} > {Year}
+- H1: “{Year} {Make} {Model} Recalls”
+- Summary stats: total count, highest severity, date range
+- Dealer lead gen monetization block
+- All recall cards sorted by severity (CRITICAL first) then date
+- JSON-LD: FAQPage + BreadcrumbList schemas (see Phase 5)
+- KV cache TTL: 43200 (12 hours)
+
+**404 handling**: Return a styled “not found” page for unknown slugs.
+
+### Step 4.4: Static CSS
+
+Build Tailwind CSS at build time:
+
+```bash
+npx @tailwindcss/cli -i ./src/styles/input.css -o ./public/styles.css --minify
 ```
 
-**Page content (build each as a component):**
-
-1. **Breadcrumb**: Home > [Make] > [Model] > [Year]
-1. **H1**: “[Year] [Make] [Model] Recalls”
-1. **Summary stats bar**: Total recalls count, highest severity level, date range of recalls
-1. **Monetization Block** (`LocalDealerLeadGen` component):
-- Prominent card with: “Find a certified [Make] dealer near you to fix this for free”
-- Zip code input field (placeholder — does not need to be functional yet)
-- CTA button: “Find Nearby Dealers”
-- Style: slightly different background color to stand out, but not garish
-1. **Recall Cards** (one per recall, using `RecallCard` component):
-- **Severity Badge** (`SeverityBadge` component):
-  - CRITICAL → Red background, “Critical Safety Issue”
-  - HIGH → Orange background, “High Priority”
-  - MEDIUM → Yellow background, “Moderate Concern”
-  - LOW → Blue/gray background, “Minor Issue”
-  - UNKNOWN → Gray background, “Under Review”
-- **Campaign number** as subheading
-- **Component** name
-- **Date** reported
-- **Enriched text** (if available): summary, consequence, remedy as three labeled paragraphs
-- **Fallback to raw text** (if enrichment hasn’t run yet): show the raw NHTSA text in a slightly muted style with a note “Original NHTSA language”
-1. **JSON-LD structured data** (see Phase 5)
-
-**ISR config**: `revalidate = 43200` (refresh every 12 hours)
-
-**`generateStaticParams`**: Query all vehicle years with their model and make slugs.
-
-**`generateMetadata`** (see Phase 5 for full spec)
-
-### Step 4.6: Component Specifications
-
-**`SeverityBadge` (`src/components/severity-badge.tsx`)**
-
-Uses shadcn/ui `Badge` component. Map severity levels to Tailwind classes:
-
-```typescript
-const SEVERITY_CONFIG = {
-  CRITICAL: { label: "Critical Safety Issue", className: "bg-red-600 text-white" },
-  HIGH:     { label: "High Priority",         className: "bg-orange-500 text-white" },
-  MEDIUM:   { label: "Moderate Concern",      className: "bg-yellow-500 text-black" },
-  LOW:      { label: "Minor Issue",           className: "bg-slate-400 text-white" },
-  UNKNOWN:  { label: "Under Review",          className: "bg-gray-300 text-gray-700" },
-};
-```
-
-**`RecallCard` (`src/components/recall-card.tsx`)**
-
-A self-contained card component. Props:
-
-```typescript
-interface RecallCardProps {
-  nhtsaCampaignNumber: string;
-  component: string;
-  reportReceivedDate: Date | null;
-  severityLevel: SeverityLevel;
-  summaryEnriched: string | null;
-  consequenceEnriched: string | null;
-  remedyEnriched: string | null;
-  summaryRaw: string;
-  consequenceRaw: string;
-  remedyRaw: string;
-}
-```
-
-Use enriched text when available, fall back to raw. Show a subtle indicator for which is displayed.
-
-**`LocalDealerLeadGen` (`src/components/local-dealer-lead-gen.tsx`)**
-
-Props: `makeName: string`. This is a placeholder monetization block. Render a visually distinct card with the zip code input and CTA. The actual dealer lookup functionality is out of scope for now — this is a slot for future monetization.
-
-**`VehicleBreadcrumbs` (`src/components/vehicle-breadcrumbs.tsx`)**
-
-Render semantic breadcrumbs with `BreadcrumbList` JSON-LD schema markup. Props:
-
-```typescript
-interface BreadcrumbItem {
-  label: string;
-  href: string;
-}
-```
-
-### Step 4.7: Verify Phase 4
-
-Run `npm run dev` and navigate to:
-
-- `/` — homepage loads with make grid
-- `/toyota` — shows all Toyota models
-- `/toyota/camry` — shows Camry year cards
-- `/toyota/camry/2020` — shows recall cards with enriched or raw text
-
-Confirm all pages render correctly with no hydration errors.
+Serve `public/styles.css` from the Worker with `Cache-Control: public, max-age=31536000, immutable`.
 
 -----
 
 ## PHASE 5: Technical SEO
 
-### Step 5.1: Dynamic Metadata (`generateMetadata`)
+This is critical for the business model. Every page must be optimized for Google.
 
-For the vehicle year page (the money page), the metadata function must generate:
+### Step 5.1: Dynamic Metadata
 
-**Title tag**: `{Year} {Make} {Model} Recalls: {TopComponent} Issues Explained | RecallRadar`
+For the money page (`/:makeSlug/:modelSlug/:year`):
 
-Where `{TopComponent}` is the component from the most severe recall. If no recalls, use: `{Year} {Make} {Model} Recall & Safety Information | RecallRadar`
+**Title**: `{Year} {Make} {Model} Recalls: {TopComponent} Issues Explained | RecallRadar`
+Where `{TopComponent}` is the first colon/comma segment of the most severe recall’s component string.
 
-**Meta description**: `Check {count} known recalls for the {Year} {Make} {Model}. Get plain-English explanations of {TopComponent} issues and find out how to get free repairs at your local dealer.`
+**Description**: `Check {count} known recalls for the {Year} {Make} {Model}. Get plain-English explanations of {topComponent} issues and find out how to get free repairs at your local dealer.`
 
-**Open Graph tags**: og:title, og:description, og:type (“article”), og:url (canonical)
+**Canonical**: `https://recallradar.com/{makeSlug}/{modelSlug}/{year}`
 
-**Canonical URL**: Always set — `https://recallradar.com/{makeSlug}/{modelSlug}/{year}`
+**Open Graph**: og:title, og:description, og:type=“article”, og:url
 
-Example output for a page:
+### Step 5.2: JSON-LD Structured Data
 
-```html
-<title>2020 Toyota Camry Recalls: Fuel Pump Issues Explained | RecallRadar</title>
-<meta name="description" content="Check 3 known recalls for the 2020 Toyota Camry. Get plain-English explanations of fuel pump issues and find out how to get free repairs at your local dealer." />
-```
+Inject two JSON-LD schemas into every money page:
 
-### Step 5.2: JSON-LD Structured Data (`src/components/json-ld.tsx`)
-
-Create a component that injects JSON-LD into the page `<head>` via Next.js metadata API or a `<script type="application/ld+json">` tag.
-
-**For every vehicle year page, generate TWO schemas:**
-
-**Schema 1: FAQPage** (targets Google FAQ rich snippets)
-
-Map each recall into a Question/Answer pair:
+**FAQPage schema** (targets Google FAQ rich snippets):
 
 ```json
 {
@@ -850,7 +797,7 @@ Map each recall into a Question/Answer pair:
   "mainEntity": [
     {
       "@type": "Question",
-      "name": "What is the {Component} recall for the {Year} {Make} {Model}? (Campaign #{CampaignNumber})",
+      "name": "What is the {Component} recall for the {Year} {Make} {Model}? (Campaign #{Number})",
       "acceptedAnswer": {
         "@type": "Answer",
         "text": "{enrichedSummary} {enrichedConsequence} {enrichedRemedy}"
@@ -860,7 +807,7 @@ Map each recall into a Question/Answer pair:
 }
 ```
 
-**Schema 2: BreadcrumbList**
+**BreadcrumbList schema**:
 
 ```json
 {
@@ -869,224 +816,219 @@ Map each recall into a Question/Answer pair:
   "itemListElement": [
     { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://recallradar.com" },
     { "@type": "ListItem", "position": 2, "name": "{Make}", "item": "https://recallradar.com/{makeSlug}" },
-    { "@type": "ListItem", "position": 3, "name": "{Model}", "item": "https://recallradar.com/{makeSlug}/{modelSlug}" },
-    { "@type": "ListItem", "position": 4, "name": "{Year}", "item": "https://recallradar.com/{makeSlug}/{modelSlug}/{year}" }
+    { "@type": "ListItem", "position": 3, "name": "{Model}", "item": "..." },
+    { "@type": "ListItem", "position": 4, "name": "{Year}", "item": "..." }
   ]
 }
 ```
 
-### Step 5.3: Sitemap Generator (`src/app/sitemap.ts`)
+### Step 5.3: Sitemap (`GET /sitemap.xml`)
 
-Use Next.js built-in sitemap generation. This file must query the database and return ALL valid Make/Model/Year combinations.
+Query D1 for ALL makes, models, and vehicle years. Generate XML sitemap:
 
-```typescript
-import { MetadataRoute } from "next";
-import { prisma } from "@/lib/db";
+- Homepage: priority 1.0, changefreq daily
+- Makes: priority 0.8, changefreq weekly
+- Models: priority 0.7, changefreq weekly
+- Vehicle years (money pages): priority 0.9, changefreq weekly
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://recallradar.com";
+Cache the sitemap in KV for 24 hours.
 
-  // Static pages
-  const staticPages = [
-    { url: baseUrl, lastModified: new Date(), changeFrequency: "daily" as const, priority: 1.0 },
-  ];
+If URL count exceeds 50,000, implement sitemap index with split files.
 
-  // All makes
-  const makes = await prisma.make.findMany({ select: { slug: true, updatedAt: true } });
-  const makePages = makes.map((m) => ({
-    url: `${baseUrl}/${m.slug}`,
-    lastModified: m.updatedAt,
-    changeFrequency: "weekly" as const,
-    priority: 0.8,
-  }));
+### Step 5.4: Robots.txt (`GET /robots.txt`)
 
-  // All models
-  const models = await prisma.model.findMany({
-    select: { slug: true, updatedAt: true, make: { select: { slug: true } } },
-  });
-  const modelPages = models.map((m) => ({
-    url: `${baseUrl}/${m.make.slug}/${m.slug}`,
-    lastModified: m.updatedAt,
-    changeFrequency: "weekly" as const,
-    priority: 0.7,
-  }));
-
-  // All vehicle years (the money pages — highest volume)
-  const vehicleYears = await prisma.vehicleYear.findMany({
-    select: {
-      year: true,
-      updatedAt: true,
-      model: { select: { slug: true, make: { select: { slug: true } } } },
-    },
-  });
-  const yearPages = vehicleYears.map((vy) => ({
-    url: `${baseUrl}/${vy.model.make.slug}/${vy.model.slug}/${vy.year}`,
-    lastModified: vy.updatedAt,
-    changeFrequency: "weekly" as const,
-    priority: 0.9,
-  }));
-
-  return [...staticPages, ...makePages, ...modelPages, ...yearPages];
-}
 ```
+User-agent: *
+Allow: /
+Disallow: /api/
 
-**Important**: If the sitemap exceeds 50,000 URLs, you must split it into a sitemap index with multiple sitemap files. For now, start with a single sitemap and add the index pattern when data grows.
-
-### Step 5.4: Robots.txt (`src/app/robots.ts`)
-
-```typescript
-import { MetadataRoute } from "next";
-
-export default function robots(): MetadataRoute.Robots {
-  return {
-    rules: [
-      { userAgent: "*", allow: "/", disallow: ["/api/", "/scripts/"] },
-    ],
-    sitemap: "https://recallradar.com/sitemap.xml",
-  };
-}
+Sitemap: https://recallradar.com/sitemap.xml
 ```
-
-### Step 5.5: Verify Phase 5
-
-1. Run `npm run dev`
-1. Visit `/sitemap.xml` — confirm it lists all Make/Model/Year URLs
-1. Visit `/robots.txt` — confirm it references the sitemap
-1. View page source on a vehicle year page — confirm JSON-LD scripts are present and valid
-1. Check title tags in browser tab — confirm they match the pattern
-1. Validate JSON-LD at https://validator.schema.org/ or Google Rich Results Test
 
 -----
 
-## PHASE 6: Environment & Deployment Configuration
+## PHASE 6: Pipeline Agent (Admin + Monitoring)
 
-### Step 6.1: `.env.example`
+**Read first:**
 
-```env
-# PostgreSQL (Supabase or Vercel Postgres)
-DATABASE_URL="postgresql://user:password@host:5432/recall_radar?schema=public"
+- https://developers.cloudflare.com/agents/api-reference/agents-api/
+- https://developers.cloudflare.com/agents/api-reference/store-and-sync-state/
+- https://developers.cloudflare.com/agents/api-reference/schedule-tasks/
+- https://developers.cloudflare.com/agents/concepts/workflows/
 
-# LLM Enrichment (set ONE of these)
-ANTHROPIC_API_KEY="sk-ant-..."
-OPENAI_API_KEY="sk-..."
+### Step 6.1: Pipeline Agent (`src/agents/pipeline-agent.ts`)
 
-# Site URL (for sitemap, canonical URLs, OG tags)
-NEXT_PUBLIC_SITE_URL="https://recallradar.com"
-```
+Extend the `Agent` class from `agents` package. This Agent:
 
-### Step 6.2: `next.config.ts`
+1. **Has persistent state** via `this.setState()`:
+   
+   ```typescript
+   interface PipelineState {
+     lastIngestionRun: string | null;
+     lastEnrichmentRun: string | null;
+     activeWorkflows: Array<{ id: string; type: string; startedAt: string; status: string }>;
+   }
+   ```
+1. **Uses its built-in SQLite** (`this.sql`) for run history:
+   
+   ```sql
+   CREATE TABLE IF NOT EXISTS pipeline_runs (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     workflow_id TEXT NOT NULL,
+     type TEXT NOT NULL,
+     params TEXT,
+     status TEXT NOT NULL DEFAULT 'started',
+     result TEXT,
+     started_at TEXT NOT NULL,
+     completed_at TEXT
+   )
+   ```
+1. **Schedules recurring tasks** in `onStart()`:
+   
+   ```typescript
+   this.schedule("0 2 * * 1", "weekly-ingestion");
+   this.schedule("0 4 * * 1", "weekly-enrichment");
+   ```
+1. **Exposes callable methods** (RPC from admin UI or API):
+- `startIngestion(params)` — creates an IngestionWorkflow instance, logs to pipeline_runs
+- `startEnrichment(params)` — creates an EnrichmentWorkflow instance
+- `getRunHistory()` — queries pipeline_runs from the Agent’s SQLite
+- `getStats()` — queries D1 for aggregate counts (makes, models, recalls, enriched %)
+1. **Handles `onScheduledTask`** to trigger workflows on cron.
 
-```typescript
-import type { NextConfig } from "next";
+### Step 6.2: Wire agent into the Worker
 
-const nextConfig: NextConfig = {
-  // Enable ISR
-  experimental: {},
-  // Log build stats
-  logging: { fetches: { fullUrl: true } },
-};
-
-export default nextConfig;
-```
-
-### Step 6.3: Deployment Checklist
-
-When deploying to Vercel:
-
-1. Set all environment variables in Vercel dashboard
-1. The build command is `npx prisma generate && next build`
-1. Set `NEXT_PUBLIC_SITE_URL` to the production domain
-1. After first deploy, run `npm run ingest -- --make "Toyota"` as a test
-1. Then run full ingestion: `npm run ingest -- --year-start 2015`
-1. Then run enrichment: `npm run enrich -- --batch-size 50 --concurrency 3`
-1. Trigger a Vercel redeploy to regenerate static pages with data
+Export the Agent class from `src/index.ts` and ensure the Durable Object binding + migration is in `wrangler.jsonc`.
 
 -----
 
-## Testing & Validation Checklist
+## PHASE 7: Deployment & Verification
 
-After completing all phases, verify the following:
+### Step 7.1: Set secrets
 
-### Database Integrity
+```bash
+npx wrangler secret put ANTHROPIC_API_KEY
+npx wrangler secret put ADMIN_TOKEN
+```
 
-- [ ] `makes` table has ~35 popular makes with unique slugs
-- [ ] `models` table has models linked to correct makes
-- [ ] `vehicle_years` table only has entries where recalls exist
-- [ ] `recalls` table has unique campaign numbers, no duplicates
-- [ ] `recalls` rows with enriched text have `enrichedAt` timestamp set
-- [ ] Severity levels are auto-populated (no orphan UNKNOWN values for common components)
+### Step 7.2: Deploy
 
-### Ingestion Script
+```bash
+npx wrangler deploy
+```
 
-- [ ] `npm run ingest -- --makes-only` runs without error
-- [ ] `npm run ingest -- --make "Honda" --year-start 2023` fetches recalls
-- [ ] Running the same command twice does NOT create duplicate rows (upserts work)
-- [ ] Timeouts and 5xx errors trigger retries (test by temporarily setting timeout to 1ms)
-- [ ] `ingestion_logs` table captures each run
+### Step 7.3: Run initial ingestion
 
-### Enrichment
+```bash
+# Test with one make first
+curl -X POST https://recall-radar.YOUR_SUBDOMAIN.workers.dev/api/admin/ingest \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"single-make","make":"Toyota","yearStart":2023,"yearEnd":2024}'
 
-- [ ] `npm run enrich -- --batch-size 5 --dry-run` shows what would be enriched
-- [ ] `npm run enrich -- --batch-size 5` actually enriches 5 recalls
+# Check workflow status
+curl https://recall-radar.YOUR_SUBDOMAIN.workers.dev/api/admin/ingest/WORKFLOW_ID \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
+
+# Verify data
+npx wrangler d1 execute recall-radar-db --remote \
+  --command "SELECT COUNT(*) as cnt FROM recalls"
+```
+
+### Step 7.4: Run enrichment
+
+```bash
+curl -X POST https://recall-radar.YOUR_SUBDOMAIN.workers.dev/api/admin/enrich \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"batchSize":10,"concurrency":3}'
+```
+
+### Step 7.5: Verify pages
+
+Navigate in browser:
+
+- `/` — homepage with make grid and stats
+- `/toyota` — Toyota models with recall counts
+- `/toyota/camry` — Camry year cards
+- `/toyota/camry/2023` — recall cards with enriched text and severity badges
+- `/sitemap.xml` — all URLs listed
+- `/robots.txt` — sitemap referenced
+
+### Verification Checklist
+
+**Database:**
+
+- [ ] `makes` has ~35 popular makes with unique slugs
+- [ ] `models` linked to correct makes
+- [ ] `vehicle_years` only has entries where recalls exist
+- [ ] `recalls` has unique campaign numbers (no duplicates)
+- [ ] Severity levels are auto-populated for known components
+- [ ] Re-running ingestion creates NO duplicates (upserts work)
+
+**Workflows:**
+
+- [ ] Ingestion workflow completes for a single make
+- [ ] Failed NHTSA API calls trigger automatic step retry
+- [ ] Workflow status visible in Cloudflare dashboard
+- [ ] Enrichment workflow processes unenriched recalls
 - [ ] Enriched text is plain English, not government jargon
-- [ ] LLM JSON response is properly parsed (no markdown artifacts)
-- [ ] Failed enrichments are logged but don’t crash the script
 
-### Frontend
+**Frontend:**
 
-- [ ] Homepage renders with make grid and stats
-- [ ] `/toyota` shows all Toyota models with recall counts
-- [ ] `/toyota/camry/2020` shows recall cards with severity badges
-- [ ] Enriched text is displayed when available
-- [ ] Raw text fallback works when enriched text is NULL
-- [ ] Breadcrumbs render correctly on all page levels
-- [ ] No React hydration errors in console
-- [ ] LocalDealerLeadGen component renders on vehicle year pages
+- [ ] Homepage renders with make grid and live DB stats
+- [ ] Make, model, and year pages all render correctly
+- [ ] Enriched text shown when available, raw text fallback works
+- [ ] KV cache returns HIT on second request (`X-Cache` header)
+- [ ] No console errors
 
-### SEO
+**SEO:**
 
-- [ ] Title tags follow the specified pattern on all pages
-- [ ] Meta descriptions are unique per page and include recall counts
-- [ ] JSON-LD FAQPage schema is valid (test at validator.schema.org)
-- [ ] JSON-LD BreadcrumbList schema is present on all pages
+- [ ] Title tags match pattern on all page types
+- [ ] Meta descriptions unique per page with recall counts
+- [ ] JSON-LD FAQPage schema present on money pages
+- [ ] JSON-LD BreadcrumbList schema present on all pages
 - [ ] `/sitemap.xml` lists all Make/Model/Year URLs
-- [ ] `/robots.txt` references the sitemap
-- [ ] Canonical URLs are set on all pages
-- [ ] Open Graph tags are present
+- [ ] `/robots.txt` references sitemap
+- [ ] Canonical URLs set on all pages
+- [ ] Open Graph tags present
 
-### Performance
+**Performance:**
 
-- [ ] Vehicle year pages use ISR with 12-hour revalidation
-- [ ] Make and model pages use ISR with 24-hour revalidation
-- [ ] No N+1 query issues (use Prisma `include` for eager loading)
-- [ ] Pages render in under 200ms on first load
-
------
-
-## Error Recovery Procedures
-
-If something goes wrong during execution, here’s how to recover:
-
-**Prisma schema push fails**: Check `DATABASE_URL` is correct. Run `npx prisma db push --force-reset` to start fresh (WARNING: deletes all data).
-
-**Ingestion script crashes mid-run**: Safe to re-run. All writes are upserts. Check `ingestion_logs` for the failed run’s error message.
-
-**LLM enrichment produces garbage**: Set the specific recall’s `enrichedAt` back to NULL in Prisma Studio, then re-run enrichment. The script only processes rows where `enrichedAt IS NULL`.
-
-**Sitemap is too large**: Implement sitemap index pattern — split into `/sitemap-makes.xml`, `/sitemap-models.xml`, `/sitemap-years-1.xml`, etc. with a root `/sitemap.xml` index file.
-
-**NHTSA API is down**: The rate limiter retries 3 times with backoff. If still failing, wait and re-run. The script picks up where it left off due to upsert logic.
+- [ ] Cached pages return in <5ms (check `X-Cache: HIT`)
+- [ ] D1 queries use indexes (test with `EXPLAIN QUERY PLAN`)
+- [ ] No N+1 query patterns in page routes
 
 -----
 
-## Architecture Decision Records
+## ERROR RECOVERY
 
-**Why Prisma over Drizzle?** Prisma’s schema-first approach generates TypeScript types automatically. The introspection and Studio tooling make debugging easier. Drizzle is faster at runtime but the DX tradeoff isn’t worth it for this use case.
+|Problem            |Solution                                                                                                        |
+|-------------------|----------------------------------------------------------------------------------------------------------------|
+|D1 migration fails |Check SQL syntax — D1 is SQLite, not Postgres. No `SERIAL`, no `BOOLEAN`. Run `--local` first.                  |
+|Workflow stuck     |Check Cloudflare dashboard → Workers → Workflows. Terminate and restart. Completed steps won’t re-execute.      |
+|KV cache stale     |`npx wrangler kv key delete --binding PAGE_CACHE "page:/toyota/camry/2023"`                                     |
+|LLM returns garbage|Set `enriched_at = NULL` in D1 for that recall, re-run enrichment. It only processes `enriched_at IS NULL` rows.|
+|NHTSA API down     |Workflow steps auto-retry 3× with backoff. If all retries fail, step fails and workflow pauses. Resume later.   |
+|Sitemap too large  |Split into sitemap index: `/sitemap-makes.xml`, `/sitemap-years-{n}.xml`, root `/sitemap.xml` index.            |
+|Step limit exceeded|Reduce year range per workflow run, or increase `MODELS_PER_BATCH`. Workers Paid supports up to 25,000 steps.   |
 
-**Why ISR over SSG?** Pure SSG would require rebuilding all ~50,000+ pages on every deploy. ISR lets us serve stale-while-revalidate — pages load instantly from cache and refresh in the background. Best of both worlds.
+-----
 
-**Why upserts everywhere?** The NHTSA API doesn’t have a “changed since” filter. We must re-fetch everything and rely on the database to deduplicate. Upserts make the entire pipeline idempotent and crash-safe.
+## ARCHITECTURE DECISION RECORDS
 
-**Why severity auto-classification at ingest time?** Moving this to a LLM call would be wasteful — component names are structured enough for keyword matching. Save LLM budget for the text enrichment where it actually adds value.
+**Why D1 over PostgreSQL?** Zero provisioning, automatic read replicas at the edge, $0 at rest. SQLite is more than sufficient for this read-heavy workload. D1 eliminates cross-region database latency entirely.
 
-**Why separate raw + enriched columns?** We never want to lose the original government text. If the LLM produces a bad enrichment, we can always fall back. The raw text also serves as a trust signal for users who want to see the official language.
+**Why Drizzle over Prisma?** Prisma requires a binary engine that doesn’t run on Workers. Drizzle is pure TypeScript, has a native D1 adapter, and generates clean SQL.
+
+**Why Hono SSR + KV instead of Next.js?** Next.js on Workers requires complex setup (OpenNext adapter or similar). Hono is native to Workers with zero overhead. KV gives ISR-equivalent caching with sub-millisecond edge reads.
+
+**Why Workflows instead of CLI scripts?** Durable execution is free. Each step auto-retries, persists results, and survives infrastructure failures. No need to hand-roll retry logic, backoff, or crash recovery.
+
+**Why an Agent?** The Agent provides a stateful admin layer with built-in SQLite (for run history), scheduling (for recurring ingestion), and WebSocket support (for a future live dashboard). It’s the orchestration brain.
+
+**Why separate raw + enriched columns?** Never lose the original government text. If LLM enrichment produces bad output, fall back to raw. The raw text also serves as a trust signal for users who want official language.
+
+**Why severity auto-classification at ingest time?** Component names are structured enough for keyword matching. Saves LLM budget for text enrichment where it actually adds value.
+
+**Why upserts everywhere?** NHTSA has no “changed since” API. We re-fetch everything and deduplicate in the database. Upserts make the entire pipeline idempotent and crash-safe.
