@@ -227,7 +227,7 @@
           "columns": [
             "campaign_number"
           ],
-          "isUnique": true
+          "isUnique": false
         },
         "recalls_make_model_year_idx": {
           "name": "recalls_make_model_year_idx",

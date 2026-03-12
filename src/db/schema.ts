@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const makes = sqliteTable("makes", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -46,6 +46,6 @@ export const recalls = sqliteTable("recalls", {
   severity: text("severity").notNull(),
   enrichedAt: integer("enriched_at", { mode: "timestamp" })
 }, (t) => ({
-  recallCampaignIdx: uniqueIndex("recalls_campaign_idx").on(t.campaignNumber),
+  recallCampaignIdx: index("recalls_campaign_idx").on(t.campaignNumber),
   recallLookupIdx: uniqueIndex("recalls_make_model_year_idx").on(t.makeId, t.modelId, t.year, t.nhtsaId)
 }));

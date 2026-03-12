@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS vehicle_years (
 
 CREATE TABLE IF NOT EXISTS recalls (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  campaign_number TEXT NOT NULL UNIQUE,
+  campaign_number TEXT NOT NULL,
   nhtsa_id TEXT NOT NULL,
   make_id INTEGER NOT NULL,
   model_id INTEGER NOT NULL,
@@ -41,4 +41,5 @@ CREATE TABLE IF NOT EXISTS recalls (
   UNIQUE(make_id, model_id, year, nhtsa_id)
 );
 
+CREATE INDEX IF NOT EXISTS recalls_campaign_idx ON recalls(campaign_number);
 CREATE INDEX IF NOT EXISTS recalls_enrichment_idx ON recalls(enriched_at, year);
