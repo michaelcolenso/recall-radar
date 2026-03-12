@@ -43,7 +43,8 @@ export class IngestionWorkflow {
           for (const recall of recalls) {
             await env.DB.prepare(`INSERT INTO recalls (campaign_number, nhtsa_id, make_id, model_id, year, component, consequence, remedy, summary_raw, severity)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT(campaign_number) DO UPDATE SET consequence = excluded.consequence, remedy = excluded.remedy, summary_raw = excluded.summary_raw, severity = excluded.severity`)
+              ON CONFLICT(make_id, model_id, year, nhtsa_id) DO UPDATE SET campaign_number = excluded.campaign_number, component = excluded.component,
+                consequence = excluded.consequence, remedy = excluded.remedy, summary_raw = excluded.summary_raw, severity = excluded.severity`)
               .bind(
                 recall.NHTSACampaignNumber,
                 recall.NHTSAActionNumber,
