@@ -23,9 +23,10 @@ pageRoutes.get("/", async (c) => {
 
 pageRoutes.get("/make/:makeSlug", async (c) => {
   const { makeSlug } = c.req.param();
+  const make = await c.env.DB.prepare("SELECT id, name, slug FROM makes WHERE slug = ?").bind(makeSlug).first<{ id: number; name: string; slug: string }>();
+  if (!make) return c.html(layout("Not Found", "<p>Make not found.</p>"), 404);
+
   const html = await readThroughPageCache(c.env, `page:make:${makeSlug}`, 900, async () => {
-    const make = await c.env.DB.prepare("SELECT id, name, slug FROM makes WHERE slug = ?").bind(makeSlug).first<{ id: number; name: string; slug: string }>();
-    if (!make) return layout("Not Found", "<p>Make not found.</p>");
     const models = await c.env.DB.prepare("SELECT name, slug FROM models WHERE make_id = ? ORDER BY name").bind(make.id).all<{ name: string; slug: string }>();
     const body = breadcrumbs([{ href: "/", label: "Home" }, { href: c.req.path, label: make.name }]) + makePageTemplate(make.name, models.results);
     return layout(`${make.name} recalls`, body, pageJsonLd({ "@context": "https://schema.org", "@type": "CollectionPage", name: `${make.name} recalls` }));
