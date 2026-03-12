@@ -1,47 +1,24 @@
 {
   "name": "recall-radar",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev --webpack",
-    "build": "prisma generate && next build --webpack",
-    "start": "next start",
-    "lint": "eslint",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:studio": "prisma studio",
-    "ingest": "npx tsx src/scripts/ingest.ts",
-    "ingest:makes": "npx tsx src/scripts/ingest.ts --makes-only",
-    "ingest:single": "npx tsx src/scripts/ingest.ts --make",
-    "enrich": "npx tsx src/scripts/enrich.ts"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "wrangler d1 migrations apply recall_radar_db --local"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.78.0",
-    "@prisma/client": "^5.22.0",
-    "@radix-ui/react-separator": "^1.1.8",
-    "@radix-ui/react-slot": "^1.2.4",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "lucide-react": "^0.577.0",
-    "next": "16.1.6",
-    "openai": "^6.27.0",
-    "prisma": "^5.22.0",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "tailwind-merge": "^3.5.0",
-    "tailwindcss-animate": "^1.0.7",
-    "zod": "^4.3.6"
+    "drizzle-orm": "^0.44.6",
+    "hono": "^4.10.6",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "dotenv": "^17.3.1",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.6",
-    "tailwindcss": "^4",
-    "tsx": "^4.21.0",
-    "typescript": "^5"
+    "@cloudflare/workers-types": "^4.20260303.0",
+    "drizzle-kit": "^0.31.4",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.39.0"
   }
 }
