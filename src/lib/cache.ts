@@ -1,9 +1,13 @@
-import type { Env } from "../env";
+export async function getCachedOrRender(
+  kv: KVNamespace,
+  cacheKey: string,
+  ttlSeconds: number,
+  renderFn: () => Promise<string>
+): Promise<string> {
+  const cached = await kv.get(cacheKey);
+  if (cached) return cached;
 
-export async function readThroughPageCache(env: Env, key: string, ttl: number, render: () => Promise<string>): Promise<string> {
-  const hit = await env.PAGE_CACHE.get(key);
-  if (hit) return hit;
-  const html = await render();
-  await env.PAGE_CACHE.put(key, html, { expirationTtl: ttl });
+  const html = await renderFn();
+  await kv.put(cacheKey, html, { expirationTtl: ttlSeconds });
   return html;
 }

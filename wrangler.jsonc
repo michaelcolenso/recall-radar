@@ -2,32 +2,78 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "recall-radar",
   "main": "src/index.ts",
-  "compatibility_date": "2026-03-12",
-  "workflows": [
-    { "name": "ingestion", "binding": "INGESTION_WORKFLOW", "class_name": "IngestionWorkflow" },
-    { "name": "enrichment", "binding": "ENRICHMENT_WORKFLOW", "class_name": "EnrichmentWorkflow" }
-  ],
-  "durable_objects": {
-    "bindings": [
-      { "name": "PIPELINE_AGENT", "class_name": "PipelineAgent" }
-    ]
-  },
-  "kv_namespaces": [
-    { "binding": "PAGE_CACHE", "id": "local-page-cache", "preview_id": "local-page-cache" }
-  ],
+  "compatibility_date": "2025-03-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // D1 Database
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "recall_radar_db",
-      "database_id": "local-recall-radar-db"
+      "database_name": "recall-radar-db",
+      "database_id": "<your-database-id>"
     }
   ],
-  "vars": {
-    "ADMIN_TOKEN": "change-me",
-    "WORKERS_AI_MODEL_PRIMARY": "@cf/openai/gpt-oss-120b",
-    "WORKERS_AI_MODEL_FALLBACK": "@cf/openai/gpt-oss-20b"
+
+  // Workers KV (page cache)
+  "kv_namespaces": [
+    {
+      "binding": "PAGE_CACHE",
+      "id": "<your-kv-namespace-id>",
+      "preview_id": "<your-kv-namespace-preview-id>"
+    }
+  ],
+
+  // Workers AI
+  "ai": {
+    "binding": "AI"
   },
+
+  // Workflows
+  "workflows": [
+    {
+      "name": "ingestion-workflow",
+      "binding": "INGESTION_WORKFLOW",
+      "class_name": "IngestionWorkflow"
+    },
+    {
+      "name": "enrichment-workflow",
+      "binding": "ENRICHMENT_WORKFLOW",
+      "class_name": "EnrichmentWorkflow"
+    }
+  ],
+
+  // Agent (Durable Object)
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PIPELINE_AGENT",
+        "class_name": "PipelineAgent"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["PipelineAgent"]
+    }
+  ],
+
+  // Cron Triggers
   "triggers": {
-    "crons": ["0 2 * * 1", "0 4 * * 1"]
+    "crons": [
+      "0 2 * * 1",
+      "0 4 * * 1"
+    ]
+  },
+
+  // Static assets
+  "assets": {
+    "directory": "./public"
+  },
+
+  // Environment variables
+  "vars": {
+    "SITE_URL": "https://recallradar.com",
+    "ENVIRONMENT": "production"
   }
 }
