@@ -10,7 +10,7 @@
     {
       "binding": "DB",
       "database_name": "recall-radar-db",
-      "database_id": "<your-database-id>"
+      "database_id": "00000000-0000-0000-0000-000000000001"
     }
   ],
 
@@ -18,8 +18,8 @@
   "kv_namespaces": [
     {
       "binding": "PAGE_CACHE",
-      "id": "<your-kv-namespace-id>",
-      "preview_id": "<your-kv-namespace-preview-id>"
+      "id": "00000000000000000000000000000001",
+      "preview_id": "00000000000000000000000000000002"
     }
   ],
 
