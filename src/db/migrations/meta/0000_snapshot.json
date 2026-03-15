@@ -1,9 +1,93 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5927d8a4-70da-4759-8fbd-f5d9663f9954",
+  "id": "ecff8fe3-6e3b-49d8-880f-f7fd848a89d5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
+    "ingestion_logs": {
+      "name": "ingestion_logs",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "run_type": {
+          "name": "run_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_make": {
+          "name": "target_make",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "records_found": {
+          "name": "records_found",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 0
+        },
+        "records_saved": {
+          "name": "records_saved",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 0
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_logs_type_status": {
+          "name": "idx_logs_type_status",
+          "columns": [
+            "run_type",
+            "status"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "makes": {
       "name": "makes",
       "columns": {
@@ -13,13 +97,6 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": true
-        },
-        "nhtsa_make_id": {
-          "name": "nhtsa_make_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
         },
         "name": {
           "name": "name",
@@ -35,28 +112,56 @@
           "notNull": true,
           "autoincrement": false
         },
-        "created_at": {
-          "name": "created_at",
+        "nhtsa_id": {
+          "name": "nhtsa_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {
-        "makes_slug_idx": {
-          "name": "makes_slug_idx",
+        "makes_name_unique": {
+          "name": "makes_name_unique",
+          "columns": [
+            "name"
+          ],
+          "isUnique": true
+        },
+        "makes_slug_unique": {
+          "name": "makes_slug_unique",
           "columns": [
             "slug"
           ],
           "isUnique": true
         },
-        "makes_nhtsa_idx": {
-          "name": "makes_nhtsa_idx",
+        "makes_nhtsa_id_unique": {
+          "name": "makes_nhtsa_id_unique",
           "columns": [
-            "nhtsa_make_id"
+            "nhtsa_id"
           ],
           "isUnique": true
+        },
+        "idx_makes_slug": {
+          "name": "idx_makes_slug",
+          "columns": [
+            "slug"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {},
@@ -81,13 +186,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "nhtsa_model_id": {
-          "name": "nhtsa_model_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "name": {
           "name": "name",
           "type": "text",
@@ -101,27 +199,61 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {
-        "models_make_slug_idx": {
-          "name": "models_make_slug_idx",
+        "idx_models_make_slug": {
+          "name": "idx_models_make_slug",
           "columns": [
             "make_id",
             "slug"
           ],
           "isUnique": true
         },
-        "models_make_nhtsa_idx": {
-          "name": "models_make_nhtsa_idx",
+        "idx_models_make_id": {
+          "name": "idx_models_make_id",
           "columns": [
-            "make_id",
-            "nhtsa_model_id"
+            "make_id"
           ],
-          "isUnique": true
+          "isUnique": false
+        },
+        "idx_models_slug": {
+          "name": "idx_models_slug",
+          "columns": [
+            "slug"
+          ],
+          "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "models_make_id_makes_id_fk": {
+          "name": "models_make_id_makes_id_fk",
+          "tableFrom": "models",
+          "tableTo": "makes",
+          "columnsFrom": [
+            "make_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -136,39 +268,25 @@
           "notNull": true,
           "autoincrement": true
         },
-        "campaign_number": {
-          "name": "campaign_number",
+        "vehicle_year_id": {
+          "name": "vehicle_year_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nhtsa_campaign_number": {
+          "name": "nhtsa_campaign_number",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "nhtsa_id": {
-          "name": "nhtsa_id",
+        "report_received_date": {
+          "name": "report_received_date",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "make_id": {
-          "name": "make_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "model_id": {
-          "name": "model_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "year": {
-          "name": "year",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "component": {
@@ -178,22 +296,29 @@
           "notNull": true,
           "autoincrement": false
         },
-        "consequence": {
-          "name": "consequence",
+        "manufacturer": {
+          "name": "manufacturer",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "remedy": {
-          "name": "remedy",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "summary_raw": {
           "name": "summary_raw",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "consequence_raw": {
+          "name": "consequence_raw",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "remedy_raw": {
+          "name": "remedy_raw",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -206,41 +331,102 @@
           "notNull": false,
           "autoincrement": false
         },
-        "severity": {
-          "name": "severity",
+        "consequence_enriched": {
+          "name": "consequence_enriched",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "remedy_enriched": {
+          "name": "remedy_enriched",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "enriched_at": {
+          "name": "enriched_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "severity_level": {
+          "name": "severity_level",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'UNKNOWN'"
+        },
+        "created_at": {
+          "name": "created_at",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "enriched_at": {
-          "name": "enriched_at",
-          "type": "integer",
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         }
       },
       "indexes": {
-        "recalls_campaign_idx": {
-          "name": "recalls_campaign_idx",
+        "recalls_nhtsa_campaign_number_unique": {
+          "name": "recalls_nhtsa_campaign_number_unique",
           "columns": [
-            "campaign_number"
+            "nhtsa_campaign_number"
+          ],
+          "isUnique": true
+        },
+        "idx_recalls_vy_id": {
+          "name": "idx_recalls_vy_id",
+          "columns": [
+            "vehicle_year_id"
           ],
           "isUnique": false
         },
-        "recalls_make_model_year_idx": {
-          "name": "recalls_make_model_year_idx",
+        "idx_recalls_campaign": {
+          "name": "idx_recalls_campaign",
           "columns": [
-            "make_id",
-            "model_id",
-            "year",
-            "nhtsa_id"
+            "nhtsa_campaign_number"
           ],
-          "isUnique": true
+          "isUnique": false
+        },
+        "idx_recalls_component": {
+          "name": "idx_recalls_component",
+          "columns": [
+            "component"
+          ],
+          "isUnique": false
+        },
+        "idx_recalls_severity": {
+          "name": "idx_recalls_severity",
+          "columns": [
+            "severity_level"
+          ],
+          "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "recalls_vehicle_year_id_vehicle_years_id_fk": {
+          "name": "recalls_vehicle_year_id_vehicle_years_id_fk",
+          "tableFrom": "recalls",
+          "tableTo": "vehicle_years",
+          "columnsFrom": [
+            "vehicle_year_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -255,13 +441,6 @@
           "notNull": true,
           "autoincrement": true
         },
-        "make_id": {
-          "name": "make_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "model_id": {
           "name": "model_id",
           "type": "integer",
@@ -275,20 +454,61 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {
-        "vehicle_years_unique_idx": {
-          "name": "vehicle_years_unique_idx",
+        "idx_vy_model_year": {
+          "name": "idx_vy_model_year",
           "columns": [
-            "make_id",
             "model_id",
             "year"
           ],
           "isUnique": true
+        },
+        "idx_vy_model_id": {
+          "name": "idx_vy_model_id",
+          "columns": [
+            "model_id"
+          ],
+          "isUnique": false
+        },
+        "idx_vy_year": {
+          "name": "idx_vy_year",
+          "columns": [
+            "year"
+          ],
+          "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "vehicle_years_model_id_models_id_fk": {
+          "name": "vehicle_years_model_id_models_id_fk",
+          "tableFrom": "vehicle_years",
+          "tableTo": "models",
+          "columnsFrom": [
+            "model_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

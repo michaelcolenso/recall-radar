@@ -1,3 +1,10 @@
-export const POPULAR_MAKES = ["Toyota", "Honda", "Ford", "Chevrolet", "Nissan", "BMW"];
-export const DEFAULT_YEAR_START = 2012;
-export const DEFAULT_YEAR_END = new Date().getFullYear();
+export const POPULAR_MAKES = [
+  "ACURA", "AUDI", "BMW", "BUICK", "CADILLAC", "CHEVROLET", "CHRYSLER",
+  "DODGE", "FORD", "GMC", "HONDA", "HYUNDAI", "INFINITI", "JEEP",
+  "KIA", "LAND ROVER", "LEXUS", "LINCOLN", "MAZDA", "MERCEDES-BENZ",
+  "MINI", "MITSUBISHI", "NISSAN", "PORSCHE", "RAM", "SUBARU",
+  "TESLA", "TOYOTA", "VOLKSWAGEN", "VOLVO",
+] as const;
+
+export const DEFAULT_YEAR_START = 2015;
+export const DEFAULT_YEAR_END = new Date().getFullYear() + 1;

@@ -8,9 +8,14 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "wrangler d1 migrations apply recall_radar_db --local"
+    "db:migrate:local": "wrangler d1 migrations apply recall-radar-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply recall-radar-db --remote",
+    "db:studio": "drizzle-kit studio",
+    "cf-typegen": "wrangler types"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "agents": "^0.7.6",
     "drizzle-orm": "^0.44.6",
     "hono": "^4.10.6",
     "zod": "^4.1.11"

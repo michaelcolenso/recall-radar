@@ -7,4 +7,4 @@ a:hover { text-decoration:underline; }
 .badge { border-radius:999px; padding:4px 10px; font-size:12px; font-weight:700; }
 .badge-high { background:#fee2e2; color:#991b1b; }
 .badge-medium { background:#ffedd5; color:#9a3412; }
-.badge-low { background:#dcfce7; color:#166534; }
+/* Compiled Tailwind CSS — replace with static build for production */
