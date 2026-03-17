@@ -19,22 +19,6 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
     activeWorkflows: [],
   };
 
-  async onStart() {
-    // Initialize built-in SQLite for run history
-    this.sql`
-      CREATE TABLE IF NOT EXISTS pipeline_runs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        workflow_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        params TEXT,
-        status TEXT NOT NULL DEFAULT 'started',
-        result TEXT,
-        started_at TEXT NOT NULL,
-        completed_at TEXT
-      )
-    `;
-  }
-
   async triggerIngestion(params: { mode?: string; targetMake?: string; yearStart?: number; yearEnd?: number } = {}) {
     const run = await this.env.INGESTION_WORKFLOW.create({ params });
     const now = new Date().toISOString();
@@ -108,7 +92,27 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
     };
   }
 
+  private _tableReady = false;
+
+  private ensureTable() {
+    if (this._tableReady) return;
+    this.sql`
+      CREATE TABLE IF NOT EXISTS pipeline_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        workflow_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        params TEXT,
+        status TEXT NOT NULL DEFAULT 'started',
+        result TEXT,
+        started_at TEXT NOT NULL,
+        completed_at TEXT
+      )
+    `;
+    this._tableReady = true;
+  }
+
   async fetch(request: Request): Promise<Response> {
+    this.ensureTable();
     const url = new URL(request.url);
 
     if (url.pathname === "/health") {
