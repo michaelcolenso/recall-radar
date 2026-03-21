@@ -15,10 +15,10 @@ export class EnrichmentWorkflow extends WorkflowEntrypoint<Env, EnrichmentParams
     const targetMake = event.payload.targetMake;
     const startedAt = new Date().toISOString();
     let totalEnriched = 0;
-    let offset = 0;
+    let batchNumber = 0;
 
     while (true) {
-      const rows = await step.do(`fetch-unenriched-batch-${offset}`, async () => {
+      const rows = await step.do(`fetch-unenriched-batch-${batchNumber}`, async () => {
         let query: string;
         let params: unknown[];
 
@@ -52,7 +52,7 @@ export class EnrichmentWorkflow extends WorkflowEntrypoint<Env, EnrichmentParams
 
       for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
         const chunk = chunks[chunkIdx];
-        const chunkEnriched = await step.do(`enrich-batch-${offset}-chunk-${chunkIdx}`, async () => {
+        const chunkEnriched = await step.do(`enrich-batch-${batchNumber}-chunk-${chunkIdx}`, async () => {
           const results = await Promise.allSettled(
             chunk.map(async (row) => {
               const enriched = await enrichRecall(
@@ -82,7 +82,7 @@ export class EnrichmentWorkflow extends WorkflowEntrypoint<Env, EnrichmentParams
       }
 
       if (rows.length < batchSize) break;
-      offset += batchSize;
+      batchNumber += 1;
     }
 
     // Log enrichment run
