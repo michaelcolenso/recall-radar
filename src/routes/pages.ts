@@ -110,7 +110,19 @@ pageRoutes.get("/:makeSlug/:modelSlug", async (c) => {
     const years = await c.env.DB.prepare(
       `SELECT vy.year,
               COUNT(r.id) as recall_count,
-              MAX(r.severity_level) as highest_severity
+              CASE MIN(CASE r.severity_level
+                WHEN 'CRITICAL' THEN 1
+                WHEN 'HIGH' THEN 2
+                WHEN 'MEDIUM' THEN 3
+                WHEN 'LOW' THEN 4
+                ELSE 5
+              END)
+                WHEN 1 THEN 'CRITICAL'
+                WHEN 2 THEN 'HIGH'
+                WHEN 3 THEN 'MEDIUM'
+                WHEN 4 THEN 'LOW'
+                ELSE NULL
+              END as highest_severity
        FROM vehicle_years vy
        LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
        WHERE vy.model_id = ?
