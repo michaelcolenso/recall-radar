@@ -1,11 +1,14 @@
 import type { SeverityLevel } from "../../db/schema";
 
-const SEVERITY_CONFIG: Record<SeverityLevel, { label: string; bg: string; text: string }> = {
-  CRITICAL: { label: "Critical Safety Issue", bg: "bg-red-600", text: "text-white" },
+const SEVERITY_CONFIG: Record<
+  SeverityLevel,
+  { label: string; bg: string; text: string }
+> = {
+  CRITICAL: { label: "Critical Safety Issue", bg: "bg-red-600",    text: "text-white" },
   HIGH:     { label: "High Priority",         bg: "bg-orange-500", text: "text-white" },
   MEDIUM:   { label: "Moderate Concern",      bg: "bg-yellow-500", text: "text-black" },
-  LOW:      { label: "Minor Issue",           bg: "bg-slate-400", text: "text-white" },
-  UNKNOWN:  { label: "Under Review",          bg: "bg-gray-300", text: "text-gray-700" },
+  LOW:      { label: "Minor Issue",           bg: "bg-slate-400",  text: "text-white" },
+  UNKNOWN:  { label: "Under Review",          bg: "bg-gray-300",   text: "text-gray-700" },
 };
 
 export function severityBadge(severity: SeverityLevel): string {

@@ -6,12 +6,19 @@ interface Stats {
   makes: number;
 }
 
-export function homeTemplate(makes: Array<{ slug: string; name: string }>, stats: Stats): string {
-  const makeGrid = makes.map((m) => `
+export function homeTemplate(
+  makes: Array<{ slug: string; name: string }>,
+  stats: Stats
+): string {
+  const makeGrid = makes
+    .map(
+      (m) => `
     <a href="/${m.slug}" class="block bg-white border border-slate-200 rounded-xl px-4 py-3 font-medium text-slate-800 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition text-center">
       ${escapeHtml(m.name)}
     </a>
-  `).join("");
+  `
+    )
+    .join("");
 
   return `
     <section class="text-center py-12">

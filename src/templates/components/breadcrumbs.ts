@@ -1,6 +1,8 @@
 import { escapeHtml } from "../../lib/utils";
 
-export function breadcrumbs(items: Array<{ href: string; label: string }>): string {
+export function breadcrumbs(
+  items: Array<{ href: string; label: string }>
+): string {
   const parts = items.map((item, i) => {
     const isLast = i === items.length - 1;
     if (isLast) {

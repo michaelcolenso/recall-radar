@@ -8,10 +8,19 @@ interface LayoutOptions {
   jsonLd?: string;
 }
 
-export function layout({ title, description, canonical, body, jsonLd = "" }: LayoutOptions): string {
+export function layout({
+  title,
+  description,
+  canonical,
+  body,
+  jsonLd = "",
+}: LayoutOptions): string {
   const escapedTitle = escapeHtml(title);
   const escapedDesc = description ? escapeHtml(description) : "";
-  const now = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const now = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 
   return `<!doctype html>
 <html lang="en">
@@ -31,7 +40,7 @@ export function layout({ title, description, canonical, body, jsonLd = "" }: Lay
 <body class="bg-slate-50 text-slate-900 min-h-screen">
   <nav class="bg-white border-b border-slate-200 px-4 py-3">
     <div class="max-w-5xl mx-auto flex items-center justify-between">
-      <a href="/" class="text-xl font-bold text-blue-700 hover:text-blue-900">🚗 RecallRadar</a>
+      <a href="/" class="text-xl font-bold text-blue-700 hover:text-blue-900">RecallRadar</a>
       <a href="/sitemap.xml" class="text-sm text-slate-500 hover:text-slate-700">Sitemap</a>
     </div>
   </nav>

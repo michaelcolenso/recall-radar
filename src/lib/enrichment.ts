@@ -38,7 +38,10 @@ function parseEnrichmentJson(text: string): EnrichmentResult | null {
   }
 }
 
-async function tryAnthropicEnrichment(env: Env, userMessage: string): Promise<EnrichmentResult | null> {
+async function tryAnthropicEnrichment(
+  env: Env,
+  userMessage: string
+): Promise<EnrichmentResult | null> {
   try {
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
     const message = await client.messages.create({
@@ -48,7 +51,8 @@ async function tryAnthropicEnrichment(env: Env, userMessage: string): Promise<En
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userMessage }],
     });
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
+    const text =
+      message.content[0].type === "text" ? message.content[0].text : "";
     const result = parseEnrichmentJson(text);
     if (result) return result;
     // Retry once with explicit JSON reminder
@@ -63,35 +67,45 @@ async function tryAnthropicEnrichment(env: Env, userMessage: string): Promise<En
         { role: "user", content: "Please respond in valid JSON only." },
       ],
     });
-    const retryText = retry.content[0].type === "text" ? retry.content[0].text : "";
+    const retryText =
+      retry.content[0].type === "text" ? retry.content[0].text : "";
     return parseEnrichmentJson(retryText);
   } catch {
     return null;
   }
 }
 
-async function tryWorkersAiEnrichment(env: Env, userMessage: string): Promise<EnrichmentResult | null> {
+async function tryWorkersAiEnrichment(
+  env: Env,
+  userMessage: string
+): Promise<EnrichmentResult | null> {
   try {
-    const result = await (env.AI as any).run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userMessage },
-      ],
-      max_tokens: 500,
-    });
+    const result = await (env.AI as any).run(
+      "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      {
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userMessage },
+        ],
+        max_tokens: 500,
+      }
+    );
     const text = (result as { response?: string }).response ?? "";
     const parsed = parseEnrichmentJson(text);
     if (parsed) return parsed;
-    // Retry
-    const retry = await (env.AI as any).run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userMessage },
-        { role: "assistant", content: text },
-        { role: "user", content: "Please respond in valid JSON only." },
-      ],
-      max_tokens: 500,
-    });
+    // Retry once
+    const retry = await (env.AI as any).run(
+      "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      {
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userMessage },
+          { role: "assistant", content: text },
+          { role: "user", content: "Please respond in valid JSON only." },
+        ],
+        max_tokens: 500,
+      }
+    );
     const retryText = (retry as { response?: string }).response ?? "";
     return parseEnrichmentJson(retryText);
   } catch {

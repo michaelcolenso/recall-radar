@@ -9,9 +9,9 @@ import { EnrichmentWorkflow } from "./workflows/enrichment-workflow";
 
 const app = new Hono<{ Bindings: Env }>();
 
-app.route("/", pageRoutes);
 app.route("/", seoRoutes);
 app.route("/api", apiRoutes);
+app.route("/", pageRoutes);
 
 export default {
   fetch: app.fetch,

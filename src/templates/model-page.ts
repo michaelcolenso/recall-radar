@@ -8,14 +8,24 @@ interface YearRow {
   highest_severity: SeverityLevel | null;
 }
 
-export function modelPageTemplate(makeName: string, makeSlug: string, modelName: string, modelSlug: string, years: YearRow[]): string {
-  const cards = years.map((y) => `
+export function modelPageTemplate(
+  makeName: string,
+  makeSlug: string,
+  modelName: string,
+  modelSlug: string,
+  years: YearRow[]
+): string {
+  const cards = years
+    .map(
+      (y) => `
     <a href="/${makeSlug}/${modelSlug}/${y.year}" class="block bg-white border border-slate-200 rounded-xl p-4 hover:border-blue-300 hover:bg-blue-50 transition">
       <div class="text-2xl font-bold text-slate-800">${y.year}</div>
       ${y.highest_severity ? `<div class="mt-2">${severityBadge(y.highest_severity)}</div>` : ""}
       <div class="text-sm text-slate-500 mt-2">${y.recall_count} recall${y.recall_count !== 1 ? "s" : ""}</div>
     </a>
-  `).join("");
+  `
+    )
+    .join("");
 
   return `
     <section class="mb-8">

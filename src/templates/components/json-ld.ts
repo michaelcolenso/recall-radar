@@ -37,7 +37,10 @@ interface BreadcrumbItem {
   item: string;
 }
 
-export function breadcrumbListJsonLd(siteUrl: string, items: BreadcrumbItem[]): string {
+export function breadcrumbListJsonLd(
+  siteUrl: string,
+  items: BreadcrumbItem[]
+): string {
   const schema = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -51,7 +54,3 @@ export function breadcrumbListJsonLd(siteUrl: string, items: BreadcrumbItem[]): 
 
   return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
 }
-
-// Legacy export for backwards compatibility
-export const pageJsonLd = (payload: Record<string, unknown>): string =>
-  `<script type="application/ld+json">${JSON.stringify(payload)}</script>`;

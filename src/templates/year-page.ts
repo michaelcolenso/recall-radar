@@ -12,7 +12,15 @@ interface YearPageOptions {
   leadGen: string;
 }
 
-export function yearPageTemplate({ make, model, year, recallCount, topSeverity, cards, leadGen }: YearPageOptions): string {
+export function yearPageTemplate({
+  make,
+  model,
+  year,
+  recallCount,
+  topSeverity,
+  cards,
+  leadGen,
+}: YearPageOptions): string {
   return `
     <section class="mb-8">
       <h1 class="text-3xl font-bold text-slate-900 mb-4">${escapeHtml(year)} ${escapeHtml(make)} ${escapeHtml(model)} Recalls</h1>

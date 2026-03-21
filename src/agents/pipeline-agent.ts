@@ -35,7 +35,14 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
     `;
   }
 
-  async triggerIngestion(params: { mode?: string; targetMake?: string; yearStart?: number; yearEnd?: number } = {}) {
+  async triggerIngestion(
+    params: {
+      mode?: string;
+      targetMake?: string;
+      yearStart?: number;
+      yearEnd?: number;
+    } = {}
+  ) {
     const run = await this.env.INGESTION_WORKFLOW.create({ params });
     const now = new Date().toISOString();
 
@@ -56,7 +63,13 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
     return { workflowId: run.id, startedAt: now };
   }
 
-  async triggerEnrichment(params: { batchSize?: number; targetMake?: string; concurrency?: number } = {}) {
+  async triggerEnrichment(
+    params: {
+      batchSize?: number;
+      targetMake?: string;
+      concurrency?: number;
+    } = {}
+  ) {
     const run = await this.env.ENRICHMENT_WORKFLOW.create({ params });
     const now = new Date().toISOString();
 
@@ -88,13 +101,24 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
   }
 
   async getStats() {
-    const [makesRow, modelsRow, yearsRow, recallsRow, enrichedRow] = await Promise.all([
-      this.env.DB.prepare("SELECT COUNT(*) as count FROM makes").first<{ count: number }>(),
-      this.env.DB.prepare("SELECT COUNT(*) as count FROM models").first<{ count: number }>(),
-      this.env.DB.prepare("SELECT COUNT(*) as count FROM vehicle_years").first<{ count: number }>(),
-      this.env.DB.prepare("SELECT COUNT(*) as count FROM recalls").first<{ count: number }>(),
-      this.env.DB.prepare("SELECT COUNT(*) as count FROM recalls WHERE enriched_at IS NOT NULL").first<{ count: number }>(),
-    ]);
+    const [makesRow, modelsRow, yearsRow, recallsRow, enrichedRow] =
+      await Promise.all([
+        this.env.DB.prepare("SELECT COUNT(*) as count FROM makes").first<{
+          count: number;
+        }>(),
+        this.env.DB.prepare("SELECT COUNT(*) as count FROM models").first<{
+          count: number;
+        }>(),
+        this.env.DB.prepare(
+          "SELECT COUNT(*) as count FROM vehicle_years"
+        ).first<{ count: number }>(),
+        this.env.DB.prepare("SELECT COUNT(*) as count FROM recalls").first<{
+          count: number;
+        }>(),
+        this.env.DB.prepare(
+          "SELECT COUNT(*) as count FROM recalls WHERE enriched_at IS NOT NULL"
+        ).first<{ count: number }>(),
+      ]);
 
     const totalRecalls = recallsRow?.count ?? 0;
     const enrichedRecalls = enrichedRow?.count ?? 0;
@@ -104,7 +128,10 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
       models: modelsRow?.count ?? 0,
       vehicleYears: yearsRow?.count ?? 0,
       recalls: totalRecalls,
-      enrichmentCoverage: totalRecalls > 0 ? Math.round((enrichedRecalls / totalRecalls) * 100) : 0,
+      enrichmentCoverage:
+        totalRecalls > 0
+          ? Math.round((enrichedRecalls / totalRecalls) * 100)
+          : 0,
     };
   }
 
@@ -124,12 +151,16 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
     }
 
     if (url.pathname === "/trigger/ingestion" && request.method === "POST") {
-      const params = await request.json<Parameters<typeof this.triggerIngestion>[0]>().catch(() => ({}));
+      const params = await request
+        .json<Parameters<typeof this.triggerIngestion>[0]>()
+        .catch(() => ({}));
       return Response.json(await this.triggerIngestion(params));
     }
 
     if (url.pathname === "/trigger/enrichment" && request.method === "POST") {
-      const params = await request.json<Parameters<typeof this.triggerEnrichment>[0]>().catch(() => ({}));
+      const params = await request
+        .json<Parameters<typeof this.triggerEnrichment>[0]>()
+        .catch(() => ({}));
       return Response.json(await this.triggerEnrichment(params));
     }
 

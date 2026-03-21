@@ -8,17 +8,24 @@ interface ModelRow {
   recall_count: number;
 }
 
-export function makePageTemplate(makeName: string, makeSlug: string, models: ModelRow[]): string {
-  const cards = models.map((m) => {
-    const yearRange = m.min_year && m.max_year ? `${m.min_year}–${m.max_year}` : "";
-    return `
+export function makePageTemplate(
+  makeName: string,
+  makeSlug: string,
+  models: ModelRow[]
+): string {
+  const cards = models
+    .map((m) => {
+      const yearRange =
+        m.min_year && m.max_year ? `${m.min_year}–${m.max_year}` : "";
+      return `
       <a href="/${makeSlug}/${m.slug}" class="block bg-white border border-slate-200 rounded-xl p-4 hover:border-blue-300 hover:bg-blue-50 transition">
         <div class="font-semibold text-slate-800">${escapeHtml(m.name)}</div>
         ${yearRange ? `<div class="text-sm text-slate-500 mt-1">${yearRange}</div>` : ""}
         ${m.recall_count > 0 ? `<div class="text-sm text-red-600 mt-1 font-medium">${m.recall_count} recall${m.recall_count !== 1 ? "s" : ""}</div>` : ""}
       </a>
     `;
-  }).join("");
+    })
+    .join("");
 
   return `
     <section class="mb-8">
