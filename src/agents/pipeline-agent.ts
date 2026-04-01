@@ -19,8 +19,8 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
     activeWorkflows: [],
   };
 
-  async onStart() {
-    // Initialize built-in SQLite for run history
+  private async ensureTable() {
+    // Use the Agent's storage SQL method
     this.sql`
       CREATE TABLE IF NOT EXISTS pipeline_runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +35,13 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
     `;
   }
 
+  async onStart() {
+    await this.ensureTable();
+  }
+
   async triggerIngestion(params: { mode?: string; targetMake?: string; yearStart?: number; yearEnd?: number } = {}) {
+    await this.ensureTable();
+    
     const run = await this.env.INGESTION_WORKFLOW.create({ params });
     const now = new Date().toISOString();
 
@@ -57,6 +63,8 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
   }
 
   async triggerEnrichment(params: { batchSize?: number; targetMake?: string; concurrency?: number } = {}) {
+    await this.ensureTable();
+    
     const run = await this.env.ENRICHMENT_WORKFLOW.create({ params });
     const now = new Date().toISOString();
 
@@ -78,6 +86,7 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
   }
 
   async getStatus() {
+    await this.ensureTable();
     const runs = this.sql`
       SELECT * FROM pipeline_runs ORDER BY started_at DESC LIMIT 10
     `;

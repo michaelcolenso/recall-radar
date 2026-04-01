@@ -10,7 +10,8 @@
     {
       "binding": "DB",
       "database_name": "recall-radar-db",
-      "database_id": "<your-database-id>"
+      "database_id": "<your-database-id>",
+      "migrations_dir": "src/db/migrations"
     }
   ],
 
