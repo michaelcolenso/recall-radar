@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "./env";
 import { pageRoutes } from "./routes/pages";
 import { apiRoutes } from "./routes/api";
+import { adminRoutes } from "./routes/admin";
 import { seoRoutes } from "./routes/seo";
 import { PipelineAgent } from "./agents/pipeline-agent";
 import { IngestionWorkflow } from "./workflows/ingestion-workflow";
@@ -10,6 +11,7 @@ import { EnrichmentWorkflow } from "./workflows/enrichment-workflow";
 const app = new Hono<{ Bindings: Env }>();
 
 app.route("/api", apiRoutes);
+app.route("/", adminRoutes);
 app.route("/", pageRoutes);
 app.route("/", seoRoutes);
 
