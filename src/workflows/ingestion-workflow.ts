@@ -30,6 +30,7 @@ interface StaleRow {
 }
 
 const MODELS_PER_BATCH = 5;
+const NHTSA_RATE_LIMIT_MS = 300;
 
 export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> {
   async run(event: WorkflowEvent<IngestionParams>, step: WorkflowStep) {
@@ -126,6 +127,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
           const batchErrors: string[] = [];
           for (const row of batch) {
             try {
+              await new Promise((r) => setTimeout(r, NHTSA_RATE_LIMIT_MS));
               const recalls = await fetchRecallsForVehicle(row.make_name, row.model_name, row.year);
               const now = new Date().toISOString();
 
@@ -240,6 +242,15 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
           for (const model of batch) {
             for (let year = startYear; year <= endYear; year++) {
               try {
+                // Backfill skips year/model combos already stamped to avoid redundant API calls
+                if (mode === "backfill") {
+                  const existing = await this.env.DB.prepare(
+                    "SELECT last_ingested_at FROM vehicle_years WHERE model_id = ? AND year = ?"
+                  ).bind(model.modelId, year).first<{ last_ingested_at: string | null }>();
+                  if (existing?.last_ingested_at) continue;
+                }
+
+                await new Promise((r) => setTimeout(r, NHTSA_RATE_LIMIT_MS));
                 const recalls = await fetchRecallsForVehicle(make.Make_Name, model.modelName, year);
                 const now = new Date().toISOString();
 
