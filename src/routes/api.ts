@@ -1,7 +1,16 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import type { Env } from "../env";
 
 export const apiRoutes = new Hono<{ Bindings: Env }>();
+
+const IngestRequestSchema = z.object({
+  mode: z.enum(["full", "makes-only", "single-make", "delta", "backfill"]).default("full"),
+  targetMake: z.string().optional(),
+  yearStart: z.number().int().optional(),
+  yearEnd: z.number().int().optional(),
+  deltaThresholdHours: z.number().int().optional(),
+});
 
 function requireAuth(c: { req: { header: (k: string) => string | undefined }; text: (t: string, s: number) => Response }, token: string): Response | null {
   const auth = c.req.header("Authorization");
@@ -16,12 +25,8 @@ apiRoutes.post("/admin/ingest", async (c) => {
   const denied = requireAuth(c, c.env.ADMIN_TOKEN);
   if (denied) return denied;
 
-  const body = await c.req.json<{
-    mode?: "full" | "makes-only" | "single-make";
-    targetMake?: string;
-    yearStart?: number;
-    yearEnd?: number;
-  }>().catch(() => ({}));
+  const rawBody = await c.req.json().catch(() => ({}));
+  const body = IngestRequestSchema.parse(rawBody);
 
   // Route through PipelineAgent
   const agentId = c.env.PIPELINE_AGENT.idFromName("singleton");
