@@ -180,8 +180,10 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
           }
           return { count, errors: batchErrors };
         });
-        totalRecordsSaved += result.count;
-        allErrors.push(...result.errors);
+        totalRecordsSaved += result.count ?? 0;
+        if (Array.isArray(result.errors)) {
+          allErrors.push(...result.errors);
+        }
       }
 
       const finalStatus = allErrors.length > 0 ? "completed-with-errors" : "completed";
@@ -305,8 +307,10 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
           }
           return { count, errors: batchErrors };
         });
-        totalRecordsSaved += result.count;
-        allErrors.push(...result.errors);
+        totalRecordsSaved += result.count ?? 0;
+        if (Array.isArray(result.errors)) {
+          allErrors.push(...result.errors);
+        }
       }
     }
 
