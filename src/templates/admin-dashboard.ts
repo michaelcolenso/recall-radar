@@ -57,7 +57,9 @@ export function adminDashboard(): string {
         <div>
           <label class="block text-xs text-slate-400 mb-1">Mode</label>
           <select name="mode" class="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
-            <option value="full">full — all popular makes</option>
+            <option value="backfill">backfill — full history 2015→present</option>
+            <option value="delta">delta — only stale records</option>
+            <option value="full">full — all popular makes (recent years)</option>
             <option value="single-make">single-make</option>
             <option value="makes-only">makes-only</option>
           </select>
@@ -69,12 +71,16 @@ export function adminDashboard(): string {
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs text-slate-400 mb-1">Year Start</label>
-            <input name="yearStart" type="number" placeholder="2022" class="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"/>
+            <input name="yearStart" type="number" placeholder="2015" class="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"/>
           </div>
           <div>
             <label class="block text-xs text-slate-400 mb-1">Year End</label>
-            <input name="yearEnd" type="number" placeholder="2025" class="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"/>
+            <input name="yearEnd" type="number" placeholder="2026" class="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"/>
           </div>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Delta Threshold <span class="text-slate-500">(hours, for delta mode — default 144)</span></label>
+          <input name="deltaThresholdHours" type="number" placeholder="144" class="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"/>
         </div>
         <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white rounded px-4 py-2 text-sm font-medium transition-colors">
           Run Ingestion
@@ -216,6 +222,7 @@ export function adminDashboard(): string {
     if (fd.get('targetMake')) body.targetMake = fd.get('targetMake');
     if (fd.get('yearStart')) body.yearStart = parseInt(fd.get('yearStart'));
     if (fd.get('yearEnd')) body.yearEnd = parseInt(fd.get('yearEnd'));
+    if (fd.get('deltaThresholdHours')) body.deltaThresholdHours = parseInt(fd.get('deltaThresholdHours'));
     showResult('ingest', null, 'running');
     try {
       const r = await fetch('/api/admin/ingest', { method: 'POST', headers: headers(), body: JSON.stringify(body) });
@@ -280,7 +287,7 @@ export function adminDashboard(): string {
   }
 
   function statusBadge(s) {
-    const map = { started: 'bg-yellow-900 text-yellow-300', completed: 'bg-emerald-900 text-emerald-300', failed: 'bg-red-900 text-red-300' };
+    const map = { started: 'bg-yellow-900 text-yellow-300', completed: 'bg-emerald-900 text-emerald-300', 'completed-with-errors': 'bg-orange-900 text-orange-300', failed: 'bg-red-900 text-red-300' };
     const cls = map[s] || 'bg-slate-700 text-slate-300';
     return \`<span class="px-2 py-0.5 rounded text-xs font-medium \${cls}">\${escHtml(s || '—')}</span>\`;
   }

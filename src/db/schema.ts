@@ -33,10 +33,12 @@ export const vehicleYears = sqliteTable("vehicle_years", {
   year: integer("year").notNull(),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+  lastIngestedAt: text("last_ingested_at"),
 }, (table) => [
   uniqueIndex("idx_vy_model_year").on(table.modelId, table.year),
   index("idx_vy_model_id").on(table.modelId),
   index("idx_vy_year").on(table.year),
+  index("idx_vy_last_ingested").on(table.lastIngestedAt),
 ]);
 
 // ─── RECALLS ────────────────────────────────────────────────────
