@@ -20,16 +20,17 @@ export function yearPageTemplate({ make, model, year, recallCount, topSeverity, 
         <span class="rr-meta-bar__count">${recallCount} recall${recallCount !== 1 ? "s" : ""}</span>
         ${recallCount > 0 ? `
           <span class="rr-meta-bar__notice">
-            Highest severity: ${severityBadge(topSeverity)}
+            <span>Highest severity:</span>
+            ${severityBadge(topSeverity)}
           </span>
         ` : ""}
       </div>
       ${recallCount > 0 ? `
-        <p class="rr-body">All recalls are free to repair at your local dealership. Contact your dealer to schedule service.</p>
+        <p class="rr-section-header__body">All recalls are free to repair at your local dealership. Contact your dealer to schedule service.</p>
       ` : ""}
     </section>
 
-    <section class="space-y-4">
+    <section class="rr-readout-list">
       ${cards}
     </section>
 

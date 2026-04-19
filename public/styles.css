@@ -336,9 +336,19 @@ img {
 
 /* ── Hero ── */
 .rr-hero {
-  padding: var(--space-12) 0 var(--space-10);
-  border-bottom: 1px solid var(--border-subtle);
-  margin-bottom: var(--space-10);
+  padding: var(--space-16) 0 var(--space-12);
+  margin-bottom: var(--space-12);
+  position: relative;
+}
+
+.rr-hero::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 80px;
+  height: 3px;
+  background: var(--accent-primary);
 }
 
 .rr-hero__title {
@@ -348,14 +358,14 @@ img {
   line-height: 1.05;
   letter-spacing: -0.02em;
   color: var(--text-primary);
-  max-width: 640px;
+  max-width: 720px;
 }
 
 .rr-hero__subtitle {
   font-size: var(--text-lg);
   color: var(--text-secondary);
-  max-width: 520px;
-  margin-top: var(--space-4);
+  max-width: 600px;
+  margin-top: var(--space-5);
   line-height: 1.6;
 }
 
@@ -363,16 +373,25 @@ img {
 .rr-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--border-default);
-  border: 1px solid var(--border-default);
-  margin-bottom: var(--space-10);
+  gap: var(--space-4);
+  margin-bottom: var(--space-16);
 }
 
 .rr-stats__item {
   background: var(--bg-surface);
+  border: 1px solid var(--border-default);
   padding: var(--space-6) var(--space-5);
-  text-align: center;
+  position: relative;
+}
+
+.rr-stats__item::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: var(--space-5);
+  right: var(--space-5);
+  height: 2px;
+  background: var(--border-strong);
 }
 
 .rr-stats__value {
@@ -390,7 +409,7 @@ img {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-tertiary);
-  margin-top: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 /* ── Grid Systems ── */
@@ -566,6 +585,13 @@ img {
   background: var(--unknown-border);
 }
 
+/* ── Readout List ── */
+.rr-readout-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
 /* ── Recall Card (Technical Readout) ── */
 .rr-readout {
   background: var(--bg-surface-raised);
@@ -656,8 +682,7 @@ img {
 .rr-readout__fix {
   background: var(--fix-bg);
   border-left: 3px solid var(--fix-border);
-  padding: var(--space-4) var(--space-5);
-  margin-top: var(--space-4);
+  padding: var(--space-5) var(--space-5);
 }
 
 .rr-readout__fix-label {
@@ -678,8 +703,8 @@ img {
 
 /* ── Section Header ── */
 .rr-section-header {
-  margin-bottom: var(--space-6);
-  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-5);
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -688,12 +713,21 @@ img {
   font-weight: 700;
   font-size: var(--text-2xl);
   color: var(--text-primary);
+  line-height: 1.2;
 }
 
 .rr-section-header__subtitle {
   font-size: var(--text-base);
   color: var(--text-secondary);
-  margin-top: var(--space-1);
+  margin-top: var(--space-2);
+  max-width: 560px;
+}
+
+.rr-section-header__body {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin-top: var(--space-4);
+  max-width: 560px;
 }
 
 /* ── Meta Bar ── */
@@ -702,7 +736,9 @@ img {
   align-items: center;
   gap: var(--space-4);
   flex-wrap: wrap;
-  margin-bottom: var(--space-5);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .rr-meta-bar__count {
@@ -711,13 +747,16 @@ img {
   font-weight: 600;
   color: var(--text-secondary);
   background: var(--bg-inset);
-  padding: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-default);
 }
 
 .rr-meta-bar__notice {
   font-size: var(--text-sm);
   color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 /* ── Empty State ── */
