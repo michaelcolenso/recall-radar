@@ -26,7 +26,11 @@ apiRoutes.post("/admin/ingest", async (c) => {
   if (denied) return denied;
 
   const rawBody = await c.req.json().catch(() => ({}));
-  const body = IngestRequestSchema.parse(rawBody);
+  const parseResult = IngestRequestSchema.safeParse(rawBody);
+  if (!parseResult.success) {
+    return c.json({ error: parseResult.error.flatten() }, 400);
+  }
+  const body = parseResult.data;
 
   // Route through PipelineAgent
   const agentId = c.env.PIPELINE_AGENT.idFromName("singleton");
@@ -98,6 +102,17 @@ apiRoutes.get("/admin/status", async (c) => {
   const agentId = c.env.PIPELINE_AGENT.idFromName("singleton");
   const agent = c.env.PIPELINE_AGENT.get(agentId);
   const resp = await agent.fetch(new Request("https://internal/status"));
+  return c.json(await resp.json());
+});
+
+// GET /api/admin/backfill-status — progress of the historical backfill
+apiRoutes.get("/admin/backfill-status", async (c) => {
+  const denied = requireAuth(c, c.env.ADMIN_TOKEN);
+  if (denied) return denied;
+
+  const agentId = c.env.PIPELINE_AGENT.idFromName("singleton");
+  const agent = c.env.PIPELINE_AGENT.get(agentId);
+  const resp = await agent.fetch(new Request("https://internal/backfill-status"));
   return c.json(await resp.json());
 });
 

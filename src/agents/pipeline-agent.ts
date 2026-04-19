@@ -96,6 +96,25 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
     };
   }
 
+  async getBackfillStatus() {
+    const [totalRow, ingestedRow, recallsRow] = await Promise.all([
+      this.env.DB.prepare("SELECT COUNT(*) as count FROM vehicle_years").first<{ count: number }>(),
+      this.env.DB.prepare("SELECT COUNT(*) as count FROM vehicle_years WHERE last_ingested_at IS NOT NULL").first<{ count: number }>(),
+      this.env.DB.prepare("SELECT COUNT(*) as count FROM recalls").first<{ count: number }>(),
+    ]);
+    const total = totalRow?.count ?? 0;
+    const ingested = ingestedRow?.count ?? 0;
+    const remaining = total - ingested;
+    return {
+      totalVehicleYears: total,
+      ingestedVehicleYears: ingested,
+      remainingVehicleYears: remaining,
+      recalls: recallsRow?.count ?? 0,
+      progressPct: total > 0 ? Math.round((ingested / total) * 100) : 0,
+      complete: remaining === 0 && total > 0,
+    };
+  }
+
   async getStats() {
     const [makesRow, modelsRow, yearsRow, recallsRow, enrichedRow] = await Promise.all([
       this.env.DB.prepare("SELECT COUNT(*) as count FROM makes").first<{ count: number }>(),
@@ -130,6 +149,10 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
 
     if (url.pathname === "/stats") {
       return Response.json(await this.getStats());
+    }
+
+    if (url.pathname === "/backfill-status") {
+      return Response.json(await this.getBackfillStatus());
     }
 
     if (url.pathname === "/trigger/ingestion" && request.method === "POST") {
