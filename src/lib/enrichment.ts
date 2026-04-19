@@ -70,9 +70,9 @@ async function tryAnthropicEnrichment(env: Env, userMessage: string): Promise<En
   }
 }
 
-async function tryWorkersAiEnrichment(env: Env, userMessage: string): Promise<EnrichmentResult | null> {
+async function tryWorkersAiEnrichment(env: Env, userMessage: string, model: string): Promise<EnrichmentResult | null> {
   try {
-    const result = await (env.AI as any).run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+    const result = await (env.AI as any).run(model, {
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userMessage },
@@ -83,7 +83,7 @@ async function tryWorkersAiEnrichment(env: Env, userMessage: string): Promise<En
     const parsed = parseEnrichmentJson(text);
     if (parsed) return parsed;
     // Retry
-    const retry = await (env.AI as any).run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+    const retry = await (env.AI as any).run(model, {
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userMessage },
@@ -114,12 +114,18 @@ Consequence: ${consequenceRaw}
 
 Remedy: ${remedyRaw}`;
 
-  // Try Anthropic first
+  // Try Workers AI first (primary)
+  const primaryResult = await tryWorkersAiEnrichment(env, userMessage, "@cf/google/gemma-4-26b-a4b-it");
+  if (primaryResult) return primaryResult;
+
+  // Fallback to another Cloudflare model
+  const fallbackResult = await tryWorkersAiEnrichment(env, userMessage, "@cf/meta/llama-4-scout-17b-16e-instruct");
+  if (fallbackResult) return fallbackResult;
+
+  // Last resort: Anthropic
   if (env.ANTHROPIC_API_KEY) {
-    const result = await tryAnthropicEnrichment(env, userMessage);
-    if (result) return result;
+    return tryAnthropicEnrichment(env, userMessage);
   }
 
-  // Fallback to Workers AI
-  return tryWorkersAiEnrichment(env, userMessage);
+  return null;
 }

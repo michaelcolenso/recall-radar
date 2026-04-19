@@ -10,7 +10,7 @@
     {
       "binding": "DB",
       "database_name": "recall-radar-db",
-      "database_id": "<your-database-id>",
+      "database_id": "50e8f7c5-9f14-4155-853d-41a0efd2729f",
       "migrations_dir": "src/db/migrations"
     }
   ],
@@ -19,8 +19,8 @@
   "kv_namespaces": [
     {
       "binding": "PAGE_CACHE",
-      "id": "<your-kv-namespace-id>",
-      "preview_id": "<your-kv-namespace-preview-id>"
+      "id": "c2b64a89032840cab4f14711115517d4",
+      "preview_id": "aff3dd5971b04e73a379eff1f7948140"
     }
   ],
 
