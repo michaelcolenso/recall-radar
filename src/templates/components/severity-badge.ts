@@ -1,14 +1,23 @@
 import type { SeverityLevel } from "../../db/schema";
 
-const SEVERITY_CONFIG: Record<SeverityLevel, { label: string; bg: string; text: string }> = {
-  CRITICAL: { label: "Critical Safety Issue", bg: "bg-red-600", text: "text-white" },
-  HIGH:     { label: "High Priority",         bg: "bg-orange-500", text: "text-white" },
-  MEDIUM:   { label: "Moderate Concern",      bg: "bg-yellow-500", text: "text-black" },
-  LOW:      { label: "Minor Issue",           bg: "bg-slate-400", text: "text-white" },
-  UNKNOWN:  { label: "Under Review",          bg: "bg-gray-300", text: "text-gray-700" },
+const SEVERITY_CLASS: Record<SeverityLevel, string> = {
+  CRITICAL: "rr-severity--critical",
+  HIGH: "rr-severity--high",
+  MEDIUM: "rr-severity--medium",
+  LOW: "rr-severity--low",
+  UNKNOWN: "rr-severity--unknown",
+};
+
+const SEVERITY_LABEL: Record<SeverityLevel, string> = {
+  CRITICAL: "Critical",
+  HIGH: "High Priority",
+  MEDIUM: "Moderate",
+  LOW: "Low Priority",
+  UNKNOWN: "Under Review",
 };
 
 export function severityBadge(severity: SeverityLevel): string {
-  const config = SEVERITY_CONFIG[severity] ?? SEVERITY_CONFIG.UNKNOWN;
-  return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${config.bg} ${config.text}">${config.label}</span>`;
+  const cls = SEVERITY_CLASS[severity] ?? SEVERITY_CLASS.UNKNOWN;
+  const label = SEVERITY_LABEL[severity] ?? SEVERITY_LABEL.UNKNOWN;
+  return `<span class="rr-severity ${cls}">${label}</span>`;
 }

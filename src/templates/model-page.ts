@@ -10,22 +10,21 @@ interface YearRow {
 
 export function modelPageTemplate(makeName: string, makeSlug: string, modelName: string, modelSlug: string, years: YearRow[]): string {
   const cards = years.map((y) => `
-    <a href="/${makeSlug}/${modelSlug}/${y.year}" class="block bg-white border border-slate-200 rounded-xl p-4 hover:border-blue-300 hover:bg-blue-50 transition">
-      <div class="text-2xl font-bold text-slate-800">${y.year}</div>
+    <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year">
+      <div class="rr-card__title">${y.year}</div>
       ${y.highest_severity ? `<div class="mt-2">${severityBadge(y.highest_severity)}</div>` : ""}
-      <div class="text-sm text-slate-500 mt-2">${y.recall_count} recall${y.recall_count !== 1 ? "s" : ""}</div>
+      <div class="rr-card__meta">${y.recall_count} recall${y.recall_count !== 1 ? "s" : ""}</div>
     </a>
   `).join("");
 
   return `
-    <section class="mb-8">
-      <h1 class="text-3xl font-bold text-slate-900 mb-2">${escapeHtml(makeName)} ${escapeHtml(modelName)} Recalls by Year</h1>
-      <p class="text-slate-600">Select a model year to see all safety recalls and issues.</p>
+    <section class="rr-section-header">
+      <h1 class="rr-section-header__title">${escapeHtml(makeName)} ${escapeHtml(modelName)} Recalls by Year</h1>
+      <p class="rr-section-header__subtitle">Select a model year to see all safety recalls and issues.</p>
     </section>
     <section>
-      <h2 class="text-xl font-semibold text-slate-700 mb-4">Model Years</h2>
-      <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-        ${cards || "<p class='text-slate-500'>No vehicle years found.</p>"}
+      <div class="rr-grid rr-grid--years">
+        ${cards || "<p class='rr-body'>No vehicle years found.</p>"}
       </div>
     </section>
   `;

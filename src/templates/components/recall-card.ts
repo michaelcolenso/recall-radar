@@ -22,40 +22,43 @@ export function recallCard(recall: RecallView): string {
   const summary = recall.summary_enriched ?? recall.summary_raw;
   const consequence = recall.consequence_enriched ?? recall.consequence_raw;
   const remedy = recall.remedy_enriched ?? recall.remedy_raw;
+
   const indicator = isEnriched
-    ? `<span class="text-xs text-green-600 font-medium">(Simplified)</span>`
-    : `<span class="text-xs text-slate-400">(Original NHTSA language)</span>`;
+    ? `<span class="rr-readout__indicator rr-readout__indicator--enriched">Simplified</span>`
+    : `<span class="rr-readout__indicator rr-readout__indicator--raw">Original NHTSA Language</span>`;
 
   return `
-  <article class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-    <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
-      <div>
+  <article class="rr-readout">
+    <div class="rr-readout__header">
+      <div class="rr-readout__header-left">
         ${severityBadge(recall.severity_level)}
-        <span class="ml-2 text-sm text-slate-500">Campaign #${escapeHtml(recall.nhtsa_campaign_number)}</span>
+        <span class="rr-readout__campaign">#${escapeHtml(recall.nhtsa_campaign_number)}</span>
         ${indicator}
       </div>
-      ${recall.report_received_date ? `<div class="text-xs text-slate-400">${escapeHtml(recall.report_received_date)}</div>` : ""}
+      ${recall.report_received_date ? `<div class="rr-readout__date">${escapeHtml(recall.report_received_date)}</div>` : ""}
     </div>
-    <div class="mb-3">
-      <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Component</span>
-      <p class="mt-1 text-sm font-medium text-slate-700">${escapeHtml(recall.component)}</p>
+    <div class="rr-readout__body">
+      <div class="rr-readout__field">
+        <div class="rr-readout__field-label">Component</div>
+        <div class="rr-readout__field-value">${escapeHtml(recall.component)}</div>
+      </div>
+      ${recall.manufacturer ? `
+      <div class="rr-readout__field">
+        <div class="rr-readout__field-label">Manufacturer</div>
+        <div class="rr-readout__field-value">${escapeHtml(recall.manufacturer)}</div>
+      </div>` : ""}
+      <div class="rr-readout__field">
+        <div class="rr-readout__field-label">What Happened</div>
+        <div class="rr-readout__field-value">${escapeHtml(summary)}</div>
+      </div>
+      <div class="rr-readout__field">
+        <div class="rr-readout__field-label rr-readout__field-label--risk">Risk if Unfixed</div>
+        <div class="rr-readout__field-value">${escapeHtml(consequence)}</div>
+      </div>
     </div>
-    ${recall.manufacturer ? `
-    <div class="mb-3">
-      <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Manufacturer</span>
-      <p class="mt-1 text-sm text-slate-700">${escapeHtml(recall.manufacturer)}</p>
-    </div>` : ""}
-    <div class="mb-3">
-      <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">What happened</span>
-      <p class="mt-1 text-slate-800">${escapeHtml(summary)}</p>
-    </div>
-    <div class="mb-3">
-      <span class="text-xs font-semibold text-red-500 uppercase tracking-wide">Risk if unfixed</span>
-      <p class="mt-1 text-slate-800">${escapeHtml(consequence)}</p>
-    </div>
-    <div class="bg-green-50 border border-green-200 rounded-lg p-3">
-      <span class="text-xs font-semibold text-green-700 uppercase tracking-wide">Free Fix</span>
-      <p class="mt-1 text-slate-800 text-sm">${escapeHtml(remedy)}</p>
+    <div class="rr-readout__fix">
+      <div class="rr-readout__fix-label">Free Fix</div>
+      <div class="rr-readout__fix-value">${escapeHtml(remedy)}</div>
     </div>
   </article>`;
 }

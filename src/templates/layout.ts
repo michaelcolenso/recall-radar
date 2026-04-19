@@ -25,22 +25,31 @@ export function layout({ title, description, canonical, body, jsonLd = "" }: Lay
   ${escapedTitle ? `<meta property="og:title" content="${escapedTitle}"/>` : ""}
   ${escapedDesc ? `<meta property="og:description" content="${escapedDesc}"/>` : ""}
   <meta property="og:type" content="article"/>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Rajdhani:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/styles.css"/>
   ${jsonLd}
 </head>
-<body class="bg-slate-50 text-slate-900 min-h-screen">
-  <nav class="bg-white border-b border-slate-200 px-4 py-3">
-    <div class="max-w-5xl mx-auto flex items-center justify-between">
-      <a href="/" class="text-xl font-bold text-blue-700 hover:text-blue-900">🚗 RecallRadar</a>
-      <a href="/sitemap.xml" class="text-sm text-slate-500 hover:text-slate-700">Sitemap</a>
+<body class="rr-layout">
+  <nav class="rr-nav">
+    <div class="rr-nav__inner">
+      <a href="/" class="rr-logo">
+        <span class="rr-logo__mark">!</span>
+        <span>RecallRadar</span>
+      </a>
+      <div class="rr-nav__links">
+        <a href="/">Search</a>
+        <a href="/sitemap.xml">Sitemap</a>
+      </div>
     </div>
   </nav>
-  <main class="max-w-5xl mx-auto px-4 py-8">
+  <main class="rr-main">
     ${body}
   </main>
-  <footer class="mt-16 border-t border-slate-200 py-8 text-center text-sm text-slate-500">
-    <p>Data sourced from the <a href="https://www.nhtsa.gov/" class="underline hover:text-slate-700">National Highway Traffic Safety Administration (NHTSA)</a>. Last updated ${now}.</p>
-    <p class="mt-2">RecallRadar is not affiliated with NHTSA or any vehicle manufacturer.</p>
+  <footer class="rr-footer">
+    <p>Data sourced from the <a href="https://www.nhtsa.gov/">National Highway Traffic Safety Administration (NHTSA)</a>. Last updated ${now}.</p>
+    <p>RecallRadar is not affiliated with NHTSA or any vehicle manufacturer.</p>
   </footer>
 </body>
 </html>`;
