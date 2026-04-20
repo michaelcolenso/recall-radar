@@ -14,7 +14,7 @@ RecallRadar is a Cloudflare-native web application that aggregates and presents 
 | Web Framework | Hono (lightweight, Express-like) |
 | Database | Cloudflare D1 (SQLite) with Drizzle ORM |
 | Caching | Cloudflare Workers KV |
-| AI/LLM | Anthropic Claude + Cloudflare Workers AI |
+| AI/LLM | Cloudflare Workers AI |
 | Orchestration | Cloudflare Workflows + Agents (Durable Objects) |
 | Styling | Tailwind CSS (via CDN) |
 | Language | TypeScript (ES modules) |
@@ -41,7 +41,7 @@ recall-radar/
 │   │   └── pipeline-agent.ts       # Durable Object for orchestration
 │   ├── lib/
 │   │   ├── nhtsa-client.ts   # NHTSA/vPIC API client
-│   │   ├── enrichment.ts     # LLM enrichment logic (Claude + Workers AI)
+│   │   ├── enrichment.ts     # LLM enrichment logic (Workers AI)
 │   │   ├── severity.ts       # Component-based severity classification
 │   │   ├── cache.ts          # KV read-through helper
 │   │   ├── utils.ts          # Slugify, date parsing, HTML escaping
@@ -91,7 +91,6 @@ npm run cf-typegen         # Generate TypeScript types from wrangler.jsonc
 Create `.dev.vars` for local development (see `.dev.vars.example`):
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...      # Required for LLM enrichment (Claude)
 ADMIN_TOKEN=your-secret-token     # Required for admin API access
 ```
 
@@ -141,7 +140,7 @@ User Request → Hono Router → KV Cache Check → DB Query → Template Render
 
 ```
 Cron Trigger (Mon 2AM) → IngestionWorkflow → NHTSA API → D1
-Cron Trigger (Mon 4AM) → EnrichmentWorkflow → Anthropic/Workers AI → D1
+Cron Trigger (Mon 4AM) → EnrichmentWorkflow → Workers AI → D1
 Admin API → PipelineAgent (Durable Object) → Workflow Trigger
 ```
 
@@ -281,8 +280,7 @@ KV cache is keyed by `page:<path>`. Use Cloudflare dashboard or Wrangler CLI to 
 - **NHTSA APIs**: 
   - vPIC API for make/model data (`vpic.nhtsa.dot.gov`)
   - Recalls API for recall data (`api.nhtsa.gov`)
-- **Anthropic API**: Primary LLM for enrichment (`claude-3-5-haiku`)
-- **Cloudflare Workers AI**: Fallback LLM (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`)
+- **Cloudflare Workers AI**: Primary LLM (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`) with fallback (`@cf/meta/llama-3.1-8b-instruct`)
 
 ## Troubleshooting
 
@@ -290,7 +288,7 @@ KV cache is keyed by `page:<path>`. Use Cloudflare dashboard or Wrangler CLI to 
 |-------|----------|
 | KV cache stale | Delete key in Cloudflare dashboard or wait for TTL (12-24 hours) |
 | Workflow stuck | Check Workflow instance in Cloudflare dashboard; retry failed steps |
-| LLM enrichment failing | Verify `ANTHROPIC_API_KEY`; falls back to Workers AI if available |
+| LLM enrichment failing | Check Workers AI availability |
 | Database timeouts | Check indexes; use `EXPLAIN QUERY PLAN` for slow queries |
 | Build errors | Run `npm run cf-typegen` to refresh Workers types |
 

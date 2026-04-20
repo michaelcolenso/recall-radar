@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import type { Env } from "../env";
 
@@ -33,38 +32,6 @@ function parseEnrichmentJson(text: string): EnrichmentResult | null {
   try {
     const parsed = JSON.parse(text.trim());
     return EnrichmentResultSchema.parse(parsed);
-  } catch {
-    return null;
-  }
-}
-
-async function tryAnthropicEnrichment(env: Env, userMessage: string): Promise<EnrichmentResult | null> {
-  try {
-    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-    const message = await client.messages.create({
-      model: "claude-3-5-haiku-20241022",
-      max_tokens: 500,
-      temperature: 0.3,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userMessage }],
-    });
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
-    const result = parseEnrichmentJson(text);
-    if (result) return result;
-    // Retry once with explicit JSON reminder
-    const retry = await client.messages.create({
-      model: "claude-3-5-haiku-20241022",
-      max_tokens: 500,
-      temperature: 0.3,
-      system: SYSTEM_PROMPT,
-      messages: [
-        { role: "user", content: userMessage },
-        { role: "assistant", content: text },
-        { role: "user", content: "Please respond in valid JSON only." },
-      ],
-    });
-    const retryText = retry.content[0].type === "text" ? retry.content[0].text : "";
-    return parseEnrichmentJson(retryText);
   } catch {
     return null;
   }
@@ -115,17 +82,12 @@ Consequence: ${consequenceRaw}
 Remedy: ${remedyRaw}`;
 
   // Try Workers AI first (primary)
-  const primaryResult = await tryWorkersAiEnrichment(env, userMessage, "@cf/google/gemma-4-26b-a4b-it");
+  const primaryResult = await tryWorkersAiEnrichment(env, userMessage, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
   if (primaryResult) return primaryResult;
 
-  // Fallback to another Cloudflare model
-  const fallbackResult = await tryWorkersAiEnrichment(env, userMessage, "@cf/meta/llama-4-scout-17b-16e-instruct");
+  // Fallback to a faster/smaller model
+  const fallbackResult = await tryWorkersAiEnrichment(env, userMessage, "@cf/meta/llama-3.1-8b-instruct");
   if (fallbackResult) return fallbackResult;
-
-  // Last resort: Anthropic
-  if (env.ANTHROPIC_API_KEY) {
-    return tryAnthropicEnrichment(env, userMessage);
-  }
 
   return null;
 }

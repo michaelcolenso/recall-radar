@@ -3,8 +3,9 @@
   "name": "recall-radar",
   "main": "src/index.ts",
   "compatibility_date": "2025-03-01",
-  "compatibility_flags": ["nodejs_compat"],
-
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   // D1 Database
   "d1_databases": [
     {
@@ -14,7 +15,6 @@
       "migrations_dir": "src/db/migrations"
     }
   ],
-
   // Workers KV (page cache)
   "kv_namespaces": [
     {
@@ -23,12 +23,10 @@
       "preview_id": "aff3dd5971b04e73a379eff1f7948140"
     }
   ],
-
   // Workers AI
   "ai": {
     "binding": "AI"
   },
-
   // Workflows
   "workflows": [
     {
@@ -42,7 +40,6 @@
       "class_name": "EnrichmentWorkflow"
     }
   ],
-
   // Agent (Durable Object)
   "durable_objects": {
     "bindings": [
@@ -55,10 +52,11 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["PipelineAgent"]
+      "new_sqlite_classes": [
+        "PipelineAgent"
+      ]
     }
   ],
-
   // Cron Triggers
   "triggers": {
     "crons": [
@@ -66,18 +64,16 @@
       "0 4 * * 1"
     ]
   },
-
   // Static assets
   "assets": {
     "directory": "./public"
   },
-
   // Environment variables
   "vars": {
     "SITE_URL": "https://recallradar.com",
-    "ENVIRONMENT": "production"
+    "ENVIRONMENT": "production",
+    "ADMIN_TOKEN": "gobi-boots-newman"
   },
-
   // Observability
   "observability": {
     "enabled": false,
