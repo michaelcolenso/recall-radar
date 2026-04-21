@@ -24,9 +24,7 @@ interface StaleRow {
   model_id: number;
   year: number;
   model_name: string;
-  model_slug: string;
   make_name: string;
-  make_id: number;
 }
 
 const MODELS_PER_BATCH = 5;
@@ -95,22 +93,62 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
         Date.now() - (deltaThresholdHours ?? 144) * 3_600_000
       ).toISOString();
 
+      // Ensure models are up to date before searching for stale/missing combos.
+      // Without this, a fresh DB (or newly added models) can never be ingested in delta mode.
+      for (const make of filteredMakes) {
+        const makeSlug = slugify(make.Make_Name);
+
+        const models = await step.do(`delta-fetch-models-${makeSlug}`, {
+          retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
+          timeout: "60 seconds",
+        }, () => fetchModelsForMake(make.Make_ID));
+
+        await step.do(`delta-upsert-models-${makeSlug}`, async () => {
+          const makeRecord = await this.env.DB.prepare("SELECT id FROM makes WHERE slug = ?")
+            .bind(makeSlug).first<{ id: number }>();
+          if (!makeRecord) return;
+
+          const now = new Date().toISOString();
+          for (const model of models) {
+            const modelSlug = slugify(model.Model_Name);
+            await this.env.DB.prepare(
+              `INSERT INTO models (make_id, name, slug, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT (make_id, slug) DO UPDATE SET updated_at = excluded.updated_at`
+            ).bind(makeRecord.id, model.Model_Name, modelSlug, now, now).run();
+          }
+        });
+      }
+
       const makeNames = filteredMakes.map((m) => m.Make_Name);
+      if (makeNames.length === 0) {
+        await step.do("log-ingestion-run", () =>
+          this._logRun(startedAt, mode, targetMake, "completed", 0, 0)
+        );
+        return { ok: true, recordsSaved: 0 };
+      }
+
       const placeholders = makeNames.map(() => "?").join(",");
 
       const staleRows = await step.do("fetch-stale-combos", async () => {
         const result = await this.env.DB.prepare(`
-          SELECT vy.model_id, vy.year,
-                 m.name AS model_name, m.slug AS model_slug,
-                 mk.name AS make_name, mk.id AS make_id
-          FROM vehicle_years vy
-          JOIN models m ON m.id = vy.model_id
+          WITH RECURSIVE year_range(year) AS (
+            SELECT ?
+            UNION ALL
+            SELECT year + 1 FROM year_range WHERE year < ?
+          )
+          SELECT m.id AS model_id, year_range.year,
+                 m.name AS model_name,
+                 mk.name AS make_name
+          FROM models m
           JOIN makes mk ON mk.id = m.make_id
+          JOIN year_range
+          LEFT JOIN vehicle_years vy ON vy.model_id = m.id AND vy.year = year_range.year
           WHERE mk.name IN (${placeholders})
             AND (vy.last_ingested_at IS NULL OR vy.last_ingested_at < ?)
           ORDER BY vy.last_ingested_at ASC
           LIMIT 5000
-        `).bind(...makeNames, thresholdIso).all<StaleRow>();
+        `).bind(startYear, endYear, ...makeNames, thresholdIso).all<StaleRow>();
         return result.results;
       });
 
