@@ -30,7 +30,7 @@ seoRoutes.get("/sitemap.xml", async (c) => {
   const totalUrls = 1 + (makeCount?.count ?? 0) + (modelCount?.count ?? 0) + (yearCount?.count ?? 0);
 
   if (totalUrls > MAX_URLS_PER_SITEMAP) {
-    const indexXml = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:index", 86400, async () => {
+    const { html: indexXml, hit: indexHit } = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:index", 86400, async () => {
       const parts: string[] = [
         sitemapIndexUrl(`${siteUrl}/sitemap-makes.xml`),
         sitemapIndexUrl(`${siteUrl}/sitemap-models.xml`),
@@ -44,10 +44,10 @@ seoRoutes.get("/sitemap.xml", async (c) => {
       return wrapSitemapIndex(parts);
     });
 
-    return c.body(indexXml, 200, { "content-type": "application/xml; charset=utf-8" });
+    return c.body(indexXml, 200, { "content-type": "application/xml; charset=utf-8", "X-Cache": indexHit ? "HIT" : "MISS" });
   }
 
-  const xml = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:xml", 86400, async () => {
+  const { html: xml, hit: xmlHit } = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:xml", 86400, async () => {
     const [makesResult, modelsResult, yearsResult] = await Promise.all([
       c.env.DB.prepare("SELECT slug FROM makes ORDER BY slug").all<{ slug: string }>(),
       c.env.DB.prepare(
@@ -83,12 +83,12 @@ seoRoutes.get("/sitemap.xml", async (c) => {
     return wrapSitemapUrls(urls);
   });
 
-  return c.body(xml, 200, { "content-type": "application/xml; charset=utf-8" });
+  return c.body(xml, 200, { "content-type": "application/xml; charset=utf-8", "X-Cache": xmlHit ? "HIT" : "MISS" });
 });
 
 seoRoutes.get("/sitemap-makes.xml", async (c) => {
   const siteUrl = c.env.SITE_URL;
-  const xml = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:makes", 86400, async () => {
+  const { html: xml, hit } = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:makes", 86400, async () => {
     const [makesResult] = await Promise.all([
       c.env.DB.prepare("SELECT slug FROM makes ORDER BY slug").all<{ slug: string }>(),
     ]);
@@ -101,12 +101,12 @@ seoRoutes.get("/sitemap-makes.xml", async (c) => {
     return wrapSitemapUrls(urls);
   });
 
-  return c.body(xml, 200, { "content-type": "application/xml; charset=utf-8" });
+  return c.body(xml, 200, { "content-type": "application/xml; charset=utf-8", "X-Cache": hit ? "HIT" : "MISS" });
 });
 
 seoRoutes.get("/sitemap-models.xml", async (c) => {
   const siteUrl = c.env.SITE_URL;
-  const xml = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:models", 86400, async () => {
+  const { html: xml, hit } = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:models", 86400, async () => {
     const modelsResult = await c.env.DB.prepare(
       `SELECT mk.slug as make_slug, m.slug as model_slug
        FROM models m JOIN makes mk ON mk.id = m.make_id ORDER BY mk.slug, m.slug`
@@ -117,7 +117,7 @@ seoRoutes.get("/sitemap-models.xml", async (c) => {
     return wrapSitemapUrls(urls);
   });
 
-  return c.body(xml, 200, { "content-type": "application/xml; charset=utf-8" });
+  return c.body(xml, 200, { "content-type": "application/xml; charset=utf-8", "X-Cache": hit ? "HIT" : "MISS" });
 });
 
 seoRoutes.get("/sitemap-years-:page.xml", async (c) => {
@@ -125,7 +125,7 @@ seoRoutes.get("/sitemap-years-:page.xml", async (c) => {
   const page = Math.max(1, Number(c.req.param("page") || "1"));
   const offset = (page - 1) * YEAR_SITEMAP_CHUNK_SIZE;
 
-  const xml = await getCachedOrRender(c.env.PAGE_CACHE, `sitemap:years:${page}`, 86400, async () => {
+  const { html: xml, hit } = await getCachedOrRender(c.env.PAGE_CACHE, `sitemap:years:${page}`, 86400, async () => {
     const yearsResult = await c.env.DB.prepare(
       `SELECT mk.slug as make_slug, m.slug as model_slug, vy.year
        FROM vehicle_years vy
@@ -140,7 +140,7 @@ seoRoutes.get("/sitemap-years-:page.xml", async (c) => {
     return wrapSitemapUrls(urls);
   });
 
-  return c.body(xml, 200, { "content-type": "application/xml; charset=utf-8" });
+  return c.body(xml, 200, { "content-type": "application/xml; charset=utf-8", "X-Cache": hit ? "HIT" : "MISS" });
 });
 
 function sitemapUrl(loc: string, lastmod: string, priority: string, changefreq: string): string {
