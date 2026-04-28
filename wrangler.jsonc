@@ -71,8 +71,7 @@
   // Environment variables
   "vars": {
     "SITE_URL": "https://recallradar.com",
-    "ENVIRONMENT": "production",
-    "ADMIN_TOKEN": "gobi-boots-newman"
+    "ENVIRONMENT": "production"
   },
   // Observability
   "observability": {
