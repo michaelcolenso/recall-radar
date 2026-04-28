@@ -1,22 +1,23 @@
 import { z } from "zod";
 import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:workers";
-import { POPULAR_MAKES, DEFAULT_YEAR_START, DEFAULT_YEAR_END } from "../lib/constants";
+import { POPULAR_MAKES, DEFAULT_YEAR_START, YEAR_MAX } from "../lib/constants";
 import { fetchAllMakes, fetchModelsForMake, fetchRecallsForVehicle } from "../lib/nhtsa-client";
 import { classifySeverity } from "../lib/severity";
 import { slugify, parseNhtsaDate } from "../lib/utils";
 import type { Env } from "../env";
 
-const IngestionParamsSchema = z.object({
-  mode: z.enum(["full", "makes-only", "single-make", "delta", "backfill"]),
-  targetMake: z.string().optional(),
-  yearStart: z.number().int().min(1966).max(new Date().getFullYear() + 2).optional(),
-  yearEnd: z.number().int().min(1966).max(new Date().getFullYear() + 2).optional(),
-  // delta mode: skip vehicle_year rows checked within this many hours (default 144 = 6 days)
-  deltaThresholdHours: z.number().int().min(1).max(8760).optional(),
-}).refine(
-  (d) => d.yearStart == null || d.yearEnd == null || d.yearStart <= d.yearEnd,
-  { message: "yearStart must be <= yearEnd" }
-);
+const IngestionParamsSchema = z
+  .object({
+    mode: z.enum(["full", "makes-only", "single-make", "delta", "backfill"]),
+    targetMake: z.string().optional(),
+    yearStart: z.number().int().min(1966).max(YEAR_MAX).optional(),
+    yearEnd: z.number().int().min(1966).max(YEAR_MAX).optional(),
+    // delta mode: skip vehicle_year rows checked within this many hours (default 144 = 6 days)
+    deltaThresholdHours: z.number().int().min(1).max(8760).optional(),
+  })
+  .refine((d) => d.yearStart == null || d.yearEnd == null || d.yearStart <= d.yearEnd, {
+    message: "yearStart must be <= yearEnd",
+  });
 
 type IngestionParams = z.infer<typeof IngestionParamsSchema>;
 
@@ -44,36 +45,38 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
 
     const { mode, targetMake, yearStart, yearEnd, deltaThresholdHours } = parseResult.data;
 
-    // backfill defaults to full history; full/delta default to rolling window in cron (set by caller)
-    const startYear = (mode === "backfill")
-      ? (yearStart ?? DEFAULT_YEAR_START)
-      : (yearStart ?? DEFAULT_YEAR_START);
-    const endYear = yearEnd ?? DEFAULT_YEAR_END;
+    const startYear = yearStart ?? DEFAULT_YEAR_START;
+    // new Date() is safe here — run() executes in a live request context, not at module init time
+    const endYear = yearEnd ?? new Date().getFullYear() + 1;
 
     // ── Step 1: Fetch all makes from vPIC ──────────────────────────
-    const allMakes = await step.do("fetch-all-makes", {
-      retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-      timeout: "60 seconds",
-    }, fetchAllMakes);
+    const allMakes = await step.do(
+      "fetch-all-makes",
+      {
+        retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
+        timeout: "60 seconds",
+      },
+      fetchAllMakes,
+    );
 
     // ── Step 2: Filter and upsert makes ───────────────────────────
     const filteredMakes = await step.do("filter-and-upsert-makes", async () => {
-      const targetMakeList = mode === "single-make" && targetMake
-        ? [targetMake.toUpperCase()]
-        : [...POPULAR_MAKES];
+      const targetMakeList = mode === "single-make" && targetMake ? [targetMake.toUpperCase()] : [...POPULAR_MAKES];
 
-      const filtered = allMakes.filter((m) =>
-        targetMakeList.includes(m.Make_Name.toUpperCase())
-      );
+      const filtered = allMakes.filter((m) => targetMakeList.includes(m.Make_Name.toUpperCase()));
 
-      for (const make of filtered) {
+      const batch = filtered.map((make) => {
         const makeSlug = slugify(make.Make_Name);
         const now = new Date().toISOString();
-        await this.env.DB.prepare(
+        return this.env.DB.prepare(
           `INSERT INTO makes (name, slug, nhtsa_id, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?)
-           ON CONFLICT (slug) DO UPDATE SET updated_at = excluded.updated_at, nhtsa_id = excluded.nhtsa_id`
-        ).bind(make.Make_Name, makeSlug, make.Make_ID, now, now).run();
+           ON CONFLICT (slug) DO UPDATE SET updated_at = excluded.updated_at, nhtsa_id = excluded.nhtsa_id`,
+        ).bind(make.Make_Name, makeSlug, make.Make_ID, now, now);
+      });
+
+      if (batch.length > 0) {
+        await this.env.DB.batch(batch);
       }
 
       return filtered;
@@ -81,7 +84,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
 
     if (mode === "makes-only") {
       await step.do("log-ingestion-run", () =>
-        this._logRun(startedAt, mode, targetMake, "completed", filteredMakes.length, filteredMakes.length)
+        this._logRun(startedAt, mode, targetMake, "completed", filteredMakes.length, filteredMakes.length),
       );
       return { ok: true };
     }
@@ -91,15 +94,14 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
 
     // ── Delta mode: process only stale vehicle-year combos ─────────
     if (mode === "delta") {
-      const thresholdIso = new Date(
-        Date.now() - (deltaThresholdHours ?? 144) * 3_600_000
-      ).toISOString();
+      const thresholdIso = new Date(Date.now() - (deltaThresholdHours ?? 144) * 3_600_000).toISOString();
 
       const makeNames = filteredMakes.map((m) => m.Make_Name);
       const placeholders = makeNames.map(() => "?").join(",");
 
       const staleRows = await step.do("fetch-stale-combos", async () => {
-        const result = await this.env.DB.prepare(`
+        const result = await this.env.DB.prepare(
+          `
           SELECT vy.model_id, vy.year,
                  m.name AS model_name, m.slug AS model_slug,
                  mk.name AS make_name, mk.id AS make_id
@@ -110,7 +112,10 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
             AND (vy.last_ingested_at IS NULL OR vy.last_ingested_at < ?)
           ORDER BY vy.last_ingested_at ASC
           LIMIT 5000
-        `).bind(...makeNames, thresholdIso).all<StaleRow>();
+        `,
+        )
+          .bind(...makeNames, thresholdIso)
+          .all<StaleRow>();
         return result.results;
       });
 
@@ -136,14 +141,16 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                  VALUES (?, ?, ?, ?, ?)
                  ON CONFLICT (model_id, year) DO UPDATE SET
                    updated_at = excluded.updated_at,
-                   last_ingested_at = excluded.last_ingested_at`
-              ).bind(row.model_id, row.year, now, now, now).run();
+                   last_ingested_at = excluded.last_ingested_at`,
+              )
+                .bind(row.model_id, row.year, now, now, now)
+                .run();
 
               if (recalls.length === 0) continue;
 
-              const vyRecord = await this.env.DB.prepare(
-                "SELECT id FROM vehicle_years WHERE model_id = ? AND year = ?"
-              ).bind(row.model_id, row.year).first<{ id: number }>();
+              const vyRecord = await this.env.DB.prepare("SELECT id FROM vehicle_years WHERE model_id = ? AND year = ?")
+                .bind(row.model_id, row.year)
+                .first<{ id: number }>();
               if (!vyRecord) continue;
 
               for (const recall of recalls) {
@@ -156,20 +163,22 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                    ON CONFLICT (nhtsa_campaign_number) DO UPDATE SET
                      updated_at = excluded.updated_at,
                      component = excluded.component,
-                     manufacturer = excluded.manufacturer`
-                ).bind(
-                  vyRecord.id,
-                  recall.NHTSACampaignNumber,
-                  parseNhtsaDate(recall.ReportReceivedDate),
-                  recall.Component,
-                  recall.Manufacturer || null,
-                  recall.Summary,
-                  recall.Consequence,
-                  recall.Remedy,
-                  classifySeverity(recall.Component),
-                  now,
-                  now
-                ).run();
+                     manufacturer = excluded.manufacturer`,
+                )
+                  .bind(
+                    vyRecord.id,
+                    recall.NHTSACampaignNumber,
+                    parseNhtsaDate(recall.ReportReceivedDate),
+                    recall.Component,
+                    recall.Manufacturer || null,
+                    recall.Summary,
+                    recall.Consequence,
+                    recall.Remedy,
+                    classifySeverity(recall.Component),
+                    now,
+                    now,
+                  )
+                  .run();
                 count++;
               }
             } catch (err) {
@@ -187,12 +196,13 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
       }
 
       const finalStatus = allErrors.length > 0 ? "completed-with-errors" : "completed";
-      const errorSummary = allErrors.length > 0
-        ? `${allErrors.length} errors: ${allErrors.slice(0, 5).join("; ")}${allErrors.length > 5 ? " …" : ""}`
-        : undefined;
+      const errorSummary =
+        allErrors.length > 0
+          ? `${allErrors.length} errors: ${allErrors.slice(0, 5).join("; ")}${allErrors.length > 5 ? " …" : ""}`
+          : undefined;
 
       await step.do("log-ingestion-run", () =>
-        this._logRun(startedAt, mode, targetMake, finalStatus, totalRecordsSaved, totalRecordsSaved, errorSummary)
+        this._logRun(startedAt, mode, targetMake, finalStatus, totalRecordsSaved, totalRecordsSaved, errorSummary),
       );
       return { ok: true, recordsSaved: totalRecordsSaved };
     }
@@ -201,79 +211,95 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
     for (const make of filteredMakes) {
       const makeSlug = slugify(make.Make_Name);
 
-      const models = await step.do(`fetch-models-${makeSlug}`, {
-        retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-        timeout: "60 seconds",
-      }, () => fetchModelsForMake(make.Make_ID));
+      const models = await step.do(
+        `fetch-models-${makeSlug}`,
+        {
+          retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
+          timeout: "60 seconds",
+        },
+        () => fetchModelsForMake(make.Make_ID),
+      );
 
       const upsertedModels = await step.do(`upsert-models-${makeSlug}`, async () => {
         const makeRecord = await this.env.DB.prepare("SELECT id FROM makes WHERE slug = ?")
-          .bind(makeSlug).first<{ id: number }>();
+          .bind(makeSlug)
+          .first<{ id: number }>();
         if (!makeRecord) return [];
 
-        const result: Array<{ modelId: number; modelName: string; modelSlug: string; makeDbId: number }> = [];
         const now = new Date().toISOString();
+        const batch: any[] = [];
+        const modelData: Array<{ name: string; slug: string }> = [];
 
         for (const model of models) {
           const modelSlug = slugify(model.Model_Name);
-          await this.env.DB.prepare(
-            `INSERT INTO models (make_id, name, slug, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?)
-             ON CONFLICT (make_id, slug) DO UPDATE SET updated_at = excluded.updated_at`
-          ).bind(makeRecord.id, model.Model_Name, modelSlug, now, now).run();
-
-          const modelRecord = await this.env.DB.prepare("SELECT id FROM models WHERE make_id = ? AND slug = ?")
-            .bind(makeRecord.id, modelSlug).first<{ id: number }>();
-          if (modelRecord) {
-            result.push({ modelId: modelRecord.id, modelName: model.Model_Name, modelSlug, makeDbId: makeRecord.id });
-          }
+          batch.push(
+            this.env.DB.prepare(
+              `INSERT INTO models (make_id, name, slug, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT (make_id, slug) DO UPDATE SET updated_at = excluded.updated_at`,
+            ).bind(makeRecord.id, model.Model_Name, modelSlug, now, now),
+          );
+          modelData.push({ name: model.Model_Name, slug: modelSlug });
         }
-        return result;
+
+        if (batch.length > 0) {
+          // Perform all inserts in one batch
+          await this.env.DB.batch(batch);
+        }
+
+        // Fetch back all IDs in a second batch to ensure we have them correctly
+        const idQueries = modelData.map((m) =>
+          this.env.DB.prepare("SELECT id FROM models WHERE make_id = ? AND slug = ?").bind(makeRecord.id, m.slug),
+        );
+        const idResults = await this.env.DB.batch<{ id: number }>(idQueries);
+
+        return modelData
+          .map((m, idx) => ({
+            modelId: idResults[idx].results[0]?.id || 0,
+            modelName: m.name,
+            modelSlug: m.slug,
+            makeDbId: makeRecord.id,
+          }))
+          .filter((m) => m.modelId > 0);
       });
 
-      const batches: typeof upsertedModels[] = [];
-      for (let i = 0; i < upsertedModels.length; i += MODELS_PER_BATCH) {
-        batches.push(upsertedModels.slice(i, i + MODELS_PER_BATCH));
-      }
+      // One step per model year — keeps each step well under the 1000 subrequest limit
+      for (const model of upsertedModels) {
+        const years: number[] = [];
+        for (let y = startYear; y <= endYear; y++) years.push(y);
 
-      for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
-        const batch = batches[batchIdx];
-        const result = await step.do(`recalls-${makeSlug}-batch-${batchIdx}`, async () => {
-          let count = 0;
-          const batchErrors: string[] = [];
-          for (const model of batch) {
-            for (let year = startYear; year <= endYear; year++) {
-              try {
-                // Backfill skips year/model combos already stamped to avoid redundant API calls
-                if (mode === "backfill") {
-                  const existing = await this.env.DB.prepare(
-                    "SELECT last_ingested_at FROM vehicle_years WHERE model_id = ? AND year = ?"
-                  ).bind(model.modelId, year).first<{ last_ingested_at: string | null }>();
-                  if (existing?.last_ingested_at) continue;
-                }
+        for (const year of years) {
+          const result = await step.do(`recalls-${makeSlug}-${model.modelSlug}-${year}`, async () => {
+            const now = new Date().toISOString();
 
-                await new Promise((r) => setTimeout(r, NHTSA_RATE_LIMIT_MS));
-                const recalls = await fetchRecallsForVehicle(make.Make_Name, model.modelName, year);
-                const now = new Date().toISOString();
+            if (mode === "backfill") {
+              const existing = await this.env.DB.prepare(
+                "SELECT last_ingested_at FROM vehicle_years WHERE model_id = ? AND year = ?",
+              )
+                .bind(model.modelId, year)
+                .first<{ last_ingested_at: string | null }>();
+              if (existing?.last_ingested_at) return { count: 0, errors: [] };
+            }
 
-                // Always upsert vehicle_year and stamp last_ingested_at, even for 0 recalls
-                await this.env.DB.prepare(
-                  `INSERT INTO vehicle_years (model_id, year, created_at, updated_at, last_ingested_at)
-                   VALUES (?, ?, ?, ?, ?)
-                   ON CONFLICT (model_id, year) DO UPDATE SET
-                     updated_at = excluded.updated_at,
-                     last_ingested_at = excluded.last_ingested_at`
-                ).bind(model.modelId, year, now, now, now).run();
+            try {
+              // fetchRecallsForVehicle already includes a 300ms delay
+              const recalls = await fetchRecallsForVehicle(make.Make_Name, model.modelName, year);
 
-                if (recalls.length === 0) continue;
+              // Upsert vehicle_year and get its ID back in one query
+              const vy = await this.env.DB.prepare(
+                `INSERT INTO vehicle_years (model_id, year, created_at, updated_at, last_ingested_at)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON CONFLICT (model_id, year) DO UPDATE SET
+                   updated_at = excluded.updated_at,
+                   last_ingested_at = excluded.last_ingested_at
+                 RETURNING id`,
+              )
+                .bind(model.modelId, year, now, now, now)
+                .first<{ id: number }>();
 
-                const vyRecord = await this.env.DB.prepare(
-                  "SELECT id FROM vehicle_years WHERE model_id = ? AND year = ?"
-                ).bind(model.modelId, year).first<{ id: number }>();
-                if (!vyRecord) continue;
-
-                for (const recall of recalls) {
-                  await this.env.DB.prepare(
+              if (vy && recalls.length > 0) {
+                const recallStmts = recalls.map((recall) =>
+                  this.env.DB.prepare(
                     `INSERT INTO recalls (
                        vehicle_year_id, nhtsa_campaign_number, report_received_date,
                        component, manufacturer, summary_raw, consequence_raw, remedy_raw,
@@ -282,9 +308,9 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                      ON CONFLICT (nhtsa_campaign_number) DO UPDATE SET
                        updated_at = excluded.updated_at,
                        component = excluded.component,
-                       manufacturer = excluded.manufacturer`
+                       manufacturer = excluded.manufacturer`,
                   ).bind(
-                    vyRecord.id,
+                    vy.id,
                     recall.NHTSACampaignNumber,
                     parseNhtsaDate(recall.ReportReceivedDate),
                     recall.Component,
@@ -294,33 +320,34 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                     recall.Remedy,
                     classifySeverity(recall.Component),
                     now,
-                    now
-                  ).run();
-                  count++;
-                }
-              } catch (err) {
-                const msg = `${make.Make_Name} ${model.modelName} ${year}: ${String(err)}`;
-                console.error(msg);
-                batchErrors.push(msg);
+                    now,
+                  ),
+                );
+                await this.env.DB.batch(recallStmts);
               }
+
+              return { count: recalls.length, errors: [] };
+            } catch (err) {
+              return { count: 0, errors: [`${make.Make_Name} ${model.modelName} ${year}: ${String(err)}`] };
             }
+          });
+
+          totalRecordsSaved += result.count ?? 0;
+          if (Array.isArray(result.errors)) {
+            allErrors.push(...result.errors);
           }
-          return { count, errors: batchErrors };
-        });
-        totalRecordsSaved += result.count ?? 0;
-        if (Array.isArray(result.errors)) {
-          allErrors.push(...result.errors);
         }
       }
     }
 
     const finalStatus = allErrors.length > 0 ? "completed-with-errors" : "completed";
-    const errorSummary = allErrors.length > 0
-      ? `${allErrors.length} errors: ${allErrors.slice(0, 5).join("; ")}${allErrors.length > 5 ? " …" : ""}`
-      : undefined;
+    const errorSummary =
+      allErrors.length > 0
+        ? `${allErrors.length} errors: ${allErrors.slice(0, 5).join("; ")}${allErrors.length > 5 ? " …" : ""}`
+        : undefined;
 
     await step.do("log-ingestion-run", () =>
-      this._logRun(startedAt, mode, targetMake, finalStatus, totalRecordsSaved, totalRecordsSaved, errorSummary)
+      this._logRun(startedAt, mode, targetMake, finalStatus, totalRecordsSaved, totalRecordsSaved, errorSummary),
     );
 
     return { ok: true, recordsSaved: totalRecordsSaved };
@@ -333,15 +360,23 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
     status: string,
     recordsFound: number,
     recordsSaved: number,
-    errorMessage?: string
+    errorMessage?: string,
   ) {
     await this.env.DB.prepare(
       `INSERT INTO ingestion_logs
          (run_type, target_make, status, records_found, records_saved, error_message, started_at, completed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      runType, targetMake ?? null, status, recordsFound, recordsSaved,
-      errorMessage ?? null, startedAt, new Date().toISOString()
-    ).run();
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(
+        runType,
+        targetMake ?? null,
+        status,
+        recordsFound,
+        recordsSaved,
+        errorMessage ?? null,
+        startedAt,
+        new Date().toISOString(),
+      )
+      .run();
   }
 }
