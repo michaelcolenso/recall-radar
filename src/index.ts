@@ -11,10 +11,20 @@ import { DEFAULT_YEAR_START } from "./lib/constants";
 
 const app = new Hono<{ Bindings: Env }>();
 
+// Redirect trailing slashes to canonical non-slash URLs
+app.use(async (c, next) => {
+  const pathname = new URL(c.req.url).pathname;
+  if ((c.req.method === "GET" || c.req.method === "HEAD") && pathname.length > 1 && pathname.endsWith("/")) {
+    const query = new URL(c.req.url).search;
+    return c.redirect(pathname.slice(0, -1) + query, 301);
+  }
+  await next();
+});
+
 app.route("/api", apiRoutes);
+app.route("/", seoRoutes);
 app.route("/", adminRoutes);
 app.route("/", pageRoutes);
-app.route("/", seoRoutes);
 
 export default {
   fetch: app.fetch,

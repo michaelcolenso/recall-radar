@@ -40,7 +40,7 @@ export function recallCard(recall: RecallView): string {
     <div class="rr-readout__body">
       <div class="rr-readout__field">
         <div class="rr-readout__field-label">Component</div>
-        <div class="rr-readout__field-value">${escapeHtml(recall.component)}</div>
+        <h3 class="rr-readout__field-value">${escapeHtml(recall.component)}</h3>
       </div>
       ${recall.manufacturer ? `
       <div class="rr-readout__field">

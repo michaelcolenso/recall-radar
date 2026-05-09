@@ -510,6 +510,17 @@ img {
   font-size: var(--text-xl);
 }
 
+.rr-card--current {
+  background: var(--bg-inset);
+  border-color: var(--accent-primary);
+  cursor: default;
+  pointer-events: none;
+}
+
+.rr-card--current::before {
+  background: var(--accent-primary);
+}
+
 /* ── Severity Badge ── */
 .rr-severity {
   display: inline-flex;
@@ -817,6 +828,19 @@ img {
   font-size: var(--text-sm);
   color: var(--text-secondary);
   margin-top: var(--space-1);
+}
+
+/* ── Screen-reader only ── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
 
 /* ── Reduced Motion ── */

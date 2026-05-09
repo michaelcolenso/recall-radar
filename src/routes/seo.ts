@@ -49,18 +49,32 @@ seoRoutes.get("/sitemap.xml", async (c) => {
 
   const xml = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:xml", 86400, async () => {
     const [makesResult, modelsResult, yearsResult] = await Promise.all([
-      c.env.DB.prepare("SELECT slug FROM makes ORDER BY slug").all<{ slug: string }>(),
       c.env.DB.prepare(
-        `SELECT mk.slug as make_slug, m.slug as model_slug
-         FROM models m JOIN makes mk ON mk.id = m.make_id ORDER BY mk.slug, m.slug`
-      ).all<{ make_slug: string; model_slug: string }>(),
+        `SELECT m.slug,
+                COALESCE(date(MAX(vy.last_ingested_at)), date(m.updated_at)) as lastmod
+         FROM makes m
+         LEFT JOIN models md ON md.make_id = m.id
+         LEFT JOIN vehicle_years vy ON vy.model_id = md.id
+         GROUP BY m.id, m.slug
+         ORDER BY m.slug`
+      ).all<{ slug: string; lastmod: string }>(),
       c.env.DB.prepare(
-        `SELECT mk.slug as make_slug, m.slug as model_slug, vy.year
+        `SELECT mk.slug as make_slug, m.slug as model_slug,
+                COALESCE(date(MAX(vy.last_ingested_at)), date(m.updated_at)) as lastmod
+         FROM models m
+         JOIN makes mk ON mk.id = m.make_id
+         LEFT JOIN vehicle_years vy ON vy.model_id = m.id
+         GROUP BY m.id, mk.slug, m.slug
+         ORDER BY mk.slug, m.slug`
+      ).all<{ make_slug: string; model_slug: string; lastmod: string }>(),
+      c.env.DB.prepare(
+        `SELECT mk.slug as make_slug, m.slug as model_slug, vy.year,
+                COALESCE(date(vy.last_ingested_at), date(vy.updated_at)) as lastmod
          FROM vehicle_years vy
          JOIN models m ON m.id = vy.model_id
          JOIN makes mk ON mk.id = m.make_id
          ORDER BY mk.slug, m.slug, vy.year DESC`
-      ).all<{ make_slug: string; model_slug: string; year: number }>(),
+      ).all<{ make_slug: string; model_slug: string; year: number; lastmod: string }>(),
     ]);
 
     const now = new Date().toISOString().split("T")[0];
@@ -69,15 +83,15 @@ seoRoutes.get("/sitemap.xml", async (c) => {
     urls.push(sitemapUrl(`${siteUrl}/`, now, "1.0", "daily"));
 
     for (const make of makesResult.results) {
-      urls.push(sitemapUrl(`${siteUrl}/${make.slug}`, now, "0.8", "weekly"));
+      urls.push(sitemapUrl(`${siteUrl}/${make.slug}`, make.lastmod, "0.8", "weekly"));
     }
 
     for (const m of modelsResult.results) {
-      urls.push(sitemapUrl(`${siteUrl}/${m.make_slug}/${m.model_slug}`, now, "0.7", "weekly"));
+      urls.push(sitemapUrl(`${siteUrl}/${m.make_slug}/${m.model_slug}`, m.lastmod, "0.7", "weekly"));
     }
 
     for (const y of yearsResult.results) {
-      urls.push(sitemapUrl(`${siteUrl}/${y.make_slug}/${y.model_slug}/${y.year}`, now, "0.9", "weekly"));
+      urls.push(sitemapUrl(`${siteUrl}/${y.make_slug}/${y.model_slug}/${y.year}`, y.lastmod, "0.9", "weekly"));
     }
 
     return wrapSitemapUrls(urls);
@@ -89,14 +103,20 @@ seoRoutes.get("/sitemap.xml", async (c) => {
 seoRoutes.get("/sitemap-makes.xml", async (c) => {
   const siteUrl = c.env.SITE_URL;
   const xml = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:makes", 86400, async () => {
-    const [makesResult] = await Promise.all([
-      c.env.DB.prepare("SELECT slug FROM makes ORDER BY slug").all<{ slug: string }>(),
-    ]);
+    const makesResult = await c.env.DB.prepare(
+      `SELECT m.slug,
+              COALESCE(date(MAX(vy.last_ingested_at)), date(m.updated_at)) as lastmod
+       FROM makes m
+       LEFT JOIN models md ON md.make_id = m.id
+       LEFT JOIN vehicle_years vy ON vy.model_id = md.id
+       GROUP BY m.id, m.slug
+       ORDER BY m.slug`
+    ).all<{ slug: string; lastmod: string }>();
 
     const now = new Date().toISOString().split("T")[0];
     const urls = [sitemapUrl(`${siteUrl}/`, now, "1.0", "daily")];
     for (const make of makesResult.results) {
-      urls.push(sitemapUrl(`${siteUrl}/${make.slug}`, now, "0.8", "weekly"));
+      urls.push(sitemapUrl(`${siteUrl}/${make.slug}`, make.lastmod, "0.8", "weekly"));
     }
     return wrapSitemapUrls(urls);
   });
@@ -108,35 +128,39 @@ seoRoutes.get("/sitemap-models.xml", async (c) => {
   const siteUrl = c.env.SITE_URL;
   const xml = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:models", 86400, async () => {
     const modelsResult = await c.env.DB.prepare(
-      `SELECT mk.slug as make_slug, m.slug as model_slug
-       FROM models m JOIN makes mk ON mk.id = m.make_id ORDER BY mk.slug, m.slug`
-    ).all<{ make_slug: string; model_slug: string }>();
+      `SELECT mk.slug as make_slug, m.slug as model_slug,
+              COALESCE(date(MAX(vy.last_ingested_at)), date(m.updated_at)) as lastmod
+       FROM models m
+       JOIN makes mk ON mk.id = m.make_id
+       LEFT JOIN vehicle_years vy ON vy.model_id = m.id
+       GROUP BY m.id, mk.slug, m.slug
+       ORDER BY mk.slug, m.slug`
+    ).all<{ make_slug: string; model_slug: string; lastmod: string }>();
 
-    const now = new Date().toISOString().split("T")[0];
-    const urls = modelsResult.results.map((m) => sitemapUrl(`${siteUrl}/${m.make_slug}/${m.model_slug}`, now, "0.7", "weekly"));
+    const urls = modelsResult.results.map((m) => sitemapUrl(`${siteUrl}/${m.make_slug}/${m.model_slug}`, m.lastmod, "0.7", "weekly"));
     return wrapSitemapUrls(urls);
   });
 
   return c.body(xml, 200, { "content-type": "application/xml; charset=utf-8" });
 });
 
-seoRoutes.get("/sitemap-years-:page.xml", async (c) => {
+seoRoutes.get("/sitemap-years-:page{.+\\.xml}", async (c) => {
   const siteUrl = c.env.SITE_URL;
-  const page = Math.max(1, Number(c.req.param("page") || "1"));
+  const page = Math.max(1, Number(c.req.param("page")?.replace(/\.xml$/, "") || "1"));
   const offset = (page - 1) * YEAR_SITEMAP_CHUNK_SIZE;
 
   const xml = await getCachedOrRender(c.env.PAGE_CACHE, `sitemap:years:${page}`, 86400, async () => {
     const yearsResult = await c.env.DB.prepare(
-      `SELECT mk.slug as make_slug, m.slug as model_slug, vy.year
+      `SELECT mk.slug as make_slug, m.slug as model_slug, vy.year,
+              COALESCE(date(vy.last_ingested_at), date(vy.updated_at)) as lastmod
        FROM vehicle_years vy
        JOIN models m ON m.id = vy.model_id
        JOIN makes mk ON mk.id = m.make_id
        ORDER BY mk.slug, m.slug, vy.year DESC
        LIMIT ? OFFSET ?`
-    ).bind(YEAR_SITEMAP_CHUNK_SIZE, offset).all<{ make_slug: string; model_slug: string; year: number }>();
+    ).bind(YEAR_SITEMAP_CHUNK_SIZE, offset).all<{ make_slug: string; model_slug: string; year: number; lastmod: string }>();
 
-    const now = new Date().toISOString().split("T")[0];
-    const urls = yearsResult.results.map((y) => sitemapUrl(`${siteUrl}/${y.make_slug}/${y.model_slug}/${y.year}`, now, "0.9", "weekly"));
+    const urls = yearsResult.results.map((y) => sitemapUrl(`${siteUrl}/${y.make_slug}/${y.model_slug}/${y.year}`, y.lastmod, "0.9", "weekly"));
     return wrapSitemapUrls(urls);
   });
 

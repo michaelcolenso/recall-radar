@@ -26,6 +26,7 @@ export function makePageTemplate(makeName: string, makeSlug: string, models: Mod
       <p class="rr-section-header__subtitle">Browse recalls by model to find safety issues for your ${escapeHtml(makeName)} vehicle.</p>
     </section>
     <section>
+      <h2 class="rr-section-header__title">${escapeHtml(makeName)} Models</h2>
       <div class="rr-grid rr-grid--models">
         ${cards || "<p class='rr-body'>No models found.</p>"}
       </div>
