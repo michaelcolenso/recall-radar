@@ -16,6 +16,15 @@ export function aboutTemplate(siteUrl: string): string {
       <h2 class="rr-heading rr-heading--3" style="margin-top: var(--space-10);">How It Works</h2>
       <p>We combine official NHTSA data with large language models to simplify technical manufacturer language into plain English. Every recall page shows both the simplified explanation and the original NHTSA text, so you can verify details directly from the source.</p>
 
+      <h2 class="rr-heading rr-heading--3" style="margin-top: var(--space-10);">Our Methodology</h2>
+      <p>RecallRadar follows a strict protocol to ensure data integrity and transparency:</p>
+      <ul style="margin-top: var(--space-4); margin-bottom: var(--space-6); padding-left: var(--space-6); list-style-type: disc;">
+        <li><strong>Official Sourcing:</strong> Every recall ID and raw text string comes directly from NHTSA's public databases.</li>
+        <li><strong>AI Transparency:</strong> When we use AI to simplify text, we mark it clearly with a &ldquo;Simplified&rdquo; badge. The original government language is always available on the same page for verification.</li>
+        <li><strong>Data Freshness:</strong> Our automated pipeline checks for new NHTSA reports weekly, ensuring critical safety information reaches you quickly.</li>
+        <li><strong>No Affiliation:</strong> We maintain complete independence from auto manufacturers to provide unbiased safety summaries.</li>
+      </ul>
+
       <h2 class="rr-heading rr-heading--3" style="margin-top: var(--space-10);">Important Disclaimer</h2>
       <p>RecallRadar is an independent tool and is <strong>not affiliated with NHTSA or any vehicle manufacturer</strong>. Always confirm recall details and repair availability with your local authorized dealer or NHTSA directly.</p>
 

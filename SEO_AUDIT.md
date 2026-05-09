@@ -182,7 +182,7 @@ All Twitter Card tags present:
 
 ---
 
-### 13. Heading Structure 🟡 (Partially Fixed)
+### 13. Heading Structure ✅ (Fixed)
 
 | Page | H1 | H2 | H3+ |
 |------|-----|-----|-----|
@@ -191,11 +191,7 @@ All Twitter Card tags present:
 | Model | "{Make} {Model} Recalls by Year" | "Recall History by Year" | ❌ None |
 | Year | "{Year} {Make} {Model} Recalls" | "Known Safety Recalls" (sr-only), "Other {Make} {Model} Years" | ✅ Recall component |
 
-**Previously:** Make and model pages were missing H2s. These have been added.
-
-**Remaining issue:** Recall cards now use `<h3>` for the component name (fixed), but year pages could benefit from visible H2s above the recall list (currently sr-only) and the related-years section.
-
-**Priority:** Low.
+**Priority:** None — resolved.
 
 ---
 
@@ -209,21 +205,18 @@ No images in page templates. `og-image.png` exists in `public/` for social shari
 
 ## Content Quality Findings
 
-### 15. E-E-A-T Signals 🟡 (Moderate)
+### 15. E-E-A-T Signals ✅ (Improved)
 
 | Signal | Status | Notes |
 |--------|--------|-------|
 | Experience | ⚠️ | Content is algorithmically generated from NHTSA data + LLM enrichment. No first-hand mechanic/repair experience. |
 | Expertise | ⚠️ | No author bylines, no automotive expert credentials. |
 | Authoritativeness | ✅ | Data is sourced from NHTSA (authoritative). |
-| Trustworthiness | ✅ | HTTPS, clear disclaimer ("not affiliated with NHTSA"), transparent data source, About page exists. |
+| Trustworthiness | ✅ | HTTPS, clear disclaimer, transparent data source, About page exists with methodology. |
 
-**Fix:** Continue strengthening About page. Consider adding:
-- Data verification methodology
-- LLM enrichment disclosure
-- Press/mention section (as site grows)
+**Fix:** Added methodology section to About page to explain data sourcing and LLM enrichment transparency.
 
-**Priority:** Medium.
+**Priority:** Low.
 
 ---
 

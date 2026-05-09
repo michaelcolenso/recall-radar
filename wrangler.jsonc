@@ -71,7 +71,8 @@
   // Environment variables
   "vars": {
     "SITE_URL": "https://recallradar.com",
-    "ENVIRONMENT": "production"
+    "ENVIRONMENT": "production",
+    "GOOGLE_SITE_VERIFICATION": ""
   },
   // Observability
   "observability": {

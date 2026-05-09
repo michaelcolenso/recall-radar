@@ -27,8 +27,10 @@ export function recallCard(recall: RecallView): string {
     ? `<span class="rr-readout__indicator rr-readout__indicator--enriched">Simplified</span>`
     : `<span class="rr-readout__indicator rr-readout__indicator--raw">Original NHTSA Language</span>`;
 
+  const severityClass = recall.severity_level ? `rr-readout--${recall.severity_level.toLowerCase()}` : "";
+
   return `
-  <article class="rr-readout">
+  <article class="rr-readout ${severityClass}">
     <div class="rr-readout__header">
       <div class="rr-readout__header-left">
         ${severityBadge(recall.severity_level)}

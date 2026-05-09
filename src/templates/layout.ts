@@ -9,9 +9,10 @@ interface LayoutOptions {
   noIndex?: boolean;
   ogType?: string;
   ogImage?: string;
+  googleVerification?: string;
 }
 
-export function layout({ title, description, canonical, body, jsonLd = "", noIndex, ogType, ogImage }: LayoutOptions): string {
+export function layout({ title, description, canonical, body, jsonLd = "", noIndex, ogType, ogImage, googleVerification }: LayoutOptions): string {
   const escapedTitle = escapeHtml(title);
   const escapedDesc = description ? escapeHtml(description) : "";
   const now = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -26,6 +27,7 @@ export function layout({ title, description, canonical, body, jsonLd = "", noInd
   <title>${escapedTitle}</title>
   ${escapedDesc ? `<meta name="description" content="${escapedDesc}"/>` : ""}
   ${noIndex ? `<meta name="robots" content="noindex, nofollow"/>` : ""}
+  ${googleVerification ? `<meta name="google-site-verification" content="${googleVerification}"/>` : ""}
   ${canonical ? `<link rel="canonical" href="${canonical}"/>` : ""}
   ${canonical ? `<meta property="og:url" content="${canonical}"/>` : ""}
   ${escapedTitle ? `<meta property="og:title" content="${escapedTitle}"/>` : ""}

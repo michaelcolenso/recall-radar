@@ -54,14 +54,14 @@ RecallRadar has a **production-ready technical SEO foundation**. The issues docu
 | Speed / CWV | 🟢 Excellent | Edge Workers, no JS bloat, minimal assets |
 | Internal linking | 🟡 Good | Hierarchical drill-down + breadcrumbs + related years |
 
-### 1.3 Remaining Quick Fixes (Low Effort)
+### 1.3 Completed Quick Fixes
 
-| # | Issue | File | Effort |
+| # | Fix | File | Status |
 |---|-------|------|--------|
-| 1 | **Make page has no H2 heading** | `src/templates/make-page.ts` | 5 min |
-| 2 | **Model page has no H2 heading** | `src/templates/model-page.ts` | 5 min |
-| 3 | **Recall card titles use `<div>` instead of `<h3>`** | `src/templates/components/recall-card.ts` | 10 min |
-| 4 | **Update `SEO_AUDIT.md`** — most findings are stale | `SEO_AUDIT.md` | 30 min |
+| 1 | **Make page has no H2 heading** | `src/templates/make-page.ts` | ✅ Done |
+| 2 | **Model page has no H2 heading** | `src/templates/model-page.ts` | ✅ Done |
+| 3 | **Recall card titles use `<h3>` instead of `<h3>`** | `src/templates/components/recall-card.ts` | ✅ Done |
+| 4 | **Update `SEO_AUDIT.md`** — most findings are stale | `SEO_AUDIT.md` | ✅ Done |
 
 ---
 

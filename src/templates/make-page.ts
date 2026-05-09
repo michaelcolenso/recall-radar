@@ -12,10 +12,16 @@ export function makePageTemplate(makeName: string, makeSlug: string, models: Mod
   const cards = models.map((m) => {
     const yearRange = m.min_year && m.max_year ? `${m.min_year}–${m.max_year}` : "";
     return `
-      <a href="/${makeSlug}/${m.slug}" class="rr-card">
-        <div class="rr-card__title">${escapeHtml(m.name)}</div>
-        ${yearRange ? `<div class="rr-card__meta">${yearRange}</div>` : ""}
-        ${m.recall_count > 0 ? `<div class="rr-card__alert">${m.recall_count} recall${m.recall_count !== 1 ? "s" : ""}</div>` : ""}
+      <a href="/${makeSlug}/${m.slug}" class="rr-card rr-card--model">
+        <div class="rr-card__content">
+          <div class="rr-card__title">${escapeHtml(m.name)}</div>
+          ${yearRange ? `<div class="rr-card__meta">${yearRange}</div>` : ""}
+        </div>
+        ${m.recall_count > 0 ? `
+          <div class="rr-card__badge-stack">
+            <span class="rr-badge rr-badge--alert">${m.recall_count}</span>
+          </div>
+        ` : ""}
       </a>
     `;
   }).join("");
