@@ -37,29 +37,31 @@ function parseEnrichmentJson(text: string): EnrichmentResult | null {
   }
 }
 
+const AI_CALL_TIMEOUT_MS = 45_000;
+
+async function aiRunWithTimeout(env: Env, model: string, messages: any[], maxTokens: number): Promise<string> {
+  const result = await Promise.race([
+    (env.AI as any).run(model, { messages, max_tokens: maxTokens }),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI_CALL_TIMEOUT")), AI_CALL_TIMEOUT_MS)),
+  ]);
+  return (result as { response?: string }).response ?? "";
+}
+
 async function tryWorkersAiEnrichment(env: Env, userMessage: string, model: string): Promise<EnrichmentResult | null> {
   try {
-    const result = await (env.AI as any).run(model, {
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userMessage },
-      ],
-      max_tokens: 500,
-    });
-    const text = (result as { response?: string }).response ?? "";
+    const text = await aiRunWithTimeout(env, model, [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userMessage },
+    ], 500);
     const parsed = parseEnrichmentJson(text);
     if (parsed) return parsed;
-    // Retry
-    const retry = await (env.AI as any).run(model, {
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userMessage },
-        { role: "assistant", content: text },
-        { role: "user", content: "Please respond in valid JSON only." },
-      ],
-      max_tokens: 500,
-    });
-    const retryText = (retry as { response?: string }).response ?? "";
+    // Retry with correction prompt
+    const retryText = await aiRunWithTimeout(env, model, [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userMessage },
+      { role: "assistant", content: text },
+      { role: "user", content: "Please respond in valid JSON only." },
+    ], 500);
     return parseEnrichmentJson(retryText);
   } catch {
     return null;
