@@ -83,12 +83,12 @@ Consequence: ${consequenceRaw}
 
 Remedy: ${remedyRaw}`;
 
-  // Try Workers AI first (primary)
-  const primaryResult = await tryWorkersAiEnrichment(env, userMessage, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+  // Primary: fast 8B model — plenty for government-to-plain-English translation
+  const primaryResult = await tryWorkersAiEnrichment(env, userMessage, "@cf/meta/llama-3.1-8b-instruct-fp8");
   if (primaryResult) return primaryResult;
 
-  // Fallback to a faster/smaller model
-  const fallbackResult = await tryWorkersAiEnrichment(env, userMessage, "@cf/meta/llama-3.1-8b-instruct");
+  // Fallback: tiny 3B model — fast, should never hit rate limits
+  const fallbackResult = await tryWorkersAiEnrichment(env, userMessage, "@cf/meta/llama-3.2-3b-instruct");
   if (fallbackResult) return fallbackResult;
 
   return null;
