@@ -70,7 +70,7 @@
   },
   // Environment variables
   "vars": {
-    "SITE_URL": "https://recallradar.com",
+    "SITE_URL": "",
     "ENVIRONMENT": "production",
     "GOOGLE_SITE_VERIFICATION": ""
   },

@@ -22,7 +22,7 @@ const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 // GET / — Homepage
 pageRoutes.get("/", async (c) => {
   const siteUrl = c.env.SITE_URL;
-  const html = await getCachedOrRender(c.env.PAGE_CACHE, "page:home", 86400, async () => {
+  const { html, hit } = await getCachedOrRender(c.env.PAGE_CACHE, "page:home", 86400, async () => {
     const [makesResult, statsResult] = await Promise.all([
       c.env.DB.prepare("SELECT name, slug FROM makes ORDER BY name").all<{ name: string; slug: string }>(),
       Promise.all([
@@ -66,6 +66,7 @@ pageRoutes.get("/about", async (c) => {
     });
   });
   c.header("Cache-Control", CACHE_CONTROL);
+  c.header("X-Cache", hit ? "HIT" : "MISS");
   return c.html(html);
 });
 
@@ -80,7 +81,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
     return c.html(layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle make not found.", siteUrl) }), 404);
   }
 
-  const html = await getCachedOrRender(c.env.PAGE_CACHE, `page:make:${makeSlug}`, 86400, async () => {
+  const { html, hit } = await getCachedOrRender(c.env.PAGE_CACHE, `page:make:${makeSlug}`, 86400, async () => {
     const models = await c.env.DB.prepare(
       `SELECT m.name, m.slug,
               MIN(vy.year) as min_year, MAX(vy.year) as max_year,
@@ -111,6 +112,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
     });
   });
   c.header("Cache-Control", CACHE_CONTROL);
+  c.header("X-Cache", hit ? "HIT" : "MISS");
   return c.html(html);
 });
 
@@ -131,7 +133,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
     return c.html(layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle model not found.", siteUrl) }), 404);
   }
 
-  const html = await getCachedOrRender(c.env.PAGE_CACHE, `page:model:${makeSlug}:${modelSlug}`, 86400, async () => {
+  const { html, hit } = await getCachedOrRender(c.env.PAGE_CACHE, `page:model:${makeSlug}:${modelSlug}`, 86400, async () => {
     const years = await c.env.DB.prepare(
       `SELECT vy.year,
               COUNT(r.id) as recall_count,
@@ -175,6 +177,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
     });
   });
   c.header("Cache-Control", CACHE_CONTROL);
+  c.header("X-Cache", hit ? "HIT" : "MISS");
   return c.html(html);
 });
 
@@ -356,7 +359,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
     return c.html(layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle model not found.", siteUrl) }), 404);
   }
 
-  const html = await getCachedOrRender(c.env.PAGE_CACHE, `page:year:${makeSlug}:${modelSlug}:${year}`, 43200, async () => {
+  const { html, hit } = await getCachedOrRender(c.env.PAGE_CACHE, `page:year:${makeSlug}:${modelSlug}:${year}`, 43200, async () => {
     const recallsResult = await c.env.DB.prepare(
       `SELECT r.id, r.nhtsa_campaign_number, r.component, r.manufacturer,
               r.summary_raw, r.consequence_raw, r.remedy_raw,
@@ -471,6 +474,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
   });
 
   c.header("Cache-Control", CACHE_CONTROL);
+  c.header("X-Cache", hit ? "HIT" : "MISS");
   return c.html(html);
 });
 

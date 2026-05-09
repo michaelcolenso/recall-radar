@@ -1,3 +1,14 @@
+function statLabel(k: string): string {
+  const labels: Record<string, string> = {
+    makes: "Makes",
+    models: "Models",
+    vehicleYears: "Vehicle Years",
+    recalls: "Recalls",
+    enrichment: "Enriched",
+  };
+  return labels[k] ?? k;
+}
+
 export function adminDashboard(): string {
   return `<!doctype html>
 <html lang="en">
@@ -303,15 +314,4 @@ export function adminDashboard(): string {
 </script>
 </body>
 </html>`;
-}
-
-function statLabel(k: string): string {
-  const labels: Record<string, string> = {
-    makes: "Makes",
-    models: "Models",
-    vehicleYears: "Vehicle Years",
-    recalls: "Recalls",
-    enrichment: "Enriched",
-  };
-  return labels[k] ?? k;
 }
