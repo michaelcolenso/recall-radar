@@ -67,17 +67,41 @@ export class EnrichmentWorkflow extends WorkflowEntrypoint<Env, EnrichmentParams
                 row.remedy_raw,
                 row.component
               );
-              if (!enriched) {
-                console.warn(`Enrichment failed for recall ${row.id}, will retry next run`);
+              const now = new Date().toISOString();
+              
+              if (!enriched || enriched.score < 0.5) {
+                const errorMsg = !enriched ? "LLM returned null or malformed JSON" : `Low quality score: ${enriched.score}`;
+                console.warn(`Enrichment issue for recall ${row.id}: ${errorMsg}`);
+                
+                // Record in dead letter queue
+                await this.env.DB.prepare(
+                  `INSERT INTO enrichment_failures (recall_id, error, attempts, last_attempt_at)
+                   VALUES (?, ?, 1, ?)
+                   ON CONFLICT(id) DO UPDATE SET 
+                     attempts = enrichment_failures.attempts + 1,
+                     last_attempt_at = excluded.last_attempt_at,
+                     error = excluded.error`
+                ).bind(row.id, errorMsg, now).run();
                 continue;
               }
-              const now = new Date().toISOString();
+
               await this.env.DB.prepare(
                 `UPDATE recalls SET
                    summary_enriched = ?, consequence_enriched = ?, remedy_enriched = ?,
+                   enrichment_quality_score = ?, enrichment_model = ?,
                    enriched_at = ?, updated_at = ?
                  WHERE id = ?`
-              ).bind(enriched.summary, enriched.consequence, enriched.remedy, now, now, row.id).run();
+              ).bind(
+                enriched.summary, enriched.consequence, enriched.remedy,
+                Math.round(enriched.score * 100), enriched.model,
+                now, now, row.id
+              ).run();
+              
+              // If previously failed, mark as resolved
+              await this.env.DB.prepare(
+                "UPDATE enrichment_failures SET resolved = 1 WHERE recall_id = ?"
+              ).bind(row.id).run();
+
               enrichedInChunk++;
             } catch (err) {
               console.error(`Enrichment error for recall ${row.id}: ${String(err)}`);

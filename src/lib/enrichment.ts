@@ -26,12 +26,31 @@ const EnrichmentResultSchema = z.object({
   remedy: z.string().min(1),
 });
 
-export type EnrichmentResult = z.infer<typeof EnrichmentResultSchema>;
+export type EnrichmentResult = z.infer<typeof EnrichmentResultSchema> & {
+  model: string;
+  score: number;
+};
 
-function parseEnrichmentJson(text: string): EnrichmentResult | null {
+function scoreEnrichment(text: string): number {
+  let score = 1.0;
+  // Penalize for very short responses
+  if (text.length < 50) score -= 0.3;
+  // Penalize for very long responses (likely hallucination or preamble)
+  if (text.length > 1000) score -= 0.2;
+  // Penalize if JSON structure looks suspicious
+  if (!text.includes('"summary"') || !text.includes('"consequence"')) score -= 0.5;
+  return Math.max(0, score);
+}
+
+function parseEnrichmentJson(text: string, model: string): EnrichmentResult | null {
   try {
     const parsed = JSON.parse(text.trim());
-    return EnrichmentResultSchema.parse(parsed);
+    const validated = EnrichmentResultSchema.parse(parsed);
+    return {
+      ...validated,
+      model,
+      score: scoreEnrichment(text),
+    };
   } catch {
     return null;
   }
@@ -53,7 +72,7 @@ async function tryWorkersAiEnrichment(env: Env, userMessage: string, model: stri
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userMessage },
     ], 500);
-    const parsed = parseEnrichmentJson(text);
+    const parsed = parseEnrichmentJson(text, model);
     if (parsed) return parsed;
     // Retry with correction prompt
     const retryText = await aiRunWithTimeout(env, model, [
@@ -62,7 +81,7 @@ async function tryWorkersAiEnrichment(env: Env, userMessage: string, model: stri
       { role: "assistant", content: text },
       { role: "user", content: "Please respond in valid JSON only." },
     ], 500);
-    return parseEnrichmentJson(retryText);
+    return parseEnrichmentJson(retryText, model);
   } catch {
     return null;
   }
