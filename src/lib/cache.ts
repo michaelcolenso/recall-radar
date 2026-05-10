@@ -1,13 +1,24 @@
-export async function getCachedOrRender(
+interface CacheEnvelope<T> {
+  value: T;
+}
+
+export async function getCachedOrRender<T>(
   kv: KVNamespace,
   cacheKey: string,
   ttlSeconds: number,
-  renderFn: () => Promise<string>
-): Promise<{ html: string; hit: boolean }> {
-  const cached = await kv.get(cacheKey);
-  if (cached) return { html: cached, hit: true };
+  renderFn: () => Promise<T>
+): Promise<{ value: T; hit: boolean }> {
+  const cached = await kv.get(cacheKey, "text");
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached) as CacheEnvelope<T>;
+      return { value: parsed.value, hit: true };
+    } catch {
+      await kv.delete(cacheKey);
+    }
+  }
 
-  const html = await renderFn();
-  await kv.put(cacheKey, html, { expirationTtl: ttlSeconds });
-  return { html, hit: false };
+  const value = await renderFn();
+  await kv.put(cacheKey, JSON.stringify({ value }), { expirationTtl: ttlSeconds });
+  return { value, hit: false };
 }

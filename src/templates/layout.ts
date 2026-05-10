@@ -39,9 +39,6 @@ export function layout({ title, description, canonical, body, jsonLd = "", noInd
   ${escapedTitle ? `<meta name="twitter:title" content="${escapedTitle}"/>` : ""}
   ${escapedDesc ? `<meta name="twitter:description" content="${escapedDesc}"/>` : ""}
   <meta name="twitter:image" content="${resolvedOgImage}"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Rajdhani:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="/styles.css"/>
   ${jsonLd}
 </head>

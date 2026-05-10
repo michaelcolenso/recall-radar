@@ -148,7 +148,7 @@ html {
 }
 
 body {
-  font-family: "Source Sans 3", system-ui, -apple-system, sans-serif;
+  font-family: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   font-size: var(--text-base);
   line-height: 1.6;
   color: var(--text-primary);
@@ -192,7 +192,7 @@ img {
 }
 
 .rr-logo {
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Avenir Next Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   font-weight: 700;
   font-size: var(--text-xl);
   letter-spacing: 0.02em;
@@ -260,13 +260,13 @@ img {
   --ease-mechanical: cubic-bezier(0.19, 1, 0.22, 1); /* Quick out, snappy finish */
 }
 
-a, button, .rr-card, .rr-readout {
-  transition: all 0.25s var(--ease-mechanical);
+a, button {
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .rr-logo:hover .rr-logo__mark {
   transform: rotate(90deg);
-  background: var(--alert-critical);
+  background: var(--accent-primary-hover);
 }
 
 .rr-logo__mark {
@@ -281,7 +281,7 @@ a, button, .rr-card, .rr-readout {
 
 /* ── Typography ── */
 .rr-heading {
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Avenir Next Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.01em;
@@ -305,7 +305,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-label {
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Avenir Next Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   font-weight: 600;
   font-size: var(--text-xs);
   text-transform: uppercase;
@@ -314,7 +314,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-mono {
-  font-family: "JetBrains Mono", monospace;
+  font-family: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.9em;
   letter-spacing: -0.02em;
 }
@@ -376,7 +376,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-hero__title {
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Avenir Next Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   font-weight: 700;
   font-size: var(--text-4xl);
   line-height: 1.05;
@@ -419,7 +419,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-stats__value {
-  font-family: "JetBrains Mono", monospace;
+  font-family: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
   font-weight: 700;
   font-size: var(--text-3xl);
   line-height: 1;
@@ -478,7 +478,7 @@ a, button, .rr-card, .rr-readout {
   background: var(--bg-surface-raised);
   border: 1px solid var(--border-default);
   padding: var(--space-5);
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
   position: relative;
 }
 
@@ -512,7 +512,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-card__title {
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Avenir Next Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   font-weight: 600;
   font-size: var(--text-lg);
   color: var(--text-primary);
@@ -537,11 +537,11 @@ a, button, .rr-card, .rr-readout {
   border-radius: 2px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  font-family: "JetBrains Mono", monospace;
+  font-family: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
 }
 
 .rr-badge--alert {
-  background: var(--alert-high);
+  background: var(--high-border);
   color: #fff;
 }
 
@@ -559,7 +559,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-card--year .rr-card__title {
-  font-family: "JetBrains Mono", monospace;
+  font-family: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
   font-weight: 700;
   font-size: var(--text-xl);
 }
@@ -655,6 +655,7 @@ a, button, .rr-card, .rr-readout {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+  contain: layout;
 }
 
 /* ── Recall Card (Technical Readout) ── */
@@ -663,6 +664,8 @@ a, button, .rr-card, .rr-readout {
   border: 1px solid var(--border-default);
   position: relative;
   transition: border-color 0.2s ease, transform 0.2s ease;
+  content-visibility: auto;
+  contain-intrinsic-size: 680px;
 }
 
 .rr-readout:hover {
@@ -672,21 +675,21 @@ a, button, .rr-card, .rr-readout {
 
 /* ── Severity Variants ── */
 .rr-readout--critical {
-  border-left: 4px solid var(--alert-critical);
-  background: color-mix(in srgb, var(--bg-surface-raised), var(--alert-critical) 3%);
+  border-left: 4px solid var(--critical-border);
+  background: color-mix(in srgb, var(--bg-surface-raised), var(--critical-border) 3%);
 }
 
 .rr-readout--high {
-  border-left: 4px solid var(--alert-high);
-  background: color-mix(in srgb, var(--bg-surface-raised), var(--alert-high) 3%);
+  border-left: 4px solid var(--high-border);
+  background: color-mix(in srgb, var(--bg-surface-raised), var(--high-border) 3%);
 }
 
 .rr-readout--medium {
-  border-left: 4px solid var(--alert-medium);
+  border-left: 4px solid var(--medium-border);
 }
 
 .rr-readout--low {
-  border-left: 4px solid var(--alert-low);
+  border-left: 4px solid var(--low-border);
 }
 
 .rr-readout__header {
@@ -708,7 +711,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-readout__campaign {
-  font-family: "JetBrains Mono", monospace;
+  font-family: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
   font-size: var(--text-sm);
   color: var(--text-tertiary);
 }
@@ -729,7 +732,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-readout__date {
-  font-family: "JetBrains Mono", monospace;
+  font-family: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
   font-size: var(--text-xs);
   color: var(--text-tertiary);
 }
@@ -747,7 +750,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-readout__field-label {
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Avenir Next Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   font-weight: 600;
   font-size: var(--text-xs);
   text-transform: uppercase;
@@ -776,7 +779,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-readout__fix-label {
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Avenir Next Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   font-weight: 600;
   font-size: var(--text-xs);
   text-transform: uppercase;
@@ -799,7 +802,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-section-header__title {
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Avenir Next Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   font-weight: 700;
   font-size: var(--text-2xl);
   color: var(--text-primary);
@@ -832,7 +835,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-meta-bar__count {
-  font-family: "JetBrains Mono", monospace;
+  font-family: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-secondary);
@@ -858,7 +861,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-empty__title {
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Avenir Next Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   font-weight: 700;
   font-size: var(--text-2xl);
   color: var(--text-primary);
@@ -875,7 +878,7 @@ a, button, .rr-card, .rr-readout {
   padding: var(--space-3) var(--space-6);
   background: var(--accent-primary);
   color: var(--text-inverse);
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Avenir Next Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   font-weight: 600;
   font-size: var(--text-sm);
   text-transform: uppercase;
@@ -897,7 +900,7 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-lead__title {
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Avenir Next Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   font-weight: 700;
   font-size: var(--text-lg);
   color: var(--text-primary);

@@ -18,11 +18,17 @@ import { componentPageTemplate } from "../templates/component-page";
 export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
+const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
+
+interface CachedPageResponse {
+  html: string;
+  status: 200 | 404;
+}
 
 // GET / — Homepage
 pageRoutes.get("/", async (c) => {
   const siteUrl = c.env.SITE_URL;
-  const { html, hit } = await getCachedOrRender(c.env.PAGE_CACHE, "page:home", 86400, async () => {
+  const { value: html, hit } = await getCachedOrRender(c.env.PAGE_CACHE, "page:home", 86400, async () => {
     const [makesResult, statsResult] = await Promise.all([
       c.env.DB.prepare("SELECT name, slug FROM makes ORDER BY name").all<{ name: string; slug: string }>(),
       Promise.all([
@@ -56,7 +62,7 @@ pageRoutes.get("/", async (c) => {
 // GET /about — About page
 pageRoutes.get("/about", async (c) => {
   const siteUrl = c.env.SITE_URL;
-  const html = await getCachedOrRender(c.env.PAGE_CACHE, "page:about", 86400, async () => {
+  const { value: html, hit } = await getCachedOrRender(c.env.PAGE_CACHE, "page:about", 86400, async () => {
     return layout({
       googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
       title: "About RecallRadar",
@@ -75,13 +81,22 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
   const { makeSlug } = c.req.param();
   const siteUrl = c.env.SITE_URL;
 
-  const make = await c.env.DB.prepare("SELECT id, name, slug FROM makes WHERE slug = ?")
-    .bind(makeSlug).first<{ id: number; name: string; slug: string }>();
-  if (!make) {
-    return c.html(layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle make not found.", siteUrl) }), 404);
-  }
+  const { value, hit } = await getCachedOrRender<CachedPageResponse>(c.env.PAGE_CACHE, `page:make:${makeSlug}`, 86400, async () => {
+    const make = await c.env.DB.prepare("SELECT id, name, slug FROM makes WHERE slug = ?")
+      .bind(makeSlug).first<{ id: number; name: string; slug: string }>();
+    if (!make) {
+      return {
+        html: layout({
+          googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+          title: "Not Found",
+          description: "This vehicle page could not be found. Browse all makes on RecallRadar.",
+          noIndex: true,
+          body: notFoundBody("Vehicle make not found.", siteUrl),
+        }),
+        status: 404,
+      };
+    }
 
-  const { html, hit } = await getCachedOrRender(c.env.PAGE_CACHE, `page:make:${makeSlug}`, 86400, async () => {
     const models = await c.env.DB.prepare(
       `SELECT m.name, m.slug,
               MIN(vy.year) as min_year, MAX(vy.year) as max_year,
@@ -99,21 +114,24 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
     ]);
     const body = crumbs + makePageTemplate(make.name, make.slug, models.results);
 
-    return layout({
-      googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
-      title: `${make.name} Vehicle Recalls & Safety Issues | RecallRadar`,
-      description: `Browse all ${make.name} vehicle recalls and safety issues. Find recalls for your ${make.name} by model and year.`,
-      canonical: `${siteUrl}/${makeSlug}`,
-      body,
-      jsonLd: breadcrumbListJsonLd(siteUrl, [
-        { name: "Home", item: siteUrl },
-        { name: make.name, item: `${siteUrl}/${makeSlug}` },
-      ]),
-    });
+    return {
+      html: layout({
+        googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+        title: `${make.name} Vehicle Recalls & Safety Issues | RecallRadar`,
+        description: `Browse all ${make.name} vehicle recalls and safety issues. Find recalls for your ${make.name} by model and year.`,
+        canonical: `${siteUrl}/${makeSlug}`,
+        body,
+        jsonLd: breadcrumbListJsonLd(siteUrl, [
+          { name: "Home", item: siteUrl },
+          { name: make.name, item: `${siteUrl}/${makeSlug}` },
+        ]),
+      }),
+      status: 200,
+    };
   });
   c.header("Cache-Control", CACHE_CONTROL);
   c.header("X-Cache", hit ? "HIT" : "MISS");
-  return c.html(html);
+  return c.body(value.html, value.status, HTML_HEADERS);
 });
 
 // GET /:makeSlug/:modelSlug — Model landing page
@@ -121,19 +139,25 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
   const { makeSlug, modelSlug } = c.req.param();
   const siteUrl = c.env.SITE_URL;
 
-  const make = await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
-    .bind(makeSlug).first<{ id: number; name: string }>();
-  if (!make) {
-    return c.html(layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle make not found.", siteUrl) }), 404);
-  }
+  const { value, hit } = await getCachedOrRender<CachedPageResponse>(c.env.PAGE_CACHE, `page:model:${makeSlug}:${modelSlug}`, 86400, async () => {
+    const make = await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
+      .bind(makeSlug).first<{ id: number; name: string }>();
+    if (!make) {
+      return {
+        html: layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle make not found.", siteUrl) }),
+        status: 404,
+      };
+    }
 
-  const model = await c.env.DB.prepare("SELECT id, name, slug FROM models WHERE make_id = ? AND slug = ?")
-    .bind(make.id, modelSlug).first<{ id: number; name: string; slug: string }>();
-  if (!model) {
-    return c.html(layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle model not found.", siteUrl) }), 404);
-  }
+    const model = await c.env.DB.prepare("SELECT id, name, slug FROM models WHERE make_id = ? AND slug = ?")
+      .bind(make.id, modelSlug).first<{ id: number; name: string; slug: string }>();
+    if (!model) {
+      return {
+        html: layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle model not found.", siteUrl) }),
+        status: 404,
+      };
+    }
 
-  const { html, hit } = await getCachedOrRender(c.env.PAGE_CACHE, `page:model:${makeSlug}:${modelSlug}`, 86400, async () => {
     const years = await c.env.DB.prepare(
       `SELECT vy.year,
               COUNT(r.id) as recall_count,
@@ -163,22 +187,25 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
     ]);
     const body = crumbs + modelPageTemplate(make.name, makeSlug, model.name, modelSlug, years.results);
 
-    return layout({
-      googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
-      title: `${make.name} ${model.name} Recalls by Year | RecallRadar`,
-      description: `Check ${make.name} ${model.name} recalls by model year. Find safety issues and get free repairs for your vehicle.`,
-      canonical: `${siteUrl}/${makeSlug}/${modelSlug}`,
-      body,
-      jsonLd: breadcrumbListJsonLd(siteUrl, [
-        { name: "Home", item: siteUrl },
-        { name: make.name, item: `${siteUrl}/${makeSlug}` },
-        { name: model.name, item: `${siteUrl}/${makeSlug}/${modelSlug}` },
-      ]),
-    });
+    return {
+      html: layout({
+        googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+        title: `${make.name} ${model.name} Recalls by Year | RecallRadar`,
+        description: `Check ${make.name} ${model.name} recalls by model year. Find safety issues and get free repairs for your vehicle.`,
+        canonical: `${siteUrl}/${makeSlug}/${modelSlug}`,
+        body,
+        jsonLd: breadcrumbListJsonLd(siteUrl, [
+          { name: "Home", item: siteUrl },
+          { name: make.name, item: `${siteUrl}/${makeSlug}` },
+          { name: model.name, item: `${siteUrl}/${makeSlug}/${modelSlug}` },
+        ]),
+      }),
+      status: 200,
+    };
   });
   c.header("Cache-Control", CACHE_CONTROL);
   c.header("X-Cache", hit ? "HIT" : "MISS");
-  return c.html(html);
+  return c.body(value.html, value.status, HTML_HEADERS);
 });
 
 // GET /:makeSlug/:modelSlug/:year/:componentSlug — Component-specific recalls
@@ -191,19 +218,25 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
     return c.html(layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle year could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Invalid year.", siteUrl) }), 404);
   }
 
-  const make = await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
-    .bind(makeSlug).first<{ id: number; name: string }>();
-  if (!make) {
-    return c.html(layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle make not found.", siteUrl) }), 404);
-  }
+  const { value, hit } = await getCachedOrRender<CachedPageResponse>(c.env.PAGE_CACHE, `page:component:${makeSlug}:${modelSlug}:${year}:${componentSlug}`, 43200, async () => {
+    const make = await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
+      .bind(makeSlug).first<{ id: number; name: string }>();
+    if (!make) {
+      return {
+        html: layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle make not found.", siteUrl) }),
+        status: 404,
+      };
+    }
 
-  const model = await c.env.DB.prepare("SELECT id, name FROM models WHERE make_id = ? AND slug = ?")
-    .bind(make.id, modelSlug).first<{ id: number; name: string }>();
-  if (!model) {
-    return c.html(layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle model not found.", siteUrl) }), 404);
-  }
+    const model = await c.env.DB.prepare("SELECT id, name FROM models WHERE make_id = ? AND slug = ?")
+      .bind(make.id, modelSlug).first<{ id: number; name: string }>();
+    if (!model) {
+      return {
+        html: layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle model not found.", siteUrl) }),
+        status: 404,
+      };
+    }
 
-  const html = await getCachedOrRender(c.env.PAGE_CACHE, `page:component:${makeSlug}:${modelSlug}:${year}:${componentSlug}`, 43200, async () => {
     const recallsResult = await c.env.DB.prepare(
       `SELECT r.id, r.nhtsa_campaign_number, r.component, r.manufacturer,
               r.summary_raw, r.consequence_raw, r.remedy_raw,
@@ -242,9 +275,16 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
     });
 
     if (filteredRecalls.length === 0) {
-      // No recalls match this component — return 404
-      return layout({
-      googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "No recalls found for this component. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Component not found for this vehicle year.", siteUrl) });
+      return {
+        html: layout({
+          googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+          title: "Not Found",
+          description: "No recalls found for this component. Browse all makes on RecallRadar.",
+          noIndex: true,
+          body: notFoundBody("Component not found for this vehicle year.", siteUrl),
+        }),
+        status: 404,
+      };
     }
 
     const componentName = filteredRecalls[0].component.split(":")[0].trim();
@@ -329,12 +369,22 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
       ])
       + vehicleJsonLd(make.name, model.name, yearNum, componentPageUrl, filteredRecalls.length);
 
-    return layout({
-      googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title, description, canonical: componentPageUrl, body, jsonLd });
+    return {
+      html: layout({
+        googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+        title,
+        description,
+        canonical: componentPageUrl,
+        body,
+        jsonLd,
+      }),
+      status: 200,
+    };
   });
 
   c.header("Cache-Control", CACHE_CONTROL);
-  return c.html(html);
+  c.header("X-Cache", hit ? "HIT" : "MISS");
+  return c.body(value.html, value.status, HTML_HEADERS);
 });
 
 // GET /:makeSlug/:modelSlug/:year — THE MONEY PAGE
@@ -347,19 +397,25 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
     return c.html(layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle year could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Invalid year.", siteUrl) }), 404);
   }
 
-  const make = await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
-    .bind(makeSlug).first<{ id: number; name: string }>();
-  if (!make) {
-    return c.html(layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle make not found.", siteUrl) }), 404);
-  }
+  const { value, hit } = await getCachedOrRender<CachedPageResponse>(c.env.PAGE_CACHE, `page:year:${makeSlug}:${modelSlug}:${year}`, 43200, async () => {
+    const make = await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
+      .bind(makeSlug).first<{ id: number; name: string }>();
+    if (!make) {
+      return {
+        html: layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle make not found.", siteUrl) }),
+        status: 404,
+      };
+    }
 
-  const model = await c.env.DB.prepare("SELECT id, name FROM models WHERE make_id = ? AND slug = ?")
-    .bind(make.id, modelSlug).first<{ id: number; name: string }>();
-  if (!model) {
-    return c.html(layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle model not found.", siteUrl) }), 404);
-  }
+    const model = await c.env.DB.prepare("SELECT id, name FROM models WHERE make_id = ? AND slug = ?")
+      .bind(make.id, modelSlug).first<{ id: number; name: string }>();
+    if (!model) {
+      return {
+        html: layout({ googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title: "Not Found", description: "This vehicle page could not be found. Browse all makes on RecallRadar.", noIndex: true, body: notFoundBody("Vehicle model not found.", siteUrl) }),
+        status: 404,
+      };
+    }
 
-  const { html, hit } = await getCachedOrRender(c.env.PAGE_CACHE, `page:year:${makeSlug}:${modelSlug}:${year}`, 43200, async () => {
     const recallsResult = await c.env.DB.prepare(
       `SELECT r.id, r.nhtsa_campaign_number, r.component, r.manufacturer,
               r.summary_raw, r.consequence_raw, r.remedy_raw,
@@ -469,13 +525,22 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
       ])
       + vehicleJsonLd(make.name, model.name, yearNum, yearPageUrl, recalls.length);
 
-    return layout({
-      googleVerification: c.env.GOOGLE_SITE_VERIFICATION, title, description, canonical: `${siteUrl}/${makeSlug}/${modelSlug}/${year}`, body, jsonLd });
+    return {
+      html: layout({
+        googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+        title,
+        description,
+        canonical: `${siteUrl}/${makeSlug}/${modelSlug}/${year}`,
+        body,
+        jsonLd,
+      }),
+      status: 200,
+    };
   });
 
   c.header("Cache-Control", CACHE_CONTROL);
   c.header("X-Cache", hit ? "HIT" : "MISS");
-  return c.html(html);
+  return c.body(value.html, value.status, HTML_HEADERS);
 });
 
 function notFoundBody(message: string, siteUrl: string): string {

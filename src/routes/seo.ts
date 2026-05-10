@@ -30,7 +30,7 @@ seoRoutes.get("/sitemap.xml", async (c) => {
   const totalUrls = 1 + (makeCount?.count ?? 0) + (modelCount?.count ?? 0) + (yearCount?.count ?? 0);
 
   if (totalUrls > MAX_URLS_PER_SITEMAP) {
-    const { html: indexXml, hit: indexHit } = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:index", 86400, async () => {
+    const { value: indexXml, hit: indexHit } = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:index", 86400, async () => {
       const parts: string[] = [
         sitemapIndexUrl(`${siteUrl}/sitemap-makes.xml`),
         sitemapIndexUrl(`${siteUrl}/sitemap-models.xml`),
@@ -47,7 +47,7 @@ seoRoutes.get("/sitemap.xml", async (c) => {
     return c.body(indexXml, 200, { "content-type": "application/xml; charset=utf-8", "X-Cache": indexHit ? "HIT" : "MISS" });
   }
 
-  const { html: xml, hit: xmlHit } = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:xml", 86400, async () => {
+  const { value: xml, hit: xmlHit } = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:xml", 86400, async () => {
     const [makesResult, modelsResult, yearsResult] = await Promise.all([
       c.env.DB.prepare(
         `SELECT m.slug,
@@ -102,7 +102,7 @@ seoRoutes.get("/sitemap.xml", async (c) => {
 
 seoRoutes.get("/sitemap-makes.xml", async (c) => {
   const siteUrl = c.env.SITE_URL;
-  const xml = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:makes", 86400, async () => {
+  const { value: xml, hit } = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:makes", 86400, async () => {
     const makesResult = await c.env.DB.prepare(
       `SELECT m.slug,
               COALESCE(date(MAX(vy.last_ingested_at)), date(m.updated_at)) as lastmod
@@ -126,7 +126,7 @@ seoRoutes.get("/sitemap-makes.xml", async (c) => {
 
 seoRoutes.get("/sitemap-models.xml", async (c) => {
   const siteUrl = c.env.SITE_URL;
-  const { html: xml, hit } = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:models", 86400, async () => {
+  const { value: xml, hit } = await getCachedOrRender(c.env.PAGE_CACHE, "sitemap:models", 86400, async () => {
     const modelsResult = await c.env.DB.prepare(
       `SELECT mk.slug as make_slug, m.slug as model_slug,
               COALESCE(date(MAX(vy.last_ingested_at)), date(m.updated_at)) as lastmod
@@ -149,7 +149,7 @@ seoRoutes.get("/sitemap-years-:page{.+\\.xml}", async (c) => {
   const page = Math.max(1, Number(c.req.param("page")?.replace(/\.xml$/, "") || "1"));
   const offset = (page - 1) * YEAR_SITEMAP_CHUNK_SIZE;
 
-  const { html: xml, hit } = await getCachedOrRender(c.env.PAGE_CACHE, `sitemap:years:${page}`, 86400, async () => {
+  const { value: xml, hit } = await getCachedOrRender(c.env.PAGE_CACHE, `sitemap:years:${page}`, 86400, async () => {
     const yearsResult = await c.env.DB.prepare(
       `SELECT mk.slug as make_slug, m.slug as model_slug, vy.year,
               COALESCE(date(vy.last_ingested_at), date(vy.updated_at)) as lastmod
