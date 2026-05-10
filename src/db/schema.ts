@@ -64,6 +64,10 @@ export const recalls = sqliteTable("recalls", {
   remedyEnriched: text("remedy_enriched"),
   enrichedAt: text("enriched_at"),
 
+  // Quality score (0.0 - 1.0)
+  enrichmentQualityScore: integer("enrichment_quality_score"),
+  enrichmentModel: text("enrichment_model"),
+
   // Auto-classified severity
   severityLevel: text("severity_level", { enum: severityLevels }).notNull().default("UNKNOWN"),
 
@@ -74,6 +78,20 @@ export const recalls = sqliteTable("recalls", {
   index("idx_recalls_campaign").on(table.nhtsaCampaignNumber),
   index("idx_recalls_component").on(table.component),
   index("idx_recalls_severity").on(table.severityLevel),
+  index("idx_recalls_quality").on(table.enrichmentQualityScore),
+]);
+
+// ─── ENRICHMENT FAILURES (Dead Letter Queue) ─────────────────────
+export const enrichmentFailures = sqliteTable("enrichment_failures", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  recallId: integer("recall_id").notNull().references(() => recalls.id, { onDelete: "cascade" }),
+  error: text("error").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  lastAttemptAt: text("last_attempt_at").notNull().$defaultFn(() => new Date().toISOString()),
+  resolved: integer("resolved", { mode: "boolean" }).notNull().default(false),
+}, (table) => [
+  index("idx_failures_recall").on(table.recallId),
+  index("idx_failures_resolved").on(table.resolved),
 ]);
 
 // ─── INGESTION LOGS ─────────────────────────────────────────────

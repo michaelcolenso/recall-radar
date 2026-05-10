@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx wrangler:*)"
+      "Bash(npx wrangler:*)",
+      "mcp__claude_ai_Cloudflare_Developer_Platform__d1_databases_list",
+      "Bash(node *)",
+      "mcp__claude_ai_Cloudflare_Developer_Platform__d1_database_query"
     ]
   }
 }

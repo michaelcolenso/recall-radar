@@ -23,6 +23,7 @@ export function modelPageTemplate(makeName: string, makeSlug: string, modelName:
       <p class="rr-section-header__subtitle">Select a model year to see all safety recalls and issues.</p>
     </section>
     <section>
+      <h2 class="rr-section-header__title">Recall History by Year</h2>
       <div class="rr-grid rr-grid--years">
         ${cards || "<p class='rr-body'>No vehicle years found.</p>"}
       </div>

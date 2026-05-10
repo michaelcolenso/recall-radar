@@ -8,4 +8,5 @@ export interface Env {
   ADMIN_TOKEN: string;
   SITE_URL: string;
   ENVIRONMENT: string;
+  GOOGLE_SITE_VERIFICATION?: string;
 }
