@@ -15,8 +15,8 @@ export function homeTemplate(makes: Array<{ slug: string; name: string }>, stats
 
   return `
     <section class="rr-hero">
-      <h1 class="rr-hero__title">Is Your Car Safe?</h1>
-      <p class="rr-hero__subtitle">Search vehicle recalls in plain English. Find out if your car has open safety issues — and how to get them fixed for free.</p>
+      <h1 class="rr-hero__title">Every Recall. Every VIN.</h1>
+      <p class="rr-hero__subtitle">Understand recall risk fast with a cleaner, clearer experience built around your make, model, and year.</p>
     </section>
 
     <section class="rr-stats">
