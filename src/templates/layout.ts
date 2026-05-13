@@ -33,7 +33,7 @@ export function layout({ title, description, canonical, body, jsonLd = "", noInd
   ${escapedTitle ? `<meta property="og:title" content="${escapedTitle}"/>` : ""}
   ${escapedDesc ? `<meta property="og:description" content="${escapedDesc}"/>` : ""}
   <meta property="og:type" content="${resolvedOgType}"/>
-  <meta property="og:site_name" content="RecallRadar"/>
+  <meta property="og:site_name" content="Recalled Rides"/>
   <meta property="og:image" content="${resolvedOgImage}"/>
   <meta name="twitter:card" content="summary_large_image"/>
   ${escapedTitle ? `<meta name="twitter:title" content="${escapedTitle}"/>` : ""}
@@ -49,8 +49,8 @@ export function layout({ title, description, canonical, body, jsonLd = "", noInd
   <nav class="rr-nav">
     <div class="rr-nav__inner">
       <a href="/" class="rr-logo">
-        <span class="rr-logo__mark">!</span>
-        <span>RecallRadar</span>
+        <span class="rr-logo__mark" aria-hidden="true"></span>
+        <span class="rr-logo__wordmark">Recalled Rides</span>
       </a>
       <div class="rr-nav__links">
         <a href="/">Search</a>
@@ -63,7 +63,7 @@ export function layout({ title, description, canonical, body, jsonLd = "", noInd
   </main>
   <footer class="rr-footer">
     <p>Data sourced from the <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration (NHTSA)</a>. Last updated ${now}.</p>
-    <p><a href="/about">About</a> &middot; RecallRadar is not affiliated with NHTSA or any vehicle manufacturer.</p>
+    <p><a href="/about">About</a> &middot; Recalled Rides is not affiliated with NHTSA or any vehicle manufacturer.</p>
   </footer>
 </body>
 </html>`;

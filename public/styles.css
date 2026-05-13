@@ -5,20 +5,20 @@
   color-scheme: light;
 
   /* Backgrounds */
-  --bg-page: #f5f2eb;
-  --bg-surface: #faf8f3;
+  --bg-page: #f8f8f7;
+  --bg-surface: #ffffff;
   --bg-surface-raised: #ffffff;
-  --bg-inset: #ede9e0;
+  --bg-inset: #f1f1ef;
 
   /* Text */
-  --text-primary: #1a1a1a;
-  --text-secondary: #5c5c5c;
+  --text-primary: #0c0c0e;
+  --text-secondary: #454549;
   --text-tertiary: #8a8680;
   --text-inverse: #f5f2eb;
 
   /* Borders */
-  --border-default: #d4cfc6;
-  --border-strong: #a39e96;
+  --border-default: #dbdbde;
+  --border-strong: #95959b;
   --border-subtle: #e8e4db;
 
   /* Severity — automotive warning light palette */
@@ -51,7 +51,7 @@
 
   /* Accent */
   --accent-primary: #d97706;
-  --accent-primary-hover: #b45309;
+  --accent-primary-hover: #b96a05;
   --accent-muted: #a39e96;
 
   /* Typography scale (fluid) */
@@ -90,7 +90,7 @@
   :root {
     color-scheme: dark;
 
-    --bg-page: #0c0c10;
+    --bg-page: #0a0a0c;
     --bg-surface: #131318;
     --bg-surface-raised: #1a1a20;
     --bg-inset: #08080a;
@@ -192,7 +192,7 @@ img {
 }
 
 .rr-logo {
-  font-family: "Rajdhani", sans-serif;
+  font-family: "Source Sans 3", system-ui, sans-serif;
   font-weight: 700;
   font-size: var(--text-xl);
   letter-spacing: 0.02em;
@@ -203,13 +203,31 @@ img {
 }
 
 .rr-logo__mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: radial-gradient(circle at center, rgba(217,119,6,0.95) 0%, rgba(217,119,6,0.92) 70%, rgba(217,119,6,0.55) 100%);
+  box-shadow: 0 0 24px rgba(217, 119, 6, 0.28);
+  position: relative;
+}
+
+.rr-logo__mark::before {
+  content: "";
+  position: absolute;
+  left: -18px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 28px;
-  height: 28px;
-  background: var(--accent-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
+  height: 56px;
+  border-radius: 56px 0 0 56px;
+  background: #050507;
+  z-index: -1;
+}
+
+.rr-logo__wordmark {
+  font-family: "Source Sans 3", system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .rr-nav__links {
@@ -265,12 +283,12 @@ a, button, .rr-card, .rr-readout {
 }
 
 .rr-logo:hover .rr-logo__mark {
-  transform: rotate(90deg);
-  background: var(--alert-critical);
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 0 30px rgba(217, 119, 6, 0.4);
 }
 
 .rr-logo__mark {
-  transition: transform 0.4s var(--ease-mechanical), background 0.4s var(--ease-mechanical);
+  transition: transform 0.4s var(--ease-mechanical), box-shadow 0.4s var(--ease-mechanical);
 }
 
 .rr-card:active {
@@ -359,8 +377,9 @@ a, button, .rr-card, .rr-readout {
 }
 
 /* ── Hero ── */
-.rr-hero {
+ .rr-hero {
   padding: var(--space-16) 0 var(--space-12);
+  border-bottom: 1px solid var(--border-default);
   margin-bottom: var(--space-12);
   position: relative;
 }
