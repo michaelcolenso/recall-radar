@@ -53,9 +53,12 @@ export function layout({ title, description, canonical, body, jsonLd = "", noInd
   <a href="#main" class="rr-skip-link">Skip to main content</a>
   <nav class="rr-nav">
     <div class="rr-nav__inner">
-      <a href="/" class="rr-logo">
+      <a href="/" class="rr-logo" aria-label="Recalled Rides home">
         <span class="rr-logo__mark" aria-hidden="true"></span>
-        <span class="rr-logo__wordmark">Recalled Rides</span>
+        <span class="rr-logo__wordmark-wrap">
+          <span class="rr-logo__wordmark">Recalled Rides</span>
+          <span class="rr-logo__tagline">Every Recall. Every VIN.</span>
+        </span>
       </a>
       <div class="rr-nav__links">
         <a href="/">Search</a>
