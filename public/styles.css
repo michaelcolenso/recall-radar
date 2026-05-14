@@ -56,6 +56,8 @@
   --accent-primary: #d97706;
   --accent-primary-hover: #b96a05;
   --accent-muted: #a39e96;
+  --accent: var(--accent-primary);
+  --accent-hover: var(--accent-primary-hover);
 
   /* ── Typography Scale (fluid) ── */
   --text-xs: clamp(0.6875rem, 0.66rem + 0.12vw, 0.75rem);
@@ -243,31 +245,25 @@ img {
 }
 
 .rr-logo {
-  font-family: "Source Sans 3", system-ui, sans-serif;
-  font-weight: 700;
-  font-size: var(--text-lg);
-  letter-spacing: -0.02em;
   color: var(--text-primary);
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
-.rr-logo__mark {
-  width: 34px;
-  height: 34px;
+.rr-logo__mark,
+.rr-brand-mark {
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
-  background: radial-gradient(
-    circle at center,
-    rgba(217, 119, 6, 0.95) 0%,
-    rgba(217, 119, 6, 0.92) 70%,
-    rgba(217, 119, 6, 0.55) 100%
-  );
+  background: radial-gradient(circle at center, rgba(217, 119, 6, 0.96) 0%, rgba(217, 119, 6, 0.92) 72%, rgba(217, 119, 6, 0.5) 100%);
   box-shadow: 0 0 24px rgba(217, 119, 6, 0.28);
   position: relative;
+  flex: none;
 }
 
-.rr-logo__mark::before {
+.rr-logo__mark::before,
+.rr-brand-mark::before {
   content: "";
   position: absolute;
   left: -18px;
@@ -280,10 +276,26 @@ img {
   z-index: -1;
 }
 
+.rr-logo__wordmark-wrap {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+}
+
 .rr-logo__wordmark {
-  font-family: "Source Sans 3", system-ui, sans-serif;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-size: var(--text-lg);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+}
+
+.rr-logo__tagline {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--text-secondary);
+  margin-top: 2px;
 }
 
 .rr-nav__links {
@@ -477,6 +489,47 @@ button,
 }
 
 /* ── Hero ── */
+
+.rr-hero__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.rr-brand-mark {
+  width: 56px;
+  height: 56px;
+}
+
+.rr-brand-mark::before {
+  left: -30px;
+  width: 42px;
+  height: 84px;
+  border-radius: 84px 0 0 84px;
+}
+
+.rr-brand-lockup {
+  display: flex;
+  flex-direction: column;
+}
+
+.rr-brand-lockup__name {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(1.8rem, 3.4vw, 3.4rem);
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+
+.rr-brand-lockup__tagline {
+  margin-top: var(--space-3);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
 .rr-hero {
   padding: var(--space-16) 0 var(--space-12);
   border-bottom: 1px solid var(--border-default);
@@ -1294,4 +1347,10 @@ button,
     break-inside: avoid;
     border: 1px solid #ccc;
   }
+}
+
+@media (max-width: 640px) {
+  .rr-logo__tagline { display: none; }
+  .rr-brand-mark { width: 46px; height: 46px; }
+  .rr-brand-mark::before { left: -24px; width: 36px; height: 72px; }
 }

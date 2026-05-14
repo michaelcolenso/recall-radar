@@ -26,8 +26,15 @@ export function homeTemplate(makes: MakeSummary[], stats: Stats): string {
 
   return `
     <section class="rr-hero">
-      <h1 class="rr-hero__title">Every Recall. Every VIN.</h1>
-      <p class="rr-hero__subtitle">Understand recall risk fast with a cleaner, clearer experience built around your make, model, and year.</p>
+      <div class="rr-hero__brand" aria-hidden="true">
+        <span class="rr-brand-mark"></span>
+        <span class="rr-brand-lockup">
+          <span class="rr-brand-lockup__name">Recalled Rides</span>
+          <span class="rr-brand-lockup__tagline">Every Recall. Every VIN.</span>
+        </span>
+      </div>
+      <h1 class="rr-hero__title">Find Safety Recalls by Make, Model, and Year</h1>
+      <p class="rr-hero__subtitle">Understand recall risk fast with a cleaner, clearer experience built around your vehicle.</p>
     </section>
 
     <section class="rr-stats">
