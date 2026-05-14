@@ -54,8 +54,8 @@ export function layout({ title, description, canonical, body, jsonLd = "", noInd
   <nav class="rr-nav">
     <div class="rr-nav__inner">
       <a href="/" class="rr-logo">
-        <span class="rr-logo__mark" aria-hidden="true">!</span>
-        <span>Recalled Rides</span>
+        <span class="rr-logo__mark" aria-hidden="true"></span>
+        <span class="rr-logo__wordmark">Recalled Rides</span>
       </a>
       <div class="rr-nav__links">
         <a href="/">Search</a>
@@ -67,10 +67,8 @@ export function layout({ title, description, canonical, body, jsonLd = "", noInd
     ${body}
   </main>
   <footer class="rr-footer">
-    <div class="rr-footer__inner">
-      <p>Data sourced from the <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration (NHTSA)</a>. Last updated ${now}.</p>
-      <p>Recalled Rides is not affiliated with NHTSA or any vehicle manufacturer. <a href="/about">About</a> &middot; <a href="/sitemap.xml">Sitemap</a></p>
-    </div>
+    <p>Data sourced from the <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration (NHTSA)</a>. Last updated ${now}.</p>
+    <p><a href="/about">About</a> &middot; Recalled Rides is not affiliated with NHTSA or any vehicle manufacturer.</p>
   </footer>
 </body>
 </html>`;

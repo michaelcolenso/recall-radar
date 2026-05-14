@@ -7,24 +7,22 @@
 :root {
   color-scheme: light;
 
-  /* ── Backgrounds ── */
-  --bg-page: #f4f1ea;
-  --bg-surface: #faf8f2;
-  --bg-raised: #ffffff;
-  --bg-inset: #eae6dd;
-  --bg-grid: rgba(0, 0, 0, 0.03);
+  /* Backgrounds */
+  --bg-page: #f8f8f7;
+  --bg-surface: #ffffff;
+  --bg-surface-raised: #ffffff;
+  --bg-inset: #f1f1ef;
 
-  /* ── Text ── */
-  --text-primary: #0f0f0f;
-  --text-secondary: #595550;
-  --text-tertiary: #8a847a;
-  --text-inverse: #f4f1ea;
+  /* Text */
+  --text-primary: #0c0c0e;
+  --text-secondary: #454549;
+  --text-tertiary: #8a8680;
+  --text-inverse: #f5f2eb;
 
-  /* ── Accent ── */
-  --accent: #dc4405;
-  --accent-hover: #b03500;
-  --accent-wash: rgba(220, 68, 5, 0.08);
-  --accent-glow: rgba(220, 68, 5, 0.18);
+  /* Borders */
+  --border-default: #dbdbde;
+  --border-strong: #95959b;
+  --border-subtle: #e8e4db;
 
   /* ── Severity ── */
   --critical-fg: #b01e1e;
@@ -49,10 +47,15 @@
   --unknown-bg: rgba(0, 0, 0, 0.04);
   --unknown-border: #9e9e9e;
 
-  /* ── Rules & Borders ── */
-  --rule: #d4cfc4;
-  --rule-strong: #b0a99c;
-  --rule-subtle: #e8e3d8;
+  /* Fix / success */
+  --fix-bg: #f0fdf4;
+  --fix-border: #16a34a;
+  --fix-text: #166534;
+
+  /* Accent */
+  --accent-primary: #d97706;
+  --accent-primary-hover: #b96a05;
+  --accent-muted: #a39e96;
 
   /* ── Typography Scale (fluid) ── */
   --text-xs: clamp(0.6875rem, 0.66rem + 0.12vw, 0.75rem);
@@ -91,9 +94,10 @@
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg-page: #0c0c0e;
-    --bg-surface: #141416;
-    --bg-raised: #1a1a1d;
+
+    --bg-page: #0a0a0c;
+    --bg-surface: #131318;
+    --bg-surface-raised: #1a1a20;
     --bg-inset: #08080a;
     --bg-grid: rgba(255, 255, 255, 0.03);
 
@@ -139,7 +143,9 @@
    RESET & BASE
    ═══════════════════════════════════════════════════════════════ */
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
 }
@@ -237,7 +243,7 @@ img {
 }
 
 .rr-logo {
-  font-family: "Space Grotesk", "Helvetica Neue", sans-serif;
+  font-family: "Source Sans 3", system-ui, sans-serif;
   font-weight: 700;
   font-size: var(--text-lg);
   letter-spacing: -0.02em;
@@ -248,22 +254,36 @@ img {
 }
 
 .rr-logo__mark {
-  width: 28px;
-  height: 28px;
-  background: var(--accent);
-  color: var(--text-inverse);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 800;
-  flex-shrink: 0;
-  transition: transform 0.5s var(--ease-snap), background 0.3s ease;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle at center,
+    rgba(217, 119, 6, 0.95) 0%,
+    rgba(217, 119, 6, 0.92) 70%,
+    rgba(217, 119, 6, 0.55) 100%
+  );
+  box-shadow: 0 0 24px rgba(217, 119, 6, 0.28);
+  position: relative;
 }
 
-.rr-logo:hover .rr-logo__mark {
-  transform: rotate(90deg);
-  background: var(--accent-hover);
+.rr-logo__mark::before {
+  content: "";
+  position: absolute;
+  left: -18px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 56px;
+  border-radius: 56px 0 0 56px;
+  background: #050507;
+  z-index: -1;
+}
+
+.rr-logo__wordmark {
+  font-family: "Source Sans 3", system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .rr-nav__links {
@@ -318,32 +338,41 @@ img {
   text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-color: var(--rule-strong);
-  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+  transition:
+    color 0.2s ease,
+    text-decoration-color 0.2s ease;
 }
 
 .rr-footer a:hover {
   color: var(--text-secondary);
-  text-decoration-color: var(--text-secondary);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   TYPOGRAPHY
-   ═══════════════════════════════════════════════════════════════ */
-
-.rr-display {
-  font-family: "Space Grotesk", "Helvetica Neue", sans-serif;
-  font-weight: 700;
-  line-height: 0.95;
-  letter-spacing: -0.03em;
-  color: var(--text-primary);
+/* ── Industrial Transitions ── */
+:root {
+  --ease-mechanical: cubic-bezier(
+    0.19,
+    1,
+    0.22,
+    1
+  ); /* Quick out, snappy finish */
 }
 
-.rr-display--1 {
-  font-size: var(--text-4xl);
+a,
+button,
+.rr-card,
+.rr-readout {
+  transition: all 0.25s var(--ease-mechanical);
 }
 
-.rr-display--2 {
-  font-size: var(--text-3xl);
+.rr-logo:hover .rr-logo__mark {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 0 30px rgba(217, 119, 6, 0.4);
+}
+
+.rr-logo__mark {
+  transition:
+    transform 0.4s var(--ease-mechanical),
+    box-shadow 0.4s var(--ease-mechanical);
 }
 
 .rr-display--3 {
@@ -447,13 +476,11 @@ img {
   font-weight: 600;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   HERO
-   ═══════════════════════════════════════════════════════════════ */
-
+/* ── Hero ── */
 .rr-hero {
-  padding: var(--space-20) 0 var(--space-16);
-  margin-bottom: var(--space-16);
+  padding: var(--space-16) 0 var(--space-12);
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: var(--space-12);
   position: relative;
 }
 
@@ -596,21 +623,39 @@ img {
 }
 
 @media (min-width: 480px) {
-  .rr-grid--makes { grid-template-columns: repeat(3, 1fr); }
-  .rr-grid--models { grid-template-columns: repeat(3, 1fr); }
-  .rr-grid--years { grid-template-columns: repeat(4, 1fr); }
+  .rr-grid--makes {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .rr-grid--models {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .rr-grid--years {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 @media (min-width: 640px) {
-  .rr-grid--makes { grid-template-columns: repeat(4, 1fr); }
-  .rr-grid--models { grid-template-columns: repeat(3, 1fr); }
-  .rr-grid--years { grid-template-columns: repeat(5, 1fr); }
+  .rr-grid--makes {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .rr-grid--models {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .rr-grid--years {
+    grid-template-columns: repeat(5, 1fr);
+  }
 }
 
 @media (min-width: 768px) {
-  .rr-grid--makes { grid-template-columns: repeat(5, 1fr); }
-  .rr-grid--models { grid-template-columns: repeat(4, 1fr); }
-  .rr-grid--years { grid-template-columns: repeat(6, 1fr); }
+  .rr-grid--makes {
+    grid-template-columns: repeat(5, 1fr);
+  }
+  .rr-grid--models {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .rr-grid--years {
+    grid-template-columns: repeat(6, 1fr);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -620,7 +665,9 @@ img {
 .rr-card {
   display: block;
   padding: var(--space-5);
-  transition: background-color 0.2s ease, transform 0.15s ease;
+  transition:
+    background-color 0.2s ease,
+    transform 0.15s ease;
   position: relative;
 }
 
@@ -796,7 +843,9 @@ img {
   background: var(--bg-raised);
   border: 1px solid var(--rule);
   position: relative;
-  transition: border-color 0.25s ease, transform 0.2s ease;
+  transition:
+    border-color 0.25s ease,
+    transform 0.2s ease;
   content-visibility: auto;
   contain-intrinsic-size: 680px;
 }
@@ -958,7 +1007,9 @@ img {
   color: var(--text-tertiary);
   padding: var(--space-3) var(--space-5);
   cursor: pointer;
-  transition: color 0.2s ease, background-color 0.2s ease;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
   list-style: none;
   display: flex;
   align-items: center;
@@ -1148,7 +1199,9 @@ img {
   text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-color: var(--rule-strong);
-  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+  transition:
+    color 0.2s ease,
+    text-decoration-color 0.2s ease;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -1178,12 +1231,24 @@ img {
   animation: rr-fade-up 0.5s var(--ease-out) both;
 }
 
-.rr-animate-in > *:nth-child(1) { animation-delay: 0.05s; }
-.rr-animate-in > *:nth-child(2) { animation-delay: 0.1s; }
-.rr-animate-in > *:nth-child(3) { animation-delay: 0.15s; }
-.rr-animate-in > *:nth-child(4) { animation-delay: 0.2s; }
-.rr-animate-in > *:nth-child(5) { animation-delay: 0.25s; }
-.rr-animate-in > *:nth-child(6) { animation-delay: 0.3s; }
+.rr-animate-in > *:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.rr-animate-in > *:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.rr-animate-in > *:nth-child(3) {
+  animation-delay: 0.15s;
+}
+.rr-animate-in > *:nth-child(4) {
+  animation-delay: 0.2s;
+}
+.rr-animate-in > *:nth-child(5) {
+  animation-delay: 0.25s;
+}
+.rr-animate-in > *:nth-child(6) {
+  animation-delay: 0.3s;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    UTILITIES
@@ -1206,7 +1271,9 @@ img {
    ═══════════════════════════════════════════════════════════════ */
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -1218,7 +1285,9 @@ img {
    ═══════════════════════════════════════════════════════════════ */
 
 @media print {
-  .rr-nav, .rr-footer, .rr-lead {
+  .rr-nav,
+  .rr-footer,
+  .rr-lead {
     display: none;
   }
   .rr-readout {
