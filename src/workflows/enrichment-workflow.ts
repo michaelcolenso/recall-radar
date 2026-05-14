@@ -1,8 +1,7 @@
 import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 import { enrichRecall } from "../lib/enrichment";
-import type { Env } from "../env";
 
-interface EnrichmentParams {
+export interface EnrichmentParams {
   batchSize?: number;
   targetMake?: string;
   concurrency?: number;

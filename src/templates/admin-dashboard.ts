@@ -15,7 +15,7 @@ export function adminDashboard(): string {
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>RecallRadar Admin</title>
+  <title>Recalled Rides Admin</title>
   <meta name="robots" content="noindex,nofollow"/>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -26,7 +26,7 @@ export function adminDashboard(): string {
     <div class="flex items-center gap-3">
       <a href="/" class="text-blue-400 hover:text-blue-300 text-sm">← Site</a>
       <span class="text-slate-500">/</span>
-      <span class="font-semibold text-white">RecallRadar Admin</span>
+      <span class="font-semibold text-white">Recalled Rides Admin</span>
     </div>
     <div class="flex items-center gap-2">
       <input

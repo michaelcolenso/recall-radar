@@ -1,8 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "recall-radar",
+  "name": "recalled-rides",
   "main": "src/index.ts",
-  "compatibility_date": "2026-05-01",
+  "compatibility_date": "2026-05-13",
   "compatibility_flags": [
     "nodejs_compat"
   ],
@@ -64,15 +64,25 @@
       "0 4 * * 1"
     ]
   },
+  // Routes
+  "routes": [
+    {
+      "pattern": "recalledrides.com",
+      "custom_domain": true
+    }
+  ],
   // Static assets
   "assets": {
     "directory": "./public"
   },
   // Environment variables
   "vars": {
-    "SITE_URL": "",
+    "SITE_URL": "https://recalledrides.com",
     "ENVIRONMENT": "production",
-    "GOOGLE_SITE_VERIFICATION": ""
+    // Replace with your actual Google Search Console verification string
+    "GOOGLE_SITE_VERIFICATION": "",
+    // Optional: Cloudflare Web Analytics token for privacy-friendly analytics
+    "CF_ANALYTICS_TOKEN": ""
   },
   // Observability
   "observability": {

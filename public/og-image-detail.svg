@@ -4,8 +4,8 @@
   <rect x="100" y="100" width="60" height="60" fill="#d97706"/>
   <text x="130" y="145" font-family="system-ui, -apple-system, sans-serif" font-size="36" font-weight="700" fill="#f5f2eb" text-anchor="middle">!</text>
   <text x="180" y="148" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="700" fill="#1a1a1a">Recalled Rides</text>
-  <text x="100" y="280" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="700" fill="#1a1a1a">Vehicle Recall Search</text>
-  <text x="100" y="360" font-family="system-ui, -apple-system, sans-serif" font-size="32" fill="#5c5c5c">Check safety recalls for your car in plain English.</text>
+  <text x="100" y="280" font-family="system-ui, -apple-system, sans-serif" font-size="64" font-weight="700" fill="#1a1a1a">Check Your Vehicle Recalls</text>
+  <text x="100" y="360" font-family="system-ui, -apple-system, sans-serif" font-size="32" fill="#5c5c5c">Plain-English recall info. Free dealer repairs.</text>
   <rect x="100" y="420" width="200" height="4" fill="#d97706"/>
   <text x="100" y="500" font-family="system-ui, -apple-system, sans-serif" font-size="22" fill="#8a8680">Data sourced from NHTSA</text>
 </svg>

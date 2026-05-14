@@ -1,15 +1,26 @@
 import { escapeHtml } from "../lib/utils";
 
+interface MakeSummary {
+  slug: string;
+  name: string;
+  model_count: number;
+  recall_count: number;
+}
+
 interface Stats {
   recalls: number;
   vehicles: number;
   makes: number;
 }
 
-export function homeTemplate(makes: Array<{ slug: string; name: string }>, stats: Stats): string {
+export function homeTemplate(makes: MakeSummary[], stats: Stats): string {
   const makeGrid = makes.map((m) => `
-    <a href="/${m.slug}" class="rr-card">
+    <a href="/${m.slug}" class="rr-card" aria-label="${escapeHtml(m.name)}: ${m.recall_count.toLocaleString()} recall${m.recall_count !== 1 ? 's' : ''}, ${m.model_count.toLocaleString()} model${m.model_count !== 1 ? 's' : ''}">
       <div class="rr-card__title">${escapeHtml(m.name)}</div>
+      <div class="rr-card__meta">
+        ${m.recall_count.toLocaleString()} recall${m.recall_count !== 1 ? "s" : ""}
+        · ${m.model_count.toLocaleString()} model${m.model_count !== 1 ? "s" : ""}
+      </div>
     </a>
   `).join("");
 

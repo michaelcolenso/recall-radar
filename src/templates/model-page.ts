@@ -10,9 +10,9 @@ interface YearRow {
 
 export function modelPageTemplate(makeName: string, makeSlug: string, modelName: string, modelSlug: string, years: YearRow[]): string {
   const cards = years.map((y) => `
-    <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year">
+    <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year" aria-label="${y.year}: ${y.recall_count} recall${y.recall_count !== 1 ? 's' : ''}${y.highest_severity ? ', highest severity ' + y.highest_severity.toLowerCase() : ''}">
       <div class="rr-card__title">${y.year}</div>
-      ${y.highest_severity ? `<div class="mt-2">${severityBadge(y.highest_severity)}</div>` : ""}
+      ${y.highest_severity ? `<div style="margin-top: var(--space-2);">${severityBadge(y.highest_severity)}</div>` : ""}
       <div class="rr-card__meta">${y.recall_count} recall${y.recall_count !== 1 ? "s" : ""}</div>
     </a>
   `).join("");
@@ -23,7 +23,7 @@ export function modelPageTemplate(makeName: string, makeSlug: string, modelName:
       <p class="rr-section-header__subtitle">Select a model year to see all safety recalls and issues.</p>
     </section>
     <section>
-      <h2 class="rr-section-header__title">Recall History by Year</h2>
+      <h2 class="rr-label" style="margin-bottom: var(--space-4);">Recall History by Year</h2>
       <div class="rr-grid rr-grid--years">
         ${cards || "<p class='rr-body'>No vehicle years found.</p>"}
       </div>

@@ -32,9 +32,12 @@ async function fetchWithRetry(url: string, retries = 3, timeoutMs = 15000): Prom
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timer);
-      return res;
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        return res;
+      } finally {
+        clearTimeout(timer);
+      }
     } catch (err) {
       lastError = err;
     }

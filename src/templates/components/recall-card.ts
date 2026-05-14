@@ -29,6 +29,28 @@ export function recallCard(recall: RecallView): string {
 
   const severityClass = recall.severity_level ? `rr-readout--${recall.severity_level.toLowerCase()}` : "";
 
+  const originalToggle = isEnriched
+    ? `
+      <details class="rr-readout__original">
+        <summary class="rr-readout__original-summary">Show original NHTSA language</summary>
+        <div class="rr-readout__original-body">
+          <div class="rr-readout__field">
+            <div class="rr-readout__field-label">Original — What Happened</div>
+            <div class="rr-readout__field-value">${escapeHtml(recall.summary_raw)}</div>
+          </div>
+          <div class="rr-readout__field">
+            <div class="rr-readout__field-label">Original — Risk if Unfixed</div>
+            <div class="rr-readout__field-value">${escapeHtml(recall.consequence_raw)}</div>
+          </div>
+          <div class="rr-readout__field">
+            <div class="rr-readout__field-label">Original — Remedy</div>
+            <div class="rr-readout__field-value">${escapeHtml(recall.remedy_raw)}</div>
+          </div>
+        </div>
+      </details>
+    `
+    : "";
+
   return `
   <article class="rr-readout ${severityClass}">
     <div class="rr-readout__header">
@@ -62,5 +84,6 @@ export function recallCard(recall: RecallView): string {
       <div class="rr-readout__fix-label">Free Fix</div>
       <div class="rr-readout__fix-value">${escapeHtml(remedy)}</div>
     </div>
+    ${originalToggle}
   </article>`;
 }

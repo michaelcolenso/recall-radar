@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { Env } from "../env";
 
 const SYSTEM_PROMPT = `You are an expert, empathetic automotive mechanic explaining a vehicle recall to an average car owner. Your job is to translate this bureaucratic government recall notice into simple, urgent (but not panic-inducing) language.
 
@@ -58,9 +57,9 @@ function parseEnrichmentJson(text: string, model: string): EnrichmentResult | nu
 
 const AI_CALL_TIMEOUT_MS = 45_000;
 
-async function aiRunWithTimeout(env: Env, model: string, messages: any[], maxTokens: number): Promise<string> {
+async function aiRunWithTimeout(env: Env, model: string, messages: unknown[], maxTokens: number): Promise<string> {
   const result = await Promise.race([
-    (env.AI as any).run(model, { messages, max_tokens: maxTokens }),
+    env.AI.run(model, { messages, max_tokens: maxTokens } as unknown as Record<string, unknown>),
     new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI_CALL_TIMEOUT")), AI_CALL_TIMEOUT_MS)),
   ]);
   return (result as { response?: string }).response ?? "";

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
-import type { Env } from "../env";
 
 export const apiRoutes = new Hono<{ Bindings: Env }>();
 
@@ -12,9 +12,25 @@ const IngestRequestSchema = z.object({
   deltaThresholdHours: z.number().int().optional(),
 });
 
-function requireAuth(c: { req: { header: (k: string) => string | undefined }; text: (t: string, s: number) => Response }, token: string): Response | null {
+function requireAuth(c: Context): Response | null {
   const auth = c.req.header("Authorization");
-  if (!auth || auth !== `Bearer ${token}`) {
+  const token = c.env.ADMIN_TOKEN;
+  if (!auth || !token) {
+    return c.text("Unauthorized", 401);
+  }
+  const expected = `Bearer ${token}`;
+  if (auth.length !== expected.length) {
+    return c.text("Unauthorized", 401);
+  }
+  // Constant-time comparison to prevent timing attacks
+  const encoder = new TextEncoder();
+  const a = encoder.encode(auth);
+  const b = encoder.encode(expected);
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a[i] ^ b[i];
+  }
+  if (mismatch !== 0) {
     return c.text("Unauthorized", 401);
   }
   return null;
@@ -22,7 +38,7 @@ function requireAuth(c: { req: { header: (k: string) => string | undefined }; te
 
 // POST /api/admin/ingest — trigger IngestionWorkflow
 apiRoutes.post("/admin/ingest", async (c) => {
-  const denied = requireAuth(c, c.env.ADMIN_TOKEN);
+  const denied = requireAuth(c);
   if (denied) return denied;
 
   const rawBody = await c.req.json().catch(() => ({}));
@@ -45,7 +61,7 @@ apiRoutes.post("/admin/ingest", async (c) => {
 
 // GET /api/admin/ingest/:id — workflow status
 apiRoutes.get("/admin/ingest/:id", async (c) => {
-  const denied = requireAuth(c, c.env.ADMIN_TOKEN);
+  const denied = requireAuth(c);
   if (denied) return denied;
 
   const { id } = c.req.param();
@@ -60,7 +76,7 @@ apiRoutes.get("/admin/ingest/:id", async (c) => {
 
 // POST /api/admin/enrich — trigger EnrichmentWorkflow
 apiRoutes.post("/admin/enrich", async (c) => {
-  const denied = requireAuth(c, c.env.ADMIN_TOKEN);
+  const denied = requireAuth(c);
   if (denied) return denied;
 
   const body = await c.req.json<{
@@ -81,7 +97,7 @@ apiRoutes.post("/admin/enrich", async (c) => {
 
 // GET /api/admin/enrich/:id — workflow status
 apiRoutes.get("/admin/enrich/:id", async (c) => {
-  const denied = requireAuth(c, c.env.ADMIN_TOKEN);
+  const denied = requireAuth(c);
   if (denied) return denied;
 
   const { id } = c.req.param();
@@ -96,7 +112,7 @@ apiRoutes.get("/admin/enrich/:id", async (c) => {
 
 // GET /api/admin/status — agent status
 apiRoutes.get("/admin/status", async (c) => {
-  const denied = requireAuth(c, c.env.ADMIN_TOKEN);
+  const denied = requireAuth(c);
   if (denied) return denied;
 
   const agentId = c.env.PIPELINE_AGENT.idFromName("singleton");
@@ -107,7 +123,7 @@ apiRoutes.get("/admin/status", async (c) => {
 
 // GET /api/admin/backfill-status — progress of the historical backfill
 apiRoutes.get("/admin/backfill-status", async (c) => {
-  const denied = requireAuth(c, c.env.ADMIN_TOKEN);
+  const denied = requireAuth(c);
   if (denied) return denied;
 
   const agentId = c.env.PIPELINE_AGENT.idFromName("singleton");
@@ -118,7 +134,7 @@ apiRoutes.get("/admin/backfill-status", async (c) => {
 
 // GET /api/admin/stats — DB stats
 apiRoutes.get("/admin/stats", async (c) => {
-  const denied = requireAuth(c, c.env.ADMIN_TOKEN);
+  const denied = requireAuth(c);
   if (denied) return denied;
 
   const agentId = c.env.PIPELINE_AGENT.idFromName("singleton");

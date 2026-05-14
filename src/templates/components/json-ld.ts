@@ -72,11 +72,6 @@ export function websiteJsonLd(siteUrl: string, siteName: string, description: st
     url: siteUrl,
     name: siteName,
     description,
-    potentialAction: {
-      "@type": "SearchAction",
-      target: `${siteUrl}/?q={search_term_string}`,
-      "query-input": "required name=search_term_string",
-    },
   };
   return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
 }
@@ -105,8 +100,58 @@ export function vehicleJsonLd(make: string, model: string, year: number, pageUrl
     },
     url: pageUrl,
     ...(recallCount > 0
-      ? { vehicleSeatingCapacity: undefined, knownVehicleDamages: [`${recallCount} active safety recall${recallCount !== 1 ? "s" : ""}`] }
-      : {}),
+      ? { description: `${recallCount} active safety recall${recallCount !== 1 ? "s" : ""} on record for the ${year} ${make} ${model}.` }
+      : { description: `No active safety recalls on record for the ${year} ${make} ${model}.` }),
+  };
+  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+}
+
+interface ItemListEntry {
+  name: string;
+  url: string;
+  description?: string;
+}
+
+export function itemListJsonLd(name: string, items: ItemListEntry[], pageUrl?: string): string {
+  const schema: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name,
+    itemListElement: items.map((item, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: item.name,
+      url: item.url,
+      ...(item.description ? { description: item.description } : {}),
+    })),
+  };
+  if (pageUrl) {
+    schema.url = pageUrl;
+  }
+  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+}
+
+interface ArticleSchema {
+  headline: string;
+  description: string;
+  url: string;
+  datePublished?: string;
+  dateModified?: string;
+  author?: string;
+  image?: string;
+}
+
+export function articleJsonLd(article: ArticleSchema): string {
+  const schema: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: article.headline,
+    description: article.description,
+    url: article.url,
+    ...(article.datePublished ? { datePublished: article.datePublished } : {}),
+    ...(article.dateModified ? { dateModified: article.dateModified } : {}),
+    ...(article.author ? { author: { "@type": "Organization", name: article.author } } : {}),
+    ...(article.image ? { image: article.image } : {}),
   };
   return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
 }

@@ -4,7 +4,6 @@ import { POPULAR_MAKES, DEFAULT_YEAR_START, YEAR_MAX } from "../lib/constants";
 import { fetchAllMakes, fetchModelsForMake, fetchRecallsForVehicle } from "../lib/nhtsa-client";
 import { classifySeverity } from "../lib/severity";
 import { slugify, parseNhtsaDate } from "../lib/utils";
-import type { Env } from "../env";
 
 const IngestionParamsSchema = z
   .object({
@@ -19,7 +18,7 @@ const IngestionParamsSchema = z
     message: "yearStart must be <= yearEnd",
   });
 
-type IngestionParams = z.infer<typeof IngestionParamsSchema>;
+export type IngestionParams = z.infer<typeof IngestionParamsSchema>;
 
 interface StaleRow {
   model_id: number;
@@ -133,20 +132,16 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
 
       const staleRows = await step.do("fetch-stale-combos", async () => {
         const result = await this.env.DB.prepare(
-          `
-          SELECT vy.model_id, vy.year,
-                 m.name AS model_name, m.slug AS model_slug,
-                 mk.name AS make_name, mk.id AS make_id
-          FROM vehicle_years vy
-          JOIN models m ON m.id = vy.model_id
-          JOIN makes mk ON mk.id = m.make_id
-          JOIN year_range
-          LEFT JOIN vehicle_years vy ON vy.model_id = m.id AND vy.year = year_range.year
-          WHERE mk.name IN (${placeholders})
-            AND (vy.last_ingested_at IS NULL OR vy.last_ingested_at < ?)
-          ORDER BY vy.last_ingested_at ASC
-          LIMIT 5000
-        `,
+          `SELECT vy.model_id, vy.year,
+                  m.name AS model_name, m.slug AS model_slug,
+                  mk.name AS make_name, mk.id AS make_id
+           FROM vehicle_years vy
+           JOIN models m ON m.id = vy.model_id
+           JOIN makes mk ON mk.id = m.make_id
+           WHERE mk.name IN (${placeholders})
+             AND (vy.last_ingested_at IS NULL OR vy.last_ingested_at < ?)
+           ORDER BY vy.last_ingested_at ASC
+           LIMIT 5000`
         )
           .bind(...makeNames, thresholdIso)
           .all<StaleRow>();
@@ -261,7 +256,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
         if (!makeRecord) return [];
 
         const now = new Date().toISOString();
-        const batch: any[] = [];
+        const batch: D1PreparedStatement[] = [];
         const modelData: Array<{ name: string; slug: string }> = [];
 
         for (const model of models) {

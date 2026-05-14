@@ -46,11 +46,11 @@ export function componentPageTemplate({
 }: ComponentPageOptions): string {
   const relatedCompHtml = relatedComponents && relatedComponents.length > 0
     ? `
-      <section style="margin-top: var(--space-12);">
-        <h2 class="rr-section-header__title">Other ${escapeHtml(make)} ${escapeHtml(model)} ${escapeHtml(year)} Recalls</h2>
-        <div class="rr-grid rr-grid--years" style="margin-top: var(--space-6);">
+      <section style="margin-top: var(--space-16);">
+        <h2 class="rr-label" style="margin-bottom: var(--space-4);">Other ${escapeHtml(make)} ${escapeHtml(model)} ${escapeHtml(year)} Recalls</h2>
+        <div class="rr-grid rr-grid--years">
           ${relatedComponents.map((c) => `
-            <a href="/${makeSlug}/${modelSlug}/${year}/${c.slug}" class="rr-card rr-card--year ${c.isCurrent ? 'rr-card--current' : ''}">
+            <a href="/${makeSlug}/${modelSlug}/${year}/${c.slug}" class="rr-card rr-card--year ${c.isCurrent ? 'rr-card--current' : ''}" aria-label="${escapeHtml(c.name)}: ${c.count} recall${c.count !== 1 ? 's' : ''}">
               <div class="rr-card__title">${escapeHtml(c.name)}</div>
               <div class="rr-card__meta">${c.count} recall${c.count !== 1 ? "s" : ""}</div>
             </a>
@@ -62,11 +62,11 @@ export function componentPageTemplate({
 
   const relatedYearHtml = relatedYears && relatedYears.length > 0
     ? `
-      <section style="margin-top: var(--space-12);">
-        <h2 class="rr-section-header__title">Other ${escapeHtml(make)} ${escapeHtml(model)} Years</h2>
-        <div class="rr-grid rr-grid--years" style="margin-top: var(--space-6);">
+      <section style="margin-top: var(--space-16);">
+        <h2 class="rr-label" style="margin-bottom: var(--space-4);">Other ${escapeHtml(make)} ${escapeHtml(model)} Years</h2>
+        <div class="rr-grid rr-grid--years">
           ${relatedYears.map((y) => `
-            <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year ${y.isCurrent ? 'rr-card--current' : ''}">
+            <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year ${y.isCurrent ? 'rr-card--current' : ''}" aria-label="${y.year}: ${y.recallCount} recall${y.recallCount !== 1 ? 's' : ''}">
               <div class="rr-card__title">${y.year}</div>
               <div class="rr-card__meta">${y.recallCount} recall${y.recallCount !== 1 ? "s" : ""}</div>
             </a>
@@ -92,7 +92,7 @@ export function componentPageTemplate({
         <p class="rr-section-header__body">All recalls are free to repair at your local dealership. Contact your dealer to schedule service for ${escapeHtml(component)} issues.</p>
       ` : ""}
       <p style="margin-top: var(--space-4);">
-        <a href="/${makeSlug}/${modelSlug}/${year}" class="rr-body" style="text-decoration: underline; text-underline-offset: 2px;">
+        <a href="/${makeSlug}/${modelSlug}/${year}" class="rr-back-link">
           ← View all ${escapeHtml(year)} ${escapeHtml(make)} ${escapeHtml(model)} recalls
         </a>
       </p>

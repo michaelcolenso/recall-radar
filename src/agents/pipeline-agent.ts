@@ -1,5 +1,6 @@
 import { Agent } from "agents";
-import type { Env } from "../env";
+import type { IngestionParams } from "../workflows/ingestion-workflow";
+import type { EnrichmentParams } from "../workflows/enrichment-workflow";
 
 interface PipelineState {
   lastIngestionRun: string | null;
@@ -39,10 +40,17 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
     await this.ensureTable();
   }
 
-  async triggerIngestion(params: { mode?: string; targetMake?: string; yearStart?: number; yearEnd?: number } = {}) {
+  async triggerIngestion(params: Partial<IngestionParams> = {}) {
     await this.ensureTable();
-    
-    const run = await this.env.INGESTION_WORKFLOW.create({ params });
+
+    const fullParams: IngestionParams = {
+      mode: params.mode ?? "full",
+      targetMake: params.targetMake,
+      yearStart: params.yearStart,
+      yearEnd: params.yearEnd,
+      deltaThresholdHours: params.deltaThresholdHours,
+    };
+    const run = await this.env.INGESTION_WORKFLOW.create({ params: fullParams });
     const now = new Date().toISOString();
 
     this.sql`
@@ -62,7 +70,7 @@ export class PipelineAgent extends Agent<Env, PipelineState> {
     return { workflowId: run.id, startedAt: now };
   }
 
-  async triggerEnrichment(params: { batchSize?: number; targetMake?: string; concurrency?: number } = {}) {
+  async triggerEnrichment(params: Partial<EnrichmentParams> = {}) {
     await this.ensureTable();
     
     const run = await this.env.ENRICHMENT_WORKFLOW.create({ params });

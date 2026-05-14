@@ -19,5 +19,5 @@ const SEVERITY_LABEL: Record<SeverityLevel, string> = {
 export function severityBadge(severity: SeverityLevel): string {
   const cls = SEVERITY_CLASS[severity] ?? SEVERITY_CLASS.UNKNOWN;
   const label = SEVERITY_LABEL[severity] ?? SEVERITY_LABEL.UNKNOWN;
-  return `<span class="rr-severity ${cls}">${label}</span>`;
+  return `<span class="rr-severity ${cls}" role="status" aria-label="Severity: ${label}">${label}</span>`;
 }

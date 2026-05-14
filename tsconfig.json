@@ -6,10 +6,10 @@
     "strict": true,
     "skipLibCheck": true,
     "lib": ["ES2022", "WebWorker"],
-    "types": ["@cloudflare/workers-types"],
+    "types": [],
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "drizzle.config.ts"]
+  "include": ["src/**/*.ts", "drizzle.config.ts", "worker-configuration.d.ts"]
 }

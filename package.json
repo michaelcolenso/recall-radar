@@ -1,5 +1,5 @@
 {
-  "name": "recall-radar",
+  "name": "recalled-rides",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -20,7 +20,7 @@
     "zod": "^4.1.11"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260303.0",
+    "@types/node": "^25.7.0",
     "drizzle-kit": "^0.31.4",
     "typescript": "^5.9.2",
     "wrangler": "^4.90.0"
