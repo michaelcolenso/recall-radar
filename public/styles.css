@@ -410,7 +410,7 @@ img {
 }
 
 .rr-nav__links a {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   transition: color 0.2s ease;
 }
 
@@ -713,8 +713,14 @@ button,
   font-weight: 700;
   font-size: var(--text-2xl);
   line-height: 1;
-  color: var(--accent);
+  color: #9c6210;
   letter-spacing: -0.03em;
+}
+
+@media (prefers-color-scheme: dark) {
+  .rr-stats__value {
+    color: var(--accent);
+  }
 }
 
 .rr-stats__label {
