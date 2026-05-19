@@ -132,6 +132,59 @@ apiRoutes.get("/admin/backfill-status", async (c) => {
   return c.json(await resp.json());
 });
 
+// GET /api/admin/enrichment-stats — enrichment quality & coverage stats
+apiRoutes.get("/admin/enrichment-stats", async (c) => {
+  const denied = requireAuth(c);
+  if (denied) return denied;
+
+  const agentId = c.env.PIPELINE_AGENT.idFromName("singleton");
+  const agent = c.env.PIPELINE_AGENT.get(agentId);
+  const resp = await agent.fetch(new Request("https://internal/enrichment-stats"));
+  return c.json(await resp.json());
+});
+
+// POST /api/admin/enrich/retry/:id — force re-enrich a specific recall
+apiRoutes.post("/admin/enrich/retry/:id", async (c) => {
+  const denied = requireAuth(c);
+  if (denied) return denied;
+
+  const recallId = Number(c.req.param("id"));
+  if (!recallId || recallId < 1) {
+    return c.json({ error: "Invalid recall ID" }, 400);
+  }
+
+  const agentId = c.env.PIPELINE_AGENT.idFromName("singleton");
+  const agent = c.env.PIPELINE_AGENT.get(agentId);
+  const resp = await agent.fetch(new Request("https://internal/retry-enrichment", {
+    method: "POST",
+    body: JSON.stringify({ recallId }),
+    headers: { "content-type": "application/json" },
+  }));
+  return c.json(await resp.json());
+});
+
+// POST /api/admin/sync — sync workflow statuses
+apiRoutes.post("/admin/sync", async (c) => {
+  const denied = requireAuth(c);
+  if (denied) return denied;
+
+  const agentId = c.env.PIPELINE_AGENT.idFromName("singleton");
+  const agent = c.env.PIPELINE_AGENT.get(agentId);
+  const resp = await agent.fetch(new Request("https://internal/sync", { method: "POST" }));
+  return c.json(await resp.json());
+});
+
+// POST /api/admin/prune — prune stale active workflows
+apiRoutes.post("/admin/prune", async (c) => {
+  const denied = requireAuth(c);
+  if (denied) return denied;
+
+  const agentId = c.env.PIPELINE_AGENT.idFromName("singleton");
+  const agent = c.env.PIPELINE_AGENT.get(agentId);
+  const resp = await agent.fetch(new Request("https://internal/prune", { method: "POST" }));
+  return c.json(await resp.json());
+});
+
 // GET /api/admin/stats — DB stats
 apiRoutes.get("/admin/stats", async (c) => {
   const denied = requireAuth(c);

@@ -494,6 +494,11 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
     const recalls = recallsResult.results;
     const topSeverity = recalls[0]?.severity_level ?? "UNKNOWN";
 
+    // Extract top component from most severe recall (first segment before colon)
+    const topComponent = recalls.length > 0
+      ? recalls[0].component.split(":")[0].trim()
+      : null;
+
     // Compute component links for this year
     const componentMap = new Map<string, { name: string; slug: string; count: number }>();
     for (const r of recalls) {
@@ -506,10 +511,12 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
     }
     const components = Array.from(componentMap.values()).sort((a, b) => b.count - a.count);
 
-    const title = `${year} ${make.name} ${model.name} Recalls & Safety Issues | Recalled Rides`;
+    const title = recalls.length > 0 && topComponent
+      ? `${year} ${make.name} ${model.name} Recalls: ${topComponent} Issues Explained | Recalled Rides`
+      : `${year} ${make.name} ${model.name} Recall & Safety Information | Recalled Rides`;
 
-    const description = recalls.length > 0
-      ? `Check ${recalls.length} known recalls for the ${year} ${make.name} ${model.name}. Get plain-English explanations and find out how to get free repairs at your local dealer.`
+    const description = recalls.length > 0 && topComponent
+      ? `Check ${recalls.length} known recalls for the ${year} ${make.name} ${model.name}. Get plain-English explanations of ${topComponent.toLowerCase()} issues and find out how to get free repairs at your local dealer.`
       : `No active recalls found for the ${year} ${make.name} ${model.name}. Search Recalled Rides for the latest safety information and check back for updates.`;
 
     const cards = recalls.length > 0

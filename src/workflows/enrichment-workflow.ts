@@ -21,6 +21,10 @@ export class EnrichmentWorkflow extends WorkflowEntrypoint<Env, EnrichmentParams
 
     while (true) {
       const rows = await step.do(`fetch-unenriched-batch-${batchNumber}`, async () => {
+        // Max enrichment attempts before marking a recall as permanently failed.
+        // After this many tries, the recall is skipped on future runs.
+        const MAX_ATTEMPTS = 3;
+
         let query: string;
         let params: unknown[];
 
@@ -30,13 +34,30 @@ export class EnrichmentWorkflow extends WorkflowEntrypoint<Env, EnrichmentParams
                    JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
                    JOIN models m ON m.id = vy.model_id
                    JOIN makes mk ON mk.id = m.make_id
-                   WHERE r.enriched_at IS NULL AND mk.name = ?
-                   ORDER BY r.created_at ASC LIMIT ?`;
-          params = [targetMake, batchSize];
+                   WHERE r.enriched_at IS NULL
+                     AND mk.name = ?
+                     AND r.id NOT IN (
+                       SELECT recall_id FROM enrichment_failures
+                       WHERE resolved = 0
+                       GROUP BY recall_id
+                       HAVING SUM(attempts) >= ?
+                     )
+                   ORDER BY r.created_at ASC
+                   LIMIT ?`;
+          params = [targetMake, MAX_ATTEMPTS, batchSize];
         } else {
-          query = `SELECT id, summary_raw, consequence_raw, remedy_raw, component
-                   FROM recalls WHERE enriched_at IS NULL ORDER BY created_at ASC LIMIT ?`;
-          params = [batchSize];
+          query = `SELECT r.id, r.summary_raw, r.consequence_raw, r.remedy_raw, r.component
+                   FROM recalls r
+                   WHERE r.enriched_at IS NULL
+                     AND r.id NOT IN (
+                       SELECT recall_id FROM enrichment_failures
+                       WHERE resolved = 0
+                       GROUP BY recall_id
+                       HAVING SUM(attempts) >= ?
+                     )
+                   ORDER BY r.created_at ASC
+                   LIMIT ?`;
+          params = [MAX_ATTEMPTS, batchSize];
         }
 
         const result = await this.env.DB.prepare(query).bind(...params)
@@ -76,10 +97,11 @@ export class EnrichmentWorkflow extends WorkflowEntrypoint<Env, EnrichmentParams
                 await this.env.DB.prepare(
                   `INSERT INTO enrichment_failures (recall_id, error, attempts, last_attempt_at)
                    VALUES (?, ?, 1, ?)
-                   ON CONFLICT(id) DO UPDATE SET 
+                   ON CONFLICT(recall_id) DO UPDATE SET 
                      attempts = enrichment_failures.attempts + 1,
                      last_attempt_at = excluded.last_attempt_at,
-                     error = excluded.error`
+                     error = excluded.error,
+                     resolved = 0`
                 ).bind(row.id, errorMsg, now).run();
                 continue;
               }

@@ -58,6 +58,33 @@ export function adminDashboard(): string {
     <p id="stats-error" class="text-red-400 text-sm mt-2 hidden"></p>
   </section>
 
+  <!-- Enrichment Quality -->
+  <section>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold">Enrichment Quality</h2>
+      <button id="enrich-stats-btn" class="text-sm text-blue-400 hover:text-blue-300">Load</button>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="enrich-stats-grid">
+      <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <div id="enrich-cov" class="text-2xl font-bold text-white">—</div>
+        <div class="text-xs text-slate-400 mt-1">Coverage</div>
+      </div>
+      <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <div id="enrich-avg" class="text-2xl font-bold text-white">—</div>
+        <div class="text-xs text-slate-400 mt-1">Avg Quality</div>
+      </div>
+      <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <div id="enrich-model" class="text-lg font-bold text-white">—</div>
+        <div class="text-xs text-slate-400 mt-1">Primary Model</div>
+      </div>
+      <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <div id="enrich-fail" class="text-2xl font-bold text-white">—</div>
+        <div class="text-xs text-slate-400 mt-1">Pending Failures</div>
+      </div>
+    </div>
+    <p id="enrich-stats-error" class="text-red-400 text-sm mt-2 hidden"></p>
+  </section>
+
   <!-- Actions -->
   <section class="grid md:grid-cols-2 gap-6">
 
@@ -127,7 +154,14 @@ export function adminDashboard(): string {
 
   <!-- Recent Runs -->
   <section>
-    <h2 class="text-lg font-semibold mb-4">Recent Pipeline Runs</h2>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold">Recent Pipeline Runs</h2>
+      <div class="flex items-center gap-2">
+        <button id="sync-btn" class="text-sm text-blue-400 hover:text-blue-300">Sync Status</button>
+        <span class="text-slate-600">·</span>
+        <button id="prune-btn" class="text-sm text-slate-500 hover:text-slate-400">Prune Stale</button>
+      </div>
+    </div>
     <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
       <table class="w-full text-sm">
         <thead class="bg-slate-700/50 text-slate-400 text-xs uppercase tracking-wide">
@@ -306,6 +340,57 @@ export function adminDashboard(): string {
   function statLabel(k) {
     return { makes:'Makes', models:'Models', vehicleYears:'Vehicle Years', recalls:'Recalls', enrichment:'Enriched' }[k] || k;
   }
+
+  // Sync workflow statuses
+  document.getElementById('sync-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('sync-btn');
+    btn.textContent = 'Syncing…';
+    btn.classList.add('text-slate-400');
+    try {
+      const r = await fetch('/api/admin/sync', { method: 'POST', headers: headers() });
+      const d = await r.json();
+      btn.textContent = \`Synced \${d.synced} / Updated \${d.updated}\`;
+    } catch {
+      btn.textContent = 'Error';
+    }
+    setTimeout(() => { btn.textContent = 'Sync Status'; btn.classList.remove('text-slate-400'); }, 2500);
+    loadRuns();
+  });
+
+  // Prune stale workflows
+  document.getElementById('prune-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('prune-btn');
+    btn.textContent = 'Pruning…';
+    try {
+      const r = await fetch('/api/admin/prune', { method: 'POST', headers: headers() });
+      const d = await r.json();
+      btn.textContent = \`Pruned \${d.pruned}\`;
+    } catch {
+      btn.textContent = 'Error';
+    }
+    setTimeout(() => { btn.textContent = 'Prune Stale'; }, 2500);
+    loadRuns();
+  });
+
+  // Enrichment quality stats
+  async function loadEnrichStats() {
+    const err = document.getElementById('enrich-stats-error');
+    err.classList.add('hidden');
+    try {
+      const r = await fetch('/api/admin/enrichment-stats', { headers: headers() });
+      if (!r.ok) { err.textContent = 'Error ' + r.status; err.classList.remove('hidden'); return; }
+      const d = await r.json();
+      document.getElementById('enrich-cov').textContent = (d.coverage?.pct ?? '—') + '%';
+      document.getElementById('enrich-avg').textContent = d.quality?.avg != null ? d.quality.avg + '/100' : '—';
+      const primary = d.models?.[0];
+      document.getElementById('enrich-model').textContent = primary ? primary.model + ' (' + fmt(primary.count) + ')' : '—';
+      document.getElementById('enrich-fail').textContent = fmt(d.failures?.unresolved);
+    } catch {
+      err.textContent = 'Network error';
+      err.classList.remove('hidden');
+    }
+  }
+  document.getElementById('enrich-stats-btn').addEventListener('click', loadEnrichStats);
 
   document.getElementById('refresh-btn').addEventListener('click', loadAll);
 

@@ -1,0 +1,15 @@
+# ─── Local Development Secrets ───────────────────────────────────
+# Copy this file to .dev.vars and fill in your values.
+# .dev.vars is git-ignored — never commit real tokens.
+
+# Required: admin token for /api/admin/* endpoints
+# Generate with: openssl rand -hex 16
+ADMIN_TOKEN=your-secret-admin-token
+
+# ─── Optional ────────────────────────────────────────────────────
+
+# Google Search Console site verification (for <meta> tag)
+# GOOGLE_SITE_VERIFICATION=your-verification-string
+
+# Cloudflare Web Analytics token (privacy-friendly analytics)
+# CF_ANALYTICS_TOKEN=your-analytics-token

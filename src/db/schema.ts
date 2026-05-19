@@ -90,7 +90,7 @@ export const enrichmentFailures = sqliteTable("enrichment_failures", {
   lastAttemptAt: text("last_attempt_at").notNull().$defaultFn(() => new Date().toISOString()),
   resolved: integer("resolved", { mode: "boolean" }).notNull().default(false),
 }, (table) => [
-  index("idx_failures_recall").on(table.recallId),
+  uniqueIndex("idx_failures_recall_unique").on(table.recallId),
   index("idx_failures_resolved").on(table.resolved),
 ]);
 
