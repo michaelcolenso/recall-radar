@@ -13,7 +13,18 @@ interface LayoutOptions {
   analyticsToken?: string;
 }
 
-export function layout({ title, description, canonical, body, jsonLd = "", noIndex, ogType, ogImage, googleVerification, analyticsToken }: LayoutOptions): string {
+export function layout({
+  title,
+  description,
+  canonical,
+  body,
+  jsonLd = "",
+  noIndex,
+  ogType,
+  ogImage,
+  googleVerification,
+  analyticsToken,
+}: LayoutOptions): string {
   const escapedTitle = escapeHtml(title);
   const escapedDesc = description ? escapeHtml(description) : "";
   const now = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -40,11 +51,8 @@ export function layout({ title, description, canonical, body, jsonLd = "", noInd
   ${escapedTitle ? `<meta name="twitter:title" content="${escapedTitle}"/>` : ""}
   ${escapedDesc ? `<meta name="twitter:description" content="${escapedDesc}"/>` : ""}
   <meta name="twitter:image" content="${resolvedOgImage}"/>
-  <link rel="dns-prefetch" href="https://fonts.googleapis.com"/>
-  <link rel="dns-prefetch" href="https://fonts.gstatic.com"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin/>
+  <link rel="preload" href="/fonts/literata.woff2" as="font" type="font/woff2" crossorigin/>
   <link rel="stylesheet" href="/styles.css"/>
   ${jsonLd}
   ${analyticsToken ? `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon="{&quot;token&quot;: &quot;${analyticsToken}&quot;}"></script>` : ""}
