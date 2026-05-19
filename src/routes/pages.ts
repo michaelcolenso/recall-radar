@@ -36,7 +36,7 @@ interface CachedPageResponse {
 
 // GET / — Homepage
 pageRoutes.get("/", async (c) => {
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const { value: html, hit } = await getCachedOrRender(
     c.env.PAGE_CACHE,
     withPageCacheVersion("page:home"),
@@ -91,7 +91,7 @@ pageRoutes.get("/", async (c) => {
 
 // GET /about — About page
 pageRoutes.get("/about", async (c) => {
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const { value: html, hit } = await getCachedOrRender(
     c.env.PAGE_CACHE,
     withPageCacheVersion("page:about"),
@@ -119,7 +119,7 @@ pageRoutes.get("/about", async (c) => {
 // GET /:makeSlug — Make landing page
 pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
   const { makeSlug } = c.req.param();
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   const { value, hit } = await getCachedOrRender<CachedPageResponse>(
     c.env.PAGE_CACHE,
@@ -200,7 +200,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
 // GET /:makeSlug/:modelSlug — Model landing page
 pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
   const { makeSlug, modelSlug } = c.req.param();
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   const { value, hit } = await getCachedOrRender<CachedPageResponse>(
     c.env.PAGE_CACHE,
@@ -312,7 +312,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
 pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
   const { makeSlug, modelSlug, year, componentSlug } = c.req.param();
   const yearNum = Number(year);
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   if (!yearNum || yearNum < 1900 || yearNum > 2100) {
     return c.html(
@@ -536,7 +536,7 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
 pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", async (c) => {
   const { makeSlug, modelSlug, year } = c.req.param();
   const yearNum = Number(year);
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   if (!yearNum || yearNum < 1900 || yearNum > 2100) {
     return c.html(
@@ -746,7 +746,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
 // GET /recall/:campaignNumber — Campaign detail page
 pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
   const { campaignNumber } = c.req.param();
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   const { value, hit } = await getCachedOrRender<CachedPageResponse>(
     c.env.PAGE_CACHE,

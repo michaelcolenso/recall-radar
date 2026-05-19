@@ -47,7 +47,7 @@ interface CampaignSitemapRow {
 
 // GET /robots.txt
 seoRoutes.get("/robots.txt", (c) => {
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   // Sitemap is a non-group record and must be at top-level.
   // Specific crawler blocks ensure Disallow is respected even if a prior
   // generic User-agent: * block exists (e.g. Cloudflare managed content).
@@ -63,7 +63,7 @@ seoRoutes.get("/robots.txt", (c) => {
 
 // GET /sitemap.xml
 seoRoutes.get("/sitemap.xml", async (c) => {
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   const [makeCount, modelCount, yearCount, componentCount, campaignCount] = await Promise.all([
     c.env.DB.prepare("SELECT COUNT(*) as count FROM makes").first<CountRow>(),
@@ -170,7 +170,7 @@ seoRoutes.get("/sitemap.xml", async (c) => {
 });
 
 seoRoutes.get("/sitemap-makes.xml", async (c) => {
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const { value: xml, hit } = await getCachedOrRender(
     c.env.PAGE_CACHE,
     withSeoCacheVersion("sitemap:makes"),
@@ -191,7 +191,7 @@ seoRoutes.get("/sitemap-makes.xml", async (c) => {
 });
 
 seoRoutes.get("/sitemap-models.xml", async (c) => {
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const { value: xml, hit } = await getCachedOrRender(
     c.env.PAGE_CACHE,
     withSeoCacheVersion("sitemap:models"),
@@ -210,7 +210,7 @@ seoRoutes.get("/sitemap-models.xml", async (c) => {
 });
 
 seoRoutes.get("/sitemap-years-:page{.+\\.xml}", async (c) => {
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const page = Math.max(1, Number(c.req.param("page")?.replace(/\.xml$/, "") || "1"));
   const offset = (page - 1) * YEAR_SITEMAP_CHUNK_SIZE;
 
@@ -232,7 +232,7 @@ seoRoutes.get("/sitemap-years-:page{.+\\.xml}", async (c) => {
 });
 
 seoRoutes.get("/sitemap-components-:page{.+\\.xml}", async (c) => {
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const page = Math.max(1, Number(c.req.param("page")?.replace(/\.xml$/, "") || "1"));
   const offset = (page - 1) * COMPONENT_SITEMAP_CHUNK_SIZE;
 
@@ -259,7 +259,7 @@ seoRoutes.get("/sitemap-components-:page{.+\\.xml}", async (c) => {
 });
 
 seoRoutes.get("/sitemap-campaigns-:page{.+\\.xml}", async (c) => {
-  const siteUrl = c.env.SITE_URL;
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const page = Math.max(1, Number(c.req.param("page")?.replace(/\.xml$/, "") || "1"));
   const offset = (page - 1) * CAMPAIGN_SITEMAP_CHUNK_SIZE;
 

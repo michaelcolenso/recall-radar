@@ -43,16 +43,22 @@ interface BreadcrumbItem {
   item: string;
 }
 
-export function breadcrumbListJsonLd(siteUrl: string, items: BreadcrumbItem[]): string {
+// siteUrl kept for call-site compatibility but not used internally
+export function breadcrumbListJsonLd(_siteUrl: string, items: BreadcrumbItem[]): string {
   const schema = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    itemListElement: items.map((item, i) => ({
-      "@type": "ListItem",
-      position: i + 1,
-      name: item.name,
-      item: item.item,
-    })),
+    itemListElement: items.map((crumb, i) => {
+      const listItem: Record<string, unknown> = {
+        "@type": "ListItem",
+        position: i + 1,
+        name: crumb.name,
+      };
+      if (crumb.item) {
+        listItem.item = crumb.item;
+      }
+      return listItem;
+    }),
   };
 
   return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
@@ -100,7 +106,9 @@ export function vehicleJsonLd(make: string, model: string, year: number, pageUrl
     },
     url: pageUrl,
     ...(recallCount > 0
-      ? { description: `${recallCount} active safety recall${recallCount !== 1 ? "s" : ""} on record for the ${year} ${make} ${model}.` }
+      ? {
+          description: `${recallCount} active safety recall${recallCount !== 1 ? "s" : ""} on record for the ${year} ${make} ${model}.`,
+        }
       : { description: `No active safety recalls on record for the ${year} ${make} ${model}.` }),
   };
   return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
