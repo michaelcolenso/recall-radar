@@ -72,7 +72,6 @@ pageRoutes.get("/", async (c) => {
           siteUrl,
           "Recalled Rides",
           "Search and understand vehicle recalls in plain English. Check if your car has open safety recalls.",
-          true,
         ) + organizationJsonLd({ name: "Recalled Rides", url: siteUrl });
 
       return layout({
