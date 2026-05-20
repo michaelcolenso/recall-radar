@@ -13,7 +13,16 @@
       "Bash(git push *)",
       "Bash(python3 -c \"import sys,json; keys=json.load\\(sys.stdin\\); print\\(f'{len\\(keys\\)} keys'\\); print\\('\\\\n'.join\\(k['name'] for k in keys[:10]\\)\\); print\\('...' if len\\(keys\\)>10 else ''\\)\")",
       "Read(//Users/michaelcolenso/.wrangler/config/**)",
-      "Read(//Users/michaelcolenso/.wrangler/**)"
+      "Read(//Users/michaelcolenso/.wrangler/**)",
+      "mcp__cbdb50ba-e16f-41a1-8f51-6e90f23211d1__site-explorer-metrics",
+      "mcp__cbdb50ba-e16f-41a1-8f51-6e90f23211d1__site-explorer-domain-rating",
+      "mcp__cbdb50ba-e16f-41a1-8f51-6e90f23211d1__site-explorer-backlinks-stats",
+      "mcp__cbdb50ba-e16f-41a1-8f51-6e90f23211d1__site-explorer-organic-keywords",
+      "mcp__cbdb50ba-e16f-41a1-8f51-6e90f23211d1__site-explorer-top-pages",
+      "mcp__cbdb50ba-e16f-41a1-8f51-6e90f23211d1__site-explorer-referring-domains",
+      "mcp__cbdb50ba-e16f-41a1-8f51-6e90f23211d1__site-explorer-organic-competitors",
+      "mcp__cbdb50ba-e16f-41a1-8f51-6e90f23211d1__site-explorer-metrics-history",
+      "mcp__cbdb50ba-e16f-41a1-8f51-6e90f23211d1__site-explorer-domain-rating-history"
     ]
   }
 }
