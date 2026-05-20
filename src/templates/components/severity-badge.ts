@@ -9,11 +9,11 @@ const SEVERITY_CLASS: Record<SeverityLevel, string> = {
 };
 
 const SEVERITY_LABEL: Record<SeverityLevel, string> = {
-  CRITICAL: "Critical",
-  HIGH: "High Priority",
-  MEDIUM: "Moderate",
-  LOW: "Low Priority",
-  UNKNOWN: "Under Review",
+  CRITICAL: "CRITICAL_RISK",
+  HIGH: "HIGH_PRIORITY",
+  MEDIUM: "MODERATE_RISK",
+  LOW: "LOW_PRIORITY",
+  UNKNOWN: "UNDER_REVIEW",
 };
 
 export function severityBadge(severity: SeverityLevel): string {

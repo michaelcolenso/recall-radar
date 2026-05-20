@@ -19,7 +19,7 @@ export function makePageTemplate(makeName: string, makeSlug: string, models: Mod
         </div>
         ${m.recall_count > 0 ? `
           <div class="rr-card__badge-stack" aria-hidden="true">
-            <span class="rr-badge">${m.recall_count}</span>
+            <span class="rr-badge">${m.recall_count} RECALLS</span>
           </div>
         ` : ""}
       </a>

@@ -61,36 +61,36 @@ export function recallCard(recall: RecallView): string {
         ${indicator}
       </div>
       <div class="rr-readout__header-right">
-        ${recall.report_received_date ? `<div class="rr-readout__date">${escapeHtml(recall.report_received_date)}</div>` : ""}
-        <button class="rr-share-btn" data-share-url="${shareUrl}" title="Share this recall" aria-label="Share this recall">
-          <svg class="rr-share-btn__icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M12 10.5c-.5 0-.9.2-1.2.5L5.5 8.3c0-.1.1-.2.1-.3 0-.1 0-.2-.1-.3l5.3-2.7c.3.3.7.5 1.2.5a1.5 1.5 0 1 0-1.5-1.5c0 .1 0 .2.1.3L5.4 7.3c-.3-.3-.7-.5-1.2-.5a1.5 1.5 0 0 0 0 3c.5 0 .9-.2 1.2-.5l5.3 2.7c0 .1-.1.2-.1.3a1.5 1.5 0 1 0 1.5-1.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        ${recall.report_received_date ? `<div class="rr-readout__date">FILED: ${escapeHtml(recall.report_received_date)}</div>` : ""}
+        <button class="rr-share-btn" data-share-url="${shareUrl}" title="Share" aria-label="Share">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
           </svg>
         </button>
       </div>
     </div>
     <div class="rr-readout__body">
       <div class="rr-readout__field">
-        <div class="rr-readout__field-label">Component</div>
+        <div class="rr-readout__field-label">SYSTEM_COMPONENT</div>
         <h3 class="rr-readout__field-value">${escapeHtml(recall.component)}</h3>
       </div>
       ${recall.manufacturer ? `
       <div class="rr-readout__field">
-        <div class="rr-readout__field-label">Manufacturer</div>
+        <div class="rr-readout__field-label">MANUFACTURER</div>
         <div class="rr-readout__field-value">${escapeHtml(recall.manufacturer)}</div>
       </div>` : ""}
       <div class="rr-readout__field">
-        <div class="rr-readout__field-label">What Happened</div>
+        <div class="rr-readout__field-label">EVENT_SUMMARY</div>
         <div class="rr-readout__field-value">${escapeHtml(summary)}</div>
       </div>
       <div class="rr-readout__field">
-        <div class="rr-readout__field-label rr-readout__field-label--risk">Risk if Unfixed</div>
+        <div class="rr-readout__field-label">RISK_ASSESSMENT</div>
         <div class="rr-readout__field-value">${escapeHtml(consequence)}</div>
       </div>
     </div>
     <div class="rr-readout__fix">
-      <div class="rr-readout__fix-label">Free Fix</div>
-      <div class="rr-readout__fix-value">${escapeHtml(remedy)}</div>
+      <div class="rr-readout__field-label">RESOLUTION_PROTOCOL</div>
+      <div class="rr-readout__field-value">${escapeHtml(remedy)}</div>
     </div>
     ${originalToggle}
   </article>`;

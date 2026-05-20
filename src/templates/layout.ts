@@ -63,17 +63,17 @@ export function layout({
 </head>
 <body class="rr-layout">
   <a href="#main" class="rr-skip-link">Skip to main content</a>
-  <nav class="rr-nav">
+    <nav class="rr-nav">
     <div class="rr-nav__inner">
       <a href="/" class="rr-logo" aria-label="Recalled Rides home">
         <span class="rr-logo__mark" aria-hidden="true"></span>
         <span class="rr-logo__wordmark-wrap">
           <span class="rr-logo__wordmark">Recalled Rides</span>
-          <span class="rr-logo__tagline">Every Recall. Every VIN.</span>
+          <span class="rr-logo__tagline">Data Source: NHTSA</span>
         </span>
       </a>
       <div class="rr-nav__links">
-        <a href="/#makes">Browse All Makes</a>
+        <a href="/#makes">Browse</a>
         <a href="/about">About</a>
       </div>
     </div>
@@ -82,8 +82,10 @@ export function layout({
     ${body}
   </main>
   <footer class="rr-footer">
-    <p>Data sourced from the <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration (NHTSA)</a>. Last refreshed <span id="rr-footer-date">recently</span>.</p>
-    <p><a href="/about">About</a> &middot; Recalled Rides is not affiliated with NHTSA or any vehicle manufacturer.</p>
+    <div class="rr-footer__inner">
+      <p>Source: <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration</a>. Updated <span id="rr-footer-date">recently</span>.</p>
+      <p>Independent repository. Not affiliated with NHTSA or manufacturers. &middot; <a href="/about">Learn More</a></p>
+    </div>
   </footer>
   <script>document.getElementById("rr-footer-date").textContent=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})</script>
   <script>
