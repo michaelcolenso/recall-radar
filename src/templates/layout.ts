@@ -83,6 +83,18 @@ export function layout({
   </main>
   <footer class="rr-footer">
     <p>Data sourced from the <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration (NHTSA)</a>. Last refreshed <span id="rr-footer-date">recently</span>.</p>
+    <nav class="rr-footer__makes" aria-label="Browse recalls by make">
+      <a href="/toyota">Toyota</a> &middot;
+      <a href="/ford">Ford</a> &middot;
+      <a href="/honda">Honda</a> &middot;
+      <a href="/chevrolet">Chevrolet</a> &middot;
+      <a href="/nissan">Nissan</a> &middot;
+      <a href="/jeep">Jeep</a> &middot;
+      <a href="/bmw">BMW</a> &middot;
+      <a href="/dodge">Dodge</a> &middot;
+      <a href="/hyundai">Hyundai</a> &middot;
+      <a href="/kia">Kia</a>
+    </nav>
     <p><a href="/about">About</a> &middot; Recalled Rides is not affiliated with NHTSA or any vehicle manufacturer.</p>
   </footer>
   <script>document.getElementById("rr-footer-date").textContent=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})</script>

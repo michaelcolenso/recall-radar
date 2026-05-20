@@ -71,14 +71,21 @@ interface OrganizationSchema {
   sameAs?: string[];
 }
 
-export function websiteJsonLd(siteUrl: string, siteName: string, description: string): string {
-  const schema = {
+export function websiteJsonLd(siteUrl: string, siteName: string, description: string, includeSearchAction = false): string {
+  const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "WebSite",
     url: siteUrl,
     name: siteName,
     description,
   };
+  if (includeSearchAction) {
+    schema.potentialAction = {
+      "@type": "SearchAction",
+      target: { "@type": "EntryPoint", urlTemplate: `${siteUrl}/{search_term_string}` },
+      "query-input": "required name=search_term_string",
+    };
+  }
   return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
 }
 

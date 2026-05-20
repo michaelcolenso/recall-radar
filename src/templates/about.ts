@@ -30,6 +30,27 @@ export function aboutTemplate(siteUrl: string): string {
 
       <h2 class="rr-heading rr-heading--2" style="margin-top: var(--space-12);">Contact</h2>
       <p>Have feedback or found an issue? Reach out via the footer links or contact your dealer for urgent safety concerns.</p>
+
+      <h2 class="rr-heading rr-heading--2" style="margin-top: var(--space-12);">Browse Popular Recalls</h2>
+      <p>Search recalls by manufacturer:</p>
+      <p style="margin-top: var(--space-4); line-height: 2;">
+        <a href="/toyota">Toyota</a> &middot;
+        <a href="/ford">Ford</a> &middot;
+        <a href="/honda">Honda</a> &middot;
+        <a href="/chevrolet">Chevrolet</a> &middot;
+        <a href="/nissan">Nissan</a> &middot;
+        <a href="/jeep">Jeep</a> &middot;
+        <a href="/bmw">BMW</a> &middot;
+        <a href="/dodge">Dodge</a> &middot;
+        <a href="/hyundai">Hyundai</a> &middot;
+        <a href="/kia">Kia</a> &middot;
+        <a href="/subaru">Subaru</a> &middot;
+        <a href="/volkswagen">Volkswagen</a> &middot;
+        <a href="/tesla">Tesla</a> &middot;
+        <a href="/mercedes-benz">Mercedes-Benz</a> &middot;
+        <a href="/audi">Audi</a>
+      </p>
+      <p style="margin-top: var(--space-6);"><a href="/">View all makes &rarr;</a></p>
     </section>
   `;
 }

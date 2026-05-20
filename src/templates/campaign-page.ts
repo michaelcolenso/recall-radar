@@ -21,6 +21,9 @@ interface CampaignPageOptions {
   reportReceivedDate: string | null;
   isEnriched: boolean;
   affectedVehicles: AffectedVehicle[];
+  primaryMake?: string;
+  primaryModel?: string;
+  primaryYear?: string;
 }
 
 export function campaignPageTemplate({
@@ -34,6 +37,9 @@ export function campaignPageTemplate({
   reportReceivedDate,
   isEnriched,
   affectedVehicles,
+  primaryMake,
+  primaryModel,
+  primaryYear,
 }: CampaignPageOptions): string {
   const indicator = isEnriched
     ? `<span class="rr-readout__indicator rr-readout__indicator--enriched">Simplified</span>`
@@ -60,7 +66,11 @@ export function campaignPageTemplate({
 
   return `
     <section class="rr-section-header">
-      <h1 class="rr-section-header__title">Campaign ${escapeHtml(campaign)}</h1>
+      <h1 class="rr-section-header__title">${primaryYear && primaryMake && primaryModel
+        ? `${escapeHtml(primaryYear)} ${escapeHtml(primaryMake)} ${escapeHtml(primaryModel)} ${escapeHtml(component)} Recall`
+        : `${escapeHtml(component)} Recall`
+      }</h1>
+      <p class="rr-section-header__subtitle">NHTSA Campaign #${escapeHtml(campaign)}</p>
       <div class="rr-meta-bar">
         ${severityBadge(severity)}
         ${indicator}

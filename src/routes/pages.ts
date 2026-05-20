@@ -26,7 +26,7 @@ import { POPULAR_MAKES } from "../lib/constants";
 
 export const pageRoutes = new Hono<{ Bindings: Env }>();
 
-const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
+const CACHE_CONTROL = "public, s-maxage=86400, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
 const PAGE_CACHE_VERSION = "v3";
 
@@ -72,17 +72,18 @@ pageRoutes.get("/", async (c) => {
           siteUrl,
           "Recalled Rides",
           "Search and understand vehicle recalls in plain English. Check if your car has open safety recalls.",
+          true,
         ) + organizationJsonLd({ name: "Recalled Rides", url: siteUrl });
 
       return layout({
         googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
         analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-        title: "Recalled Rides | Vehicle Recall Search",
+        title: "Vehicle Recall Lookup by Make, Model & Year | Recalled Rides",
         description:
           "Search and understand vehicle recalls in plain English. Check if your car has open safety recalls.",
         canonical: siteUrl,
         ogType: "website",
-        ogImage: "/og-image-home.svg",
+        ogImage: "/og-image.png",
         body: homeTemplate(makesResult.results, {
           recalls: recallCount?.count ?? 0,
           vehicles: yearCount?.count ?? 0,
@@ -112,7 +113,7 @@ pageRoutes.get("/about", async (c) => {
           "Learn how Recalled Rides sources vehicle recall data from NHTSA and simplifies it into plain English for drivers.",
         canonical: `${siteUrl}/about`,
         ogType: "website",
-        ogImage: "/og-image-home.svg",
+        ogImage: "/og-image.png",
         body: aboutTemplate(siteUrl),
         jsonLd: organizationJsonLd({ name: "Recalled Rides", url: siteUrl }),
       });
@@ -177,7 +178,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
           description: `Browse all ${make.name} vehicle recalls and safety issues. Find recalls for your ${make.name} by model and year.`,
           canonical: `${siteUrl}/${makeSlug}`,
           ogType: "website",
-          ogImage: "/og-image-home.svg",
+          ogImage: "/og-image.png",
           body,
           jsonLd:
             breadcrumbListJsonLd(siteUrl, [
@@ -288,7 +289,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
           description: `Check ${make.name} ${model.name} recalls by model year. Find safety issues and get free repairs for your vehicle.`,
           canonical: `${siteUrl}/${makeSlug}/${modelSlug}`,
           ogType: "website",
-          ogImage: "/og-image-home.svg",
+          ogImage: "/og-image.png",
           body,
           jsonLd:
             breadcrumbListJsonLd(siteUrl, [
@@ -528,7 +529,7 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
           description,
           canonical: componentPageUrl,
           ogType: "website",
-          ogImage: "/og-image-detail.svg",
+          ogImage: "/og-image.png",
           body,
           jsonLd,
         }),
@@ -741,7 +742,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           noIndex: recalls.length === 0,
           canonical: `${siteUrl}/${makeSlug}/${modelSlug}/${year}`,
           ogType: "website",
-          ogImage: "/og-image-detail.svg",
+          ogImage: "/og-image.png",
           body,
           jsonLd,
         }),
@@ -766,7 +767,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
     withPageCacheVersion(`page:campaign:${campaignNumber}`),
     86400,
     async () => {
-      const recall = await c.env.DB.prepare(
+      const recallsResult = await c.env.DB.prepare(
         `SELECT r.id, r.nhtsa_campaign_number, r.component, r.manufacturer,
               r.summary_raw, r.consequence_raw, r.remedy_raw,
               r.summary_enriched, r.consequence_enriched, r.remedy_enriched,
@@ -778,10 +779,11 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
        JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
        JOIN models md ON md.id = vy.model_id
        JOIN makes m ON m.id = md.make_id
-       WHERE r.nhtsa_campaign_number = ?`,
+       WHERE r.nhtsa_campaign_number = ?
+       ORDER BY m.name, md.name, vy.year`,
       )
         .bind(campaignNumber)
-        .first<{
+        .all<{
           id: number;
           nhtsa_campaign_number: string;
           component: string;
@@ -802,7 +804,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
           year: number;
         }>();
 
-      if (!recall) {
+      if (!recallsResult.results.length) {
         return {
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
@@ -816,47 +818,62 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
         };
       }
 
+      const recall = recallsResult.results[0];
       const summary = recall.summary_enriched ?? recall.summary_raw;
       const consequence = recall.consequence_enriched ?? recall.consequence_raw;
       const remedy = recall.remedy_enriched ?? recall.remedy_raw;
 
-      const title = `NHTSA Campaign ${recall.nhtsa_campaign_number} Recall Details | Recalled Rides`;
-      const description = `${recall.component} recall for the ${recall.year} ${recall.make_name} ${recall.model_name}. ${summary.slice(0, 120)}...`;
+      const affectedVehicles = recallsResult.results.map((r) => ({
+        make: r.make_name,
+        makeSlug: r.make_slug,
+        model: r.model_name,
+        modelSlug: r.model_slug,
+        year: r.year,
+      }));
 
-      const affectedVehicles = [
-        {
-          make: recall.make_name,
-          makeSlug: recall.make_slug,
-          model: recall.model_name,
-          modelSlug: recall.model_slug,
-          year: recall.year,
-        },
-      ];
+      const allYears: number[] = recallsResult.results.map((r) => r.year as number);
+      const years = [...new Set<number>(allYears)].sort((a, b) => a - b);
+      const yearStr = years.length === 1 ? String(years[0]) : `${years[0]}–${years[years.length - 1]}`;
 
-      const body = campaignPageTemplate({
-        campaign: recall.nhtsa_campaign_number,
-        component: recall.component,
-        manufacturer: recall.manufacturer,
-        summary,
-        consequence,
-        remedy,
-        severity: recall.severity_level,
-        reportReceivedDate: recall.report_received_date,
-        isEnriched: !!recall.enriched_at,
-        affectedVehicles,
-      });
+      const title = `${yearStr} ${recall.make_name} ${recall.model_name} ${recall.component} Recall — Campaign #${recall.nhtsa_campaign_number} | Recalled Rides`;
+      const summarySnippet = summary.length > 120 ? summary.slice(0, 120).trimEnd() + "…" : summary;
+      const description = `${recall.component} recall for the ${yearStr} ${recall.make_name} ${recall.model_name}. ${summarySnippet}`;
+
+      const crumbs = breadcrumbs([
+        { href: "/", label: "Home" },
+        { href: `/recall/${recall.nhtsa_campaign_number}`, label: `Campaign #${recall.nhtsa_campaign_number}` },
+      ]);
+
+      const body =
+        crumbs +
+        campaignPageTemplate({
+          campaign: recall.nhtsa_campaign_number,
+          component: recall.component,
+          manufacturer: recall.manufacturer,
+          summary,
+          consequence,
+          remedy,
+          severity: recall.severity_level,
+          reportReceivedDate: recall.report_received_date,
+          isEnriched: !!recall.enriched_at,
+          affectedVehicles,
+          primaryMake: recall.make_name,
+          primaryModel: recall.model_name,
+          primaryYear: yearStr,
+        });
 
       const campaignUrl = `${siteUrl}/recall/${recall.nhtsa_campaign_number}`;
       const jsonLd =
         breadcrumbListJsonLd(siteUrl, [
           { name: "Home", item: siteUrl },
-          { name: `Campaign ${recall.nhtsa_campaign_number}`, item: campaignUrl },
+          { name: `Campaign #${recall.nhtsa_campaign_number}`, item: campaignUrl },
         ]) +
         articleJsonLd({
-          headline: `NHTSA Campaign ${recall.nhtsa_campaign_number}: ${recall.component} Recall`,
+          headline: `${yearStr} ${recall.make_name} ${recall.model_name} ${recall.component} Recall`,
           description: summary.slice(0, 200),
           url: campaignUrl,
           datePublished: recall.report_received_date ?? undefined,
+          dateModified: recall.enriched_at ?? recall.report_received_date ?? undefined,
           author: "Recalled Rides",
         });
 
@@ -867,8 +884,8 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
           title,
           description,
           canonical: campaignUrl,
-          ogType: "website",
-          ogImage: "/og-image-detail.svg",
+          ogType: "article",
+          ogImage: "/og-image.png",
           body,
           jsonLd,
         }),

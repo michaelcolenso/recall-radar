@@ -32,7 +32,7 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
   const componentHtml = components && components.length > 0
     ? `
       <section style="margin-top: var(--space-16);">
-        <h2 class="rr-label" style="margin-bottom: var(--space-4);">Browse by Component</h2>
+        <h3 class="rr-label" style="margin-bottom: var(--space-4);">Browse by Component</h3>
         <div class="rr-grid rr-grid--years">
           ${components.map((comp) => `
             <a href="/${makeSlug}/${modelSlug}/${year}/${comp.slug}" class="rr-card rr-card--year" aria-label="${escapeHtml(comp.name)}: ${comp.count} recall${comp.count !== 1 ? 's' : ''}">
@@ -48,7 +48,7 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
   const relatedHtml = relatedYears && relatedYears.length > 0
     ? `
       <section style="margin-top: var(--space-16);">
-        <h2 class="rr-label" style="margin-bottom: var(--space-4);">Other ${escapeHtml(make)} ${escapeHtml(model)} Years</h2>
+        <h3 class="rr-label" style="margin-bottom: var(--space-4);">Other ${escapeHtml(make)} ${escapeHtml(model)} Years</h3>
         <div class="rr-grid rr-grid--years">
           ${relatedYears.map((y) => `
             <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year ${y.isCurrent ? 'rr-card--current' : ''}" aria-label="${y.year}: ${y.recallCount} recall${y.recallCount !== 1 ? 's' : ''}">
@@ -79,7 +79,7 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
     </section>
 
     <section class="rr-readout-list">
-      <h2 class="sr-only">Known Safety Recalls</h2>
+      <h2 class="rr-label" style="margin-bottom: var(--space-4);">Safety Recalls</h2>
       ${cards}
     </section>
 
