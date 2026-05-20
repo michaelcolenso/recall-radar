@@ -87,24 +87,25 @@ seoRoutes.get("/sitemap.xml", async (c) => {
       withSeoCacheVersion("sitemap:index"),
       86400,
       async () => {
+        const now = new Date().toISOString().split("T")[0];
         const parts: string[] = [
-          sitemapIndexUrl(`${siteUrl}/sitemap-makes.xml`),
-          sitemapIndexUrl(`${siteUrl}/sitemap-models.xml`),
+          sitemapIndexUrl(`${siteUrl}/sitemap-makes.xml`, now),
+          sitemapIndexUrl(`${siteUrl}/sitemap-models.xml`, now),
         ];
 
         const yearPages = Math.max(1, Math.ceil((yearCount?.count ?? 0) / YEAR_SITEMAP_CHUNK_SIZE));
         for (let i = 1; i <= yearPages; i++) {
-          parts.push(sitemapIndexUrl(`${siteUrl}/sitemap-years-${i}.xml`));
+          parts.push(sitemapIndexUrl(`${siteUrl}/sitemap-years-${i}.xml`, now));
         }
 
         const componentPages = Math.max(1, Math.ceil((componentCount?.count ?? 0) / COMPONENT_SITEMAP_CHUNK_SIZE));
         for (let i = 1; i <= componentPages; i++) {
-          parts.push(sitemapIndexUrl(`${siteUrl}/sitemap-components-${i}.xml`));
+          parts.push(sitemapIndexUrl(`${siteUrl}/sitemap-components-${i}.xml`, now));
         }
 
         const campaignPages = Math.max(1, Math.ceil((campaignCount?.count ?? 0) / CAMPAIGN_SITEMAP_CHUNK_SIZE));
         for (let i = 1; i <= campaignPages; i++) {
-          parts.push(sitemapIndexUrl(`${siteUrl}/sitemap-campaigns-${i}.xml`));
+          parts.push(sitemapIndexUrl(`${siteUrl}/sitemap-campaigns-${i}.xml`, now));
         }
 
         return wrapSitemapIndex(parts);
@@ -140,7 +141,7 @@ seoRoutes.get("/sitemap.xml", async (c) => {
       }
 
       for (const m of modelsResult.results) {
-        urls.push(sitemapUrl(`${siteUrl}/${m.make_slug}/${m.model_slug}`, m.lastmod, "0.7", "weekly"));
+        urls.push(sitemapUrl(`${siteUrl}/${m.make_slug}/${m.model_slug}`, m.lastmod, "0.7", "monthly"));
       }
 
       for (const y of yearsResult.results) {
@@ -153,13 +154,13 @@ seoRoutes.get("/sitemap.xml", async (c) => {
             `${siteUrl}/${component.make_slug}/${component.model_slug}/${component.year}/${slugify(component.component_name)}`,
             component.lastmod,
             "0.6",
-            "weekly",
+            "monthly",
           ),
         );
       }
 
       for (const campaign of campaignRows.results) {
-        urls.push(sitemapUrl(`${siteUrl}/recall/${campaign.campaign_number}`, campaign.lastmod, "0.5", "weekly"));
+        urls.push(sitemapUrl(`${siteUrl}/recall/${campaign.campaign_number}`, campaign.lastmod, "0.5", "monthly"));
       }
 
       return wrapSitemapUrls(urls);
@@ -200,7 +201,7 @@ seoRoutes.get("/sitemap-models.xml", async (c) => {
       const modelsResult = await getModelRows(c.env.DB);
 
       const urls = modelsResult.results.map((m) =>
-        sitemapUrl(`${siteUrl}/${m.make_slug}/${m.model_slug}`, m.lastmod, "0.7", "weekly"),
+        sitemapUrl(`${siteUrl}/${m.make_slug}/${m.model_slug}`, m.lastmod, "0.7", "monthly"),
       );
       return wrapSitemapUrls(urls);
     },
@@ -247,7 +248,7 @@ seoRoutes.get("/sitemap-components-:page{.+\\.xml}", async (c) => {
           `${siteUrl}/${component.make_slug}/${component.model_slug}/${component.year}/${slugify(component.component_name)}`,
           component.lastmod,
           "0.6",
-          "weekly",
+          "monthly",
         ),
       );
 
@@ -270,7 +271,7 @@ seoRoutes.get("/sitemap-campaigns-:page{.+\\.xml}", async (c) => {
     async () => {
       const campaignsResult = await getCampaignRows(c.env.DB, CAMPAIGN_SITEMAP_CHUNK_SIZE, offset);
       const urls = campaignsResult.results.map((campaign) =>
-        sitemapUrl(`${siteUrl}/recall/${campaign.campaign_number}`, campaign.lastmod, "0.5", "weekly"),
+        sitemapUrl(`${siteUrl}/recall/${campaign.campaign_number}`, campaign.lastmod, "0.5", "monthly"),
       );
 
       return wrapSitemapUrls(urls);
@@ -284,8 +285,9 @@ function sitemapUrl(loc: string, lastmod: string, priority: string, changefreq: 
   return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
 }
 
-function sitemapIndexUrl(loc: string): string {
-  return `  <sitemap>\n    <loc>${loc}</loc>\n  </sitemap>`;
+function sitemapIndexUrl(loc: string, lastmod?: string): string {
+  const lastmodTag = lastmod ? `\n    <lastmod>${lastmod}</lastmod>` : "";
+  return `  <sitemap>\n    <loc>${loc}</loc>${lastmodTag}\n  </sitemap>`;
 }
 
 function wrapSitemapUrls(urls: string[]): string {

@@ -51,6 +51,7 @@ export function recallCard(recall: RecallView): string {
     `
     : "";
 
+  const shareUrl = `/recall/${escapeHtml(recall.nhtsa_campaign_number)}`;
   return `
   <article class="rr-readout ${severityClass}">
     <div class="rr-readout__header">
@@ -59,7 +60,14 @@ export function recallCard(recall: RecallView): string {
         <span class="rr-readout__campaign">#${escapeHtml(recall.nhtsa_campaign_number)}</span>
         ${indicator}
       </div>
-      ${recall.report_received_date ? `<div class="rr-readout__date">${escapeHtml(recall.report_received_date)}</div>` : ""}
+      <div class="rr-readout__header-right">
+        ${recall.report_received_date ? `<div class="rr-readout__date">${escapeHtml(recall.report_received_date)}</div>` : ""}
+        <button class="rr-share-btn" data-share-url="${shareUrl}" title="Share this recall" aria-label="Share this recall">
+          <svg class="rr-share-btn__icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M12 10.5c-.5 0-.9.2-1.2.5L5.5 8.3c0-.1.1-.2.1-.3 0-.1 0-.2-.1-.3l5.3-2.7c.3.3.7.5 1.2.5a1.5 1.5 0 1 0-1.5-1.5c0 .1 0 .2.1.3L5.4 7.3c-.3-.3-.7-.5-1.2-.5a1.5 1.5 0 0 0 0 3c.5 0 .9-.2 1.2-.5l5.3 2.7c0 .1-.1.2-.1.3a1.5 1.5 0 1 0 1.5-1.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
     </div>
     <div class="rr-readout__body">
       <div class="rr-readout__field">

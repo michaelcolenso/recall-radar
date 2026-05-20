@@ -22,6 +22,7 @@ import { campaignPageTemplate } from "../templates/campaign-page";
 import type { SeverityLevel } from "../db/schema";
 import { aboutTemplate } from "../templates/about";
 import { componentPageTemplate } from "../templates/component-page";
+import { POPULAR_MAKES } from "../lib/constants";
 
 export const pageRoutes = new Hono<{ Bindings: Env }>();
 
@@ -60,6 +61,12 @@ pageRoutes.get("/", async (c) => {
         ]),
       ]);
       const [recallCount, yearCount, makeCount] = statsResult;
+
+      const popularNames = new Set(POPULAR_MAKES.map((n) => n.toUpperCase()));
+      const popularMakes = makesResult.results
+        .filter((m) => popularNames.has(m.name.toUpperCase()))
+        .slice(0, 6);
+
       const jsonLd =
         websiteJsonLd(
           siteUrl,
@@ -80,7 +87,7 @@ pageRoutes.get("/", async (c) => {
           recalls: recallCount?.count ?? 0,
           vehicles: yearCount?.count ?? 0,
           makes: makeCount?.count ?? 0,
-        }),
+        }, popularMakes),
         jsonLd,
       });
     },
@@ -194,6 +201,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
   );
   c.header("Cache-Control", CACHE_CONTROL);
   c.header("X-Cache", hit ? "HIT" : "MISS");
+  if (value.status === 404) c.header("X-Robots-Tag", "noindex, nofollow");
   return c.body(value.html, value.status, HTML_HEADERS);
 });
 
@@ -305,6 +313,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
   );
   c.header("Cache-Control", CACHE_CONTROL);
   c.header("X-Cache", hit ? "HIT" : "MISS");
+  if (value.status === 404) c.header("X-Robots-Tag", "noindex, nofollow");
   return c.body(value.html, value.status, HTML_HEADERS);
 });
 
@@ -315,6 +324,7 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   if (!yearNum || yearNum < 1900 || yearNum > 2100) {
+    c.header("X-Robots-Tag", "noindex, nofollow");
     return c.html(
       layout({
         googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
@@ -529,6 +539,7 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
 
   c.header("Cache-Control", CACHE_CONTROL);
   c.header("X-Cache", hit ? "HIT" : "MISS");
+  if (value.status === 404) c.header("X-Robots-Tag", "noindex, nofollow");
   return c.body(value.html, value.status, HTML_HEADERS);
 });
 
@@ -539,6 +550,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   if (!yearNum || yearNum < 1900 || yearNum > 2100) {
+    c.header("X-Robots-Tag", "noindex, nofollow");
     return c.html(
       layout({
         googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
@@ -740,6 +752,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
 
   c.header("Cache-Control", CACHE_CONTROL);
   c.header("X-Cache", hit ? "HIT" : "MISS");
+  if (value.status === 404) c.header("X-Robots-Tag", "noindex, nofollow");
   return c.body(value.html, value.status, HTML_HEADERS);
 });
 
@@ -866,6 +879,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
 
   c.header("Cache-Control", CACHE_CONTROL);
   c.header("X-Cache", hit ? "HIT" : "MISS");
+  if (value.status === 404) c.header("X-Robots-Tag", "noindex, nofollow");
   return c.body(value.html, value.status, HTML_HEADERS);
 });
 

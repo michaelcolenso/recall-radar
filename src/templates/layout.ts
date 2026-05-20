@@ -27,7 +27,6 @@ export function layout({
 }: LayoutOptions): string {
   const escapedTitle = escapeHtml(title);
   const escapedDesc = description ? escapeHtml(description) : "";
-  const now = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const resolvedOgType = ogType || "website";
   const resolvedOgImage = resolveMetaImageUrl(canonical, ogImage || "/og-image.png");
 
@@ -37,6 +36,11 @@ export function layout({
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>${escapedTitle}</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
+  <link rel="manifest" href="/site.webmanifest"/>
+  <meta name="theme-color" content="#f8f8f7" media="(prefers-color-scheme: light)"/>
+  <meta name="theme-color" content="#0a0a0c" media="(prefers-color-scheme: dark)"/>
   ${escapedDesc ? `<meta name="description" content="${escapedDesc}"/>` : ""}
   ${noIndex ? `<meta name="robots" content="noindex, nofollow"/>` : ""}
   ${googleVerification ? `<meta name="google-site-verification" content="${googleVerification}"/>` : ""}
@@ -69,7 +73,7 @@ export function layout({
         </span>
       </a>
       <div class="rr-nav__links">
-        <a href="/">Search</a>
+        <a href="/#makes">Browse All Makes</a>
         <a href="/about">About</a>
       </div>
     </div>
@@ -78,9 +82,13 @@ export function layout({
     ${body}
   </main>
   <footer class="rr-footer">
-    <p>Data sourced from the <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration (NHTSA)</a>. Last updated ${now}.</p>
+    <p>Data sourced from the <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration (NHTSA)</a>. Last refreshed <span id="rr-footer-date">recently</span>.</p>
     <p><a href="/about">About</a> &middot; Recalled Rides is not affiliated with NHTSA or any vehicle manufacturer.</p>
   </footer>
+  <script>document.getElementById("rr-footer-date").textContent=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})</script>
+  <script>
+    document.addEventListener("click",function(e){var b=e.target.closest(".rr-share-btn");if(!b)return;var u=b.getAttribute("data-share-url");if(!u)return;var a=u;if(!/^https?:/.test(u))a=location.origin+u;if(navigator.share){navigator.share({url:a}).catch(function(){})}else{navigator.clipboard.writeText(a).then(function(){b.setAttribute("data-shared","1");b.querySelector(".rr-share-btn__icon").innerHTML='<path d="M4 8l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';setTimeout(function(){b.removeAttribute("data-shared");b.querySelector(".rr-share-btn__icon").innerHTML='<path d="M12 10.5c-.5 0-.9.2-1.2.5L5.5 8.3c0-.1.1-.2.1-.3 0-.1 0-.2-.1-.3l5.3-2.7c.3.3.7.5 1.2.5a1.5 1.5 0 1 0-1.5-1.5c0 .1 0 .2.1.3L5.4 7.3c-.3-.3-.7-.5-1.2-.5a1.5 1.5 0 0 0 0 3c.5 0 .9-.2 1.2-.5l5.3 2.7c0 .1-.1.2-.1.3a1.5 1.5 0 1 0 1.5-1.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'},1500)}})});
+  </script>
 </body>
 </html>`;
 }

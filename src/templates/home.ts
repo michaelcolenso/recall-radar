@@ -13,7 +13,28 @@ interface Stats {
   makes: number;
 }
 
-export function homeTemplate(makes: MakeSummary[], stats: Stats): string {
+export function homeTemplate(makes: MakeSummary[], stats: Stats, popularMakes: MakeSummary[] = []): string {
+  const popularGrid = popularMakes.length > 0
+    ? `
+    <section style="margin-bottom: var(--space-12);">
+      <div class="rr-section-header">
+        <h2 class="rr-section-header__title">Popular Makes</h2>
+      </div>
+      <div class="rr-grid rr-grid--makes">
+        ${popularMakes.map((m) => `
+    <a href="/${m.slug}" class="rr-card" aria-label="${escapeHtml(m.name)}: ${m.recall_count.toLocaleString()} recall${m.recall_count !== 1 ? 's' : ''}, ${m.model_count.toLocaleString()} model${m.model_count !== 1 ? 's' : ''}">
+      <div class="rr-card__title">${escapeHtml(m.name)}</div>
+      <div class="rr-card__meta">
+        ${m.recall_count.toLocaleString()} recall${m.recall_count !== 1 ? "s" : ""}
+        · ${m.model_count.toLocaleString()} model${m.model_count !== 1 ? "s" : ""}
+      </div>
+    </a>
+  `).join("")}
+      </div>
+    </section>
+    `
+    : "";
+
   const makeGrid = makes.map((m) => `
     <a href="/${m.slug}" class="rr-card" aria-label="${escapeHtml(m.name)}: ${m.recall_count.toLocaleString()} recall${m.recall_count !== 1 ? 's' : ''}, ${m.model_count.toLocaleString()} model${m.model_count !== 1 ? 's' : ''}">
       <div class="rr-card__title">${escapeHtml(m.name)}</div>
@@ -52,7 +73,9 @@ export function homeTemplate(makes: MakeSummary[], stats: Stats): string {
       </div>
     </section>
 
-    <section>
+    ${popularGrid}
+
+    <section id="makes">
       <div class="rr-section-header">
         <h2 class="rr-section-header__title">Browse Recalls by Make</h2>
       </div>
