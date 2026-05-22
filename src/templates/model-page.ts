@@ -9,7 +9,8 @@ interface YearRow {
 }
 
 export function modelPageTemplate(makeName: string, makeSlug: string, modelName: string, modelSlug: string, years: YearRow[]): string {
-  const cards = years.map((y) => `
+  const recallYears = years.filter((y) => y.recall_count > 0);
+  const cards = recallYears.map((y) => `
     <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year" aria-label="${y.year}: ${y.recall_count} recall${y.recall_count !== 1 ? 's' : ''}${y.highest_severity ? ', highest severity ' + y.highest_severity.toLowerCase() : ''}">
       <div class="rr-card__title">${y.year}</div>
       ${y.highest_severity ? `<div style="margin-top: var(--space-4);">${severityBadge(y.highest_severity)}</div>` : ""}

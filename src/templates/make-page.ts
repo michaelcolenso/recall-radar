@@ -9,7 +9,8 @@ interface ModelRow {
 }
 
 export function makePageTemplate(makeName: string, makeSlug: string, models: ModelRow[]): string {
-  const cards = models.map((m) => {
+  const recallModels = models.filter((m) => m.recall_count > 0);
+  const cards = recallModels.map((m) => {
     const yearRange = m.min_year && m.max_year ? `${m.min_year}–${m.max_year}` : "";
     return `
       <a href="/${makeSlug}/${m.slug}" class="rr-card rr-card--model" aria-label="${escapeHtml(m.name)}${yearRange ? ', ' + yearRange : ''}${m.recall_count > 0 ? ', ' + m.recall_count + ' recall' + (m.recall_count !== 1 ? 's' : '') : ''}">

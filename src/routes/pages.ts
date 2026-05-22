@@ -28,7 +28,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v3";
+const PAGE_CACHE_VERSION = "v4";
 
 interface CachedPageResponse {
   html: string;
@@ -158,7 +158,9 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
        LEFT JOIN vehicle_years vy ON vy.model_id = m.id
        LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
        WHERE m.make_id = ?
-       GROUP BY m.id ORDER BY m.name`,
+       GROUP BY m.id
+       HAVING COUNT(DISTINCT r.id) > 0
+       ORDER BY m.name`,
       )
         .bind(make.id)
         .all<{ name: string; slug: string; min_year: number | null; max_year: number | null; recall_count: number }>();
@@ -266,7 +268,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
                 ELSE NULL
               END as highest_severity
        FROM vehicle_years vy
-       LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
+       JOIN recalls r ON r.vehicle_year_id = vy.id
        WHERE vy.model_id = ?
        GROUP BY vy.year ORDER BY vy.year DESC`,
       )
@@ -286,6 +288,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
           analyticsToken: c.env.CF_ANALYTICS_TOKEN,
           title: `${make.name} ${model.name} Recalls by Year | Recalled Rides`,
           description: `Check ${make.name} ${model.name} recalls by model year. Find safety issues and get free repairs for your vehicle.`,
+          noIndex: years.results.length === 0,
           canonical: `${siteUrl}/${makeSlug}/${modelSlug}`,
           ogType: "website",
           ogImage: "/og-image-home.svg",
@@ -456,7 +459,7 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
       const relatedYearsResult = await c.env.DB.prepare(
         `SELECT vy.year, COUNT(r.id) as recall_count
        FROM vehicle_years vy
-       LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
+       JOIN recalls r ON r.vehicle_year_id = vy.id
        WHERE vy.model_id = ? AND vy.year != ?
        GROUP BY vy.year
        ORDER BY vy.year DESC`,
@@ -671,7 +674,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
       const relatedYearsResult = await c.env.DB.prepare(
         `SELECT vy.year, COUNT(r.id) as recall_count
        FROM vehicle_years vy
-       LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
+       JOIN recalls r ON r.vehicle_year_id = vy.id
        WHERE vy.model_id = ? AND vy.year != ?
        GROUP BY vy.year
        ORDER BY vy.year DESC`,

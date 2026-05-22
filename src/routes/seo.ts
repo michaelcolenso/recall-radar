@@ -8,7 +8,7 @@ const MAX_URLS_PER_SITEMAP = 50000;
 const YEAR_SITEMAP_CHUNK_SIZE = 45000;
 const COMPONENT_SITEMAP_CHUNK_SIZE = 45000;
 const CAMPAIGN_SITEMAP_CHUNK_SIZE = 45000;
-const SEO_CACHE_VERSION = "v4";
+const SEO_CACHE_VERSION = "v5";
 
 interface CountRow {
   count: number;
@@ -67,8 +67,8 @@ seoRoutes.get("/sitemap.xml", async (c) => {
 
   const [makeCount, modelCount, yearCount, componentCount, campaignCount] = await Promise.all([
     c.env.DB.prepare("SELECT COUNT(*) as count FROM makes").first<CountRow>(),
-    c.env.DB.prepare("SELECT COUNT(*) as count FROM models").first<CountRow>(),
-    c.env.DB.prepare("SELECT COUNT(*) as count FROM vehicle_years").first<CountRow>(),
+    getModelUrlCount(c.env.DB),
+    getYearUrlCount(c.env.DB),
     getComponentUrlCount(c.env.DB),
     getCampaignUrlCount(c.env.DB),
   ]);
@@ -324,10 +324,41 @@ function getModelRows(db: D1Database): Promise<D1Result<ModelSitemapRow>> {
      FROM models m
      JOIN makes mk ON mk.id = m.make_id
      LEFT JOIN vehicle_years vy ON vy.model_id = m.id
+     WHERE EXISTS (
+       SELECT 1
+       FROM vehicle_years recall_year
+       JOIN recalls r ON r.vehicle_year_id = recall_year.id
+       WHERE recall_year.model_id = m.id
+     )
      GROUP BY m.id, mk.slug, m.slug
      ORDER BY mk.slug, m.slug`,
     )
     .all<ModelSitemapRow>();
+}
+
+function getModelUrlCount(db: D1Database): Promise<CountRow | null> {
+  return db
+    .prepare(
+      `SELECT COUNT(*) as count
+       FROM models m
+       WHERE EXISTS (
+         SELECT 1
+         FROM vehicle_years vy
+         JOIN recalls r ON r.vehicle_year_id = vy.id
+         WHERE vy.model_id = m.id
+       )`,
+    )
+    .first<CountRow>();
+}
+
+function getYearUrlCount(db: D1Database): Promise<CountRow | null> {
+  return db
+    .prepare(
+      `SELECT COUNT(*) as count
+       FROM vehicle_years vy
+       WHERE EXISTS (SELECT 1 FROM recalls r WHERE r.vehicle_year_id = vy.id)`,
+    )
+    .first<CountRow>();
 }
 
 function getYearRows(db: D1Database, limit?: number, offset?: number): Promise<D1Result<YearSitemapRow>> {
