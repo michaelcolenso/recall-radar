@@ -1,8 +1,9 @@
 export function dealerLeadGen(): string {
   return `
     <aside class="rr-lead">
-      <div class="rr-lead__title">Find a Dealer Near You</div>
-      <p class="rr-lead__text">Recall repairs are always free at authorized dealerships. <a href="https://www.nhtsa.gov/recalls#recall-locator" target="_blank" rel="noopener noreferrer">Find a dealer near you <span aria-hidden="true">→</span></a></p>
+      <div class="rr-lead__title">Recall Repairs Are Always Free</div>
+      <p class="rr-lead__text">Federal law requires dealers to fix safety recalls at no cost to you — even if your warranty has expired.</p>
+      <a href="https://www.nhtsa.gov/recalls#recall-locator" target="_blank" rel="noopener noreferrer" class="rr-lead__cta">Find an Authorized Dealer Near You →</a>
     </aside>
   `;
 }

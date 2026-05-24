@@ -12,7 +12,7 @@ interface FaqItem {
   reportReceivedDate?: string | null;
 }
 
-export function faqPageJsonLd(recalls: FaqItem[], pageUrl?: string): string {
+export function faqPageJsonLd(recalls: FaqItem[], pageUrl?: string, dateModified?: string): string {
   if (recalls.length === 0) return "";
 
   const entities = recalls.map((r) => ({
@@ -33,6 +33,10 @@ export function faqPageJsonLd(recalls: FaqItem[], pageUrl?: string): string {
 
   if (pageUrl) {
     schema.url = pageUrl;
+  }
+
+  if (dateModified) {
+    schema.dateModified = dateModified;
   }
 
   return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;

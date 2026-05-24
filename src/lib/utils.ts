@@ -12,6 +12,12 @@ export function parseNhtsaDate(dateStr: string): string | null {
   return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
 }
 
+export function titleCase(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/(?:^|\s|-|\/)\S/g, (c) => c.toUpperCase());
+}
+
 export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")

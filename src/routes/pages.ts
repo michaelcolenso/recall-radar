@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { getCachedOrRender } from "../lib/cache";
-import { escapeHtml, slugify } from "../lib/utils";
+import { escapeHtml, slugify, titleCase } from "../lib/utils";
 import { layout } from "../templates/layout";
 import { homeTemplate } from "../templates/home";
 import { makePageTemplate } from "../templates/make-page";
@@ -28,12 +28,44 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v4";
+const PAGE_CACHE_VERSION = "v5";
 
 interface CachedPageResponse {
   html: string;
   status: 200 | 404;
 }
+
+// GET /og/:makeSlug/:modelSlug/:year.svg — Dynamic OG image
+pageRoutes.get("/og/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}.svg", async (c) => {
+  const { makeSlug, modelSlug, year } = c.req.param();
+  const yearNum = Number(year);
+
+  const make = await c.env.DB.prepare("SELECT name FROM makes WHERE slug = ?")
+    .bind(makeSlug).first<{ name: string }>();
+  const model = await c.env.DB.prepare("SELECT name FROM models WHERE slug = ?")
+    .bind(modelSlug).first<{ name: string }>();
+
+  if (!make || !model || !yearNum || yearNum < 1900 || yearNum > 2100) {
+    return c.notFound();
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#0a0a0c"/>
+  <rect x="60" y="60" width="1080" height="510" fill="none" stroke="#27272a" stroke-width="2"/>
+  <rect x="100" y="100" width="60" height="60" fill="#f97316"/>
+  <text x="130" y="145" font-family="system-ui, sans-serif" font-size="36" font-weight="700" fill="#ffffff" text-anchor="middle">!</text>
+  <text x="180" y="148" font-family="system-ui, sans-serif" font-size="48" font-weight="700" fill="#fafafa">Recalled Rides</text>
+  <text x="100" y="280" font-family="system-ui, sans-serif" font-size="64" font-weight="700" fill="#fafafa">${year} ${escapeHtml(make.name)} ${escapeHtml(model.name)}</text>
+  <text x="100" y="360" font-family="system-ui, sans-serif" font-size="32" fill="#a1a1aa">Check safety recalls and get free repairs.</text>
+  <rect x="100" y="420" width="200" height="4" fill="#f97316"/>
+  <text x="100" y="500" font-family="system-ui, sans-serif" font-size="22" fill="#71717a">Data sourced from NHTSA · RecalledRides.com</text>
+</svg>`;
+
+  return c.body(svg, 200, {
+    "content-type": "image/svg+xml",
+    "cache-control": "public, max-age=86400, s-maxage=43200, stale-while-revalidate=86400",
+  });
+});
 
 // GET / — Homepage
 pageRoutes.get("/", async (c) => {
@@ -43,6 +75,10 @@ pageRoutes.get("/", async (c) => {
     withPageCacheVersion("page:home"),
     86400,
     async () => {
+      const lastUpdatedResult = await c.env.DB.prepare(
+        "SELECT MAX(completed_at) as last_run FROM ingestion_logs WHERE status = 'completed'",
+      ).first<{ last_run: string | null }>();
+
       const [makesResult, statsResult] = await Promise.all([
         c.env.DB.prepare(
           `SELECT m.name, m.slug, COUNT(DISTINCT md.id) as model_count, COUNT(r.id) as recall_count
@@ -61,6 +97,28 @@ pageRoutes.get("/", async (c) => {
         ]),
       ]);
       const [recallCount, yearCount, makeCount] = statsResult;
+      const popularModelsResult = await c.env.DB.prepare(
+        `SELECT mk.name as make_name,
+                mk.slug as make_slug,
+                m.name as model_name,
+                m.slug as model_slug,
+                COUNT(DISTINCT vy.id) as year_count,
+                COUNT(r.id) as recall_count
+         FROM models m
+         JOIN makes mk ON mk.id = m.make_id
+         JOIN vehicle_years vy ON vy.model_id = m.id
+         JOIN recalls r ON r.vehicle_year_id = vy.id
+         GROUP BY m.id, mk.name, mk.slug, m.name, m.slug
+         ORDER BY recall_count DESC, year_count DESC, mk.name, m.name
+         LIMIT 12`,
+      ).all<{
+        make_name: string;
+        make_slug: string;
+        model_name: string;
+        model_slug: string;
+        year_count: number;
+        recall_count: number;
+      }>();
 
       const popularNames = new Set(POPULAR_MAKES.map((n) => n.toUpperCase()));
       const popularMakes = makesResult.results
@@ -83,11 +141,12 @@ pageRoutes.get("/", async (c) => {
         canonical: siteUrl,
         ogType: "website",
         ogImage: "/og-image-home.svg",
+        lastUpdated: lastUpdatedResult?.last_run ? new Date(lastUpdatedResult.last_run).toLocaleDateString("en-US", { month: "long", year: "numeric" }) : undefined,
         body: homeTemplate(makesResult.results, {
           recalls: recallCount?.count ?? 0,
           vehicles: yearCount?.count ?? 0,
           makes: makeCount?.count ?? 0,
-        }, popularMakes),
+        }, popularMakes, popularModelsResult.results),
         jsonLd,
       });
     },
@@ -159,7 +218,6 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
        LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
        WHERE m.make_id = ?
        GROUP BY m.id
-       HAVING COUNT(DISTINCT r.id) > 0
        ORDER BY m.name`,
       )
         .bind(make.id)
@@ -436,7 +494,7 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
       const componentName = filteredRecalls[0].component.split(":")[0].trim();
       const topSeverity = filteredRecalls[0]?.severity_level ?? "UNKNOWN";
 
-      const title = `${year} ${make.name} ${model.name} ${componentName} Recalls | Recalled Rides`;
+      const title = `${year} ${make.name} ${model.name} ${titleCase(componentName)} Recalls | Recalled Rides`;
       const description = `Check ${filteredRecalls.length} ${componentName} recalls for the ${year} ${make.name} ${model.name}. Get plain-English explanations and find out how to get free repairs.`;
 
       const cards = filteredRecalls.map(recallCard).join("");
@@ -531,7 +589,7 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
           description,
           canonical: componentPageUrl,
           ogType: "website",
-          ogImage: "/og-image-detail.svg",
+          ogImage: `/og/${makeSlug}/${modelSlug}/${year}.svg`,
           body,
           jsonLd,
         }),
@@ -664,7 +722,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
       const description =
         recalls.length > 0 && topComponent
           ? `Check ${recalls.length} known recalls for the ${year} ${make.name} ${model.name}. Get plain-English explanations of ${topComponent.toLowerCase()} issues and find out how to get free repairs at your local dealer.`
-          : `No active recalls found for the ${year} ${make.name} ${model.name}. Search Recalled Rides for the latest safety information and check back for updates.`;
+          : `Good news: the ${year} ${make.name} ${model.name} has no open safety recalls. Check back anytime — we update weekly from NHTSA data.`;
 
       const cards =
         recalls.length > 0
@@ -712,6 +770,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
         });
 
       const yearPageUrl = `${siteUrl}/${makeSlug}/${modelSlug}/${year}`;
+      const mostRecentDate = recalls[0]?.report_received_date ?? undefined;
       const jsonLd =
         faqPageJsonLd(
           recalls.map((r) => ({
@@ -726,6 +785,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
             reportReceivedDate: r.report_received_date,
           })),
           yearPageUrl,
+          mostRecentDate,
         ) +
         breadcrumbListJsonLd(siteUrl, [
           { name: "Home", item: siteUrl },
@@ -744,7 +804,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           noIndex: recalls.length === 0,
           canonical: `${siteUrl}/${makeSlug}/${modelSlug}/${year}`,
           ogType: "website",
-          ogImage: "/og-image-detail.svg",
+          ogImage: `/og/${makeSlug}/${modelSlug}/${year}.svg`,
           body,
           jsonLd,
         }),
@@ -853,6 +913,9 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
       const jsonLd =
         breadcrumbListJsonLd(siteUrl, [
           { name: "Home", item: siteUrl },
+          { name: recall.make_name, item: `${siteUrl}/${recall.make_slug}` },
+          { name: recall.model_name, item: `${siteUrl}/${recall.make_slug}/${recall.model_slug}` },
+          { name: String(recall.year), item: `${siteUrl}/${recall.make_slug}/${recall.model_slug}/${recall.year}` },
           { name: `Campaign ${recall.nhtsa_campaign_number}`, item: campaignUrl },
         ]) +
         articleJsonLd({
@@ -860,6 +923,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
           description: summary.slice(0, 200),
           url: campaignUrl,
           datePublished: recall.report_received_date ?? undefined,
+          dateModified: recall.enriched_at ?? recall.report_received_date ?? undefined,
           author: "Recalled Rides",
         });
 

@@ -11,6 +11,7 @@ interface LayoutOptions {
   ogImage?: string;
   googleVerification?: string;
   analyticsToken?: string;
+  lastUpdated?: string;
 }
 
 export function layout({
@@ -24,6 +25,7 @@ export function layout({
   ogImage,
   googleVerification,
   analyticsToken,
+  lastUpdated,
 }: LayoutOptions): string {
   const escapedTitle = escapeHtml(title);
   const escapedDesc = description ? escapeHtml(description) : "";
@@ -51,6 +53,9 @@ export function layout({
   <meta property="og:type" content="${resolvedOgType}"/>
   <meta property="og:site_name" content="Recalled Rides"/>
   <meta property="og:image" content="${resolvedOgImage}"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="Recalled Rides — vehicle recall information"/>
   <meta name="twitter:card" content="summary_large_image"/>
   ${escapedTitle ? `<meta name="twitter:title" content="${escapedTitle}"/>` : ""}
   ${escapedDesc ? `<meta name="twitter:description" content="${escapedDesc}"/>` : ""}
@@ -83,11 +88,40 @@ export function layout({
   </main>
   <footer class="rr-footer">
     <div class="rr-footer__inner">
-      <p>Source: <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration</a>. Updated <span id="rr-footer-date">recently</span>.</p>
+      <p>Source: <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration</a>. Updated <span id="rr-footer-date">${escapeHtml(lastUpdated || "recently")}</span>.</p>
       <p>Independent repository. Not affiliated with NHTSA or manufacturers. &middot; <a href="/about">Learn More</a></p>
     </div>
   </footer>
-  <script>document.getElementById("rr-footer-date").textContent=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})</script>
+  ${!lastUpdated ? `<script>document.getElementById("rr-footer-date").textContent=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})</script>` : ""}
+  <script>
+    // Vehicle search typeahead
+    (function(){
+      var input=document.getElementById("rr-global-search");
+      var results=document.getElementById("rr-global-search-results");
+      if(!input||!results)return;
+      var timer=null;
+      input.addEventListener("input",function(){
+        clearTimeout(timer);
+        var q=input.value.trim();
+        if(q.length<2){results.hidden=true;results.innerHTML="";return}
+        timer=setTimeout(function(){
+          fetch("/api/search?q="+encodeURIComponent(q))
+            .then(function(r){return r.json()})
+            .then(function(d){
+              if(!d.results||!d.results.length){results.hidden=true;results.innerHTML="";return}
+              results.innerHTML=d.results.map(function(r){
+                return '<a href="'+r.href+'"><strong>'+escHtml(r.label)+'</strong> <span style="opacity:0.5;font-size:10px">'+escHtml(r.sublabel)+'</span></a>'
+              }).join("");
+              results.hidden=false
+            })
+            .catch(function(){results.hidden=true})
+        },200)
+      });
+      document.addEventListener("click",function(e){if(!input.contains(e.target)&&!results.contains(e.target)){results.hidden=true}});
+      input.addEventListener("keydown",function(e){if(e.key==="Escape"){results.hidden=true;input.blur()}});
+      function escHtml(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+    })();
+  </script>
   <script>
     document.addEventListener("click",function(e){var b=e.target.closest(".rr-share-btn");if(!b)return;var u=b.getAttribute("data-share-url");if(!u)return;var a=u;if(!/^https?:/.test(u))a=location.origin+u;if(navigator.share){navigator.share({url:a}).catch(function(){})}else{navigator.clipboard.writeText(a).then(function(){b.setAttribute("data-shared","1");b.querySelector(".rr-share-btn__icon").innerHTML='<path d="M4 8l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';setTimeout(function(){b.removeAttribute("data-shared");b.querySelector(".rr-share-btn__icon").innerHTML='<path d="M12 10.5c-.5 0-.9.2-1.2.5L5.5 8.3c0-.1.1-.2.1-.3 0-.1 0-.2-.1-.3l5.3-2.7c.3.3.7.5 1.2.5a1.5 1.5 0 1 0-1.5-1.5c0 .1 0 .2.1.3L5.4 7.3c-.3-.3-.7-.5-1.2-.5a1.5 1.5 0 0 0 0 3c.5 0 .9-.2 1.2-.5l5.3 2.7c0 .1-.1.2-.1.3a1.5 1.5 0 1 0 1.5-1.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'},1500)}})});
   </script>

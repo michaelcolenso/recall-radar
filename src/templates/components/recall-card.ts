@@ -24,8 +24,8 @@ export function recallCard(recall: RecallView): string {
   const remedy = recall.remedy_enriched ?? recall.remedy_raw;
 
   const indicator = isEnriched
-    ? `<span class="rr-readout__indicator rr-readout__indicator--enriched">Simplified</span>`
-    : `<span class="rr-readout__indicator rr-readout__indicator--raw">Original NHTSA Language</span>`;
+    ? `<span class="rr-readout__indicator rr-readout__indicator--enriched">Plain English</span>`
+    : `<span class="rr-readout__indicator rr-readout__indicator--raw">NHTSA Official Language</span>`;
 
   const severityClass = recall.severity_level ? `rr-readout--${recall.severity_level.toLowerCase()}` : "";
 
@@ -51,13 +51,14 @@ export function recallCard(recall: RecallView): string {
     `
     : "";
 
-  const shareUrl = `/recall/${escapeHtml(recall.nhtsa_campaign_number)}`;
+  const campaignPath = `/recall/${encodeURIComponent(recall.nhtsa_campaign_number)}`;
+  const shareUrl = escapeHtml(campaignPath);
   return `
   <article class="rr-readout ${severityClass}">
     <div class="rr-readout__header">
       <div class="rr-readout__header-left">
         ${severityBadge(recall.severity_level)}
-        <span class="rr-readout__campaign">#${escapeHtml(recall.nhtsa_campaign_number)}</span>
+        <a class="rr-readout__campaign" href="${shareUrl}">#${escapeHtml(recall.nhtsa_campaign_number)}</a>
         ${indicator}
       </div>
       <div class="rr-readout__header-right">
@@ -93,5 +94,9 @@ export function recallCard(recall: RecallView): string {
       <div class="rr-readout__field-value">${escapeHtml(remedy)}</div>
     </div>
     ${originalToggle}
+    <div class="rr-readout__actions">
+      <a href="${shareUrl}" class="rr-readout__detail-link">View full recall details →</a>
+      <span class="rr-lead__inline">Repairs are <strong>free</strong> at any authorized dealer. <a href="https://www.nhtsa.gov/recalls#recall-locator" target="_blank" rel="noopener noreferrer">Find a dealer →</a></span>
+    </div>
   </article>`;
 }

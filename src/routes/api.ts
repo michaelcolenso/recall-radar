@@ -36,6 +36,61 @@ function requireAuth(c: Context): Response | null {
   return null;
 }
 
+// GET /api/search?q=... — Public vehicle search (typeahead)
+apiRoutes.get("/search", async (c) => {
+  const q = (c.req.query("q") || "").trim();
+  if (!q || q.length < 2) {
+    return c.json({ results: [] });
+  }
+
+  // Limit to 8 results total for fast typeahead
+  const searchTerm = `%${q}%`;
+
+  // Search makes directly
+  const makesResult = await c.env.DB.prepare(
+    `SELECT name, slug, 'make' as type, NULL as make_name, NULL as make_slug, NULL as year
+     FROM makes WHERE name LIKE ? ORDER BY name LIMIT 3`,
+  ).bind(searchTerm).all<{ name: string; slug: string; type: string; make_name: string | null; make_slug: string | null; year: number | null }>();
+
+  // Search models by name, joined with make
+  const modelsResult = await c.env.DB.prepare(
+    `SELECT m.name, m.slug, 'model' as type, mk.name as make_name, mk.slug as make_slug, NULL as year
+     FROM models m
+     JOIN makes mk ON mk.id = m.make_id
+     WHERE m.name LIKE ? AND EXISTS (
+       SELECT 1 FROM vehicle_years vy
+       JOIN recalls r ON r.vehicle_year_id = vy.id
+       WHERE vy.model_id = m.id
+     )
+     ORDER BY m.name LIMIT 5`,
+  ).bind(searchTerm).all<{ name: string; slug: string; type: string; make_name: string | null; make_slug: string | null; year: number | null }>();
+
+  // Search years for specific make+model combos
+  const yearsResult = await c.env.DB.prepare(
+    `SELECT CAST(vy.year AS TEXT) as name, CAST(vy.year AS TEXT) as slug, 'year' as type,
+            mk.name as make_name, mk.slug as make_slug, vy.year
+     FROM vehicle_years vy
+     JOIN models m ON m.id = vy.model_id
+     JOIN makes mk ON mk.id = m.make_id
+     WHERE EXISTS (SELECT 1 FROM recalls r WHERE r.vehicle_year_id = vy.id)
+       AND (mk.name || ' ' || m.name || ' ' || CAST(vy.year AS TEXT)) LIKE ?
+     ORDER BY mk.name, m.name, vy.year DESC LIMIT 5`,
+  ).bind(searchTerm).all<{ name: string; slug: string; type: string; make_name: string | null; make_slug: string | null; year: number | null }>();
+
+  const results = [...makesResult.results, ...modelsResult.results, ...yearsResult.results].slice(0, 8).map((r) => {
+    if (r.type === "make") {
+      return { label: r.name, sublabel: "Manufacturer", href: `/${r.slug}` };
+    }
+    if (r.type === "model") {
+      return { label: `${r.make_name} ${r.name}`, sublabel: "Model", href: `/${r.make_slug}/${r.slug}` };
+    }
+    // year
+    return { label: `${r.year} ${r.make_name} ${r.name}`, sublabel: "Vehicle Year", href: `/${r.make_slug}/${r.slug}/${r.year}` };
+  });
+
+  return c.json({ results });
+});
+
 // POST /api/admin/ingest — trigger IngestionWorkflow
 apiRoutes.post("/admin/ingest", async (c) => {
   const denied = requireAuth(c);
