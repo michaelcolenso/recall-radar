@@ -45,6 +45,23 @@ interface CampaignSitemapRow {
   lastmod: string;
 }
 
+// GET /opensearch.xml — OpenSearch descriptor for browser search engine integration
+seoRoutes.get("/opensearch.xml", (c) => {
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
+  return c.body(
+    `<?xml version="1.0" encoding="UTF-8"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+  <ShortName>Recalled Rides</ShortName>
+  <Description>Search vehicle safety recalls from NHTSA data</Description>
+  <Url type="text/html" template="${siteUrl}/search?q={searchTerms}"/>
+  <InputEncoding>UTF-8</InputEncoding>
+  <Image width="16" height="16" type="image/svg+xml">${siteUrl}/favicon.svg</Image>
+</OpenSearchDescription>`,
+    200,
+    { "content-type": "application/xml; charset=utf-8" },
+  );
+});
+
 // GET /robots.txt
 seoRoutes.get("/robots.txt", (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";

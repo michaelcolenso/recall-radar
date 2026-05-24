@@ -86,19 +86,21 @@ export function homeTemplate(
     <section class="rr-hero">
       <span class="rr-hero__marker" aria-hidden="true">SYSTEM:RECALL_DATABASE_V1.0</span>
       <h1 class="rr-hero__title">Is your car under a safety recall?</h1>
-      <p class="rr-hero__subtitle">Check instantly — enter your vehicle below or browse by make. All data sourced directly from NHTSA records, simplified for clarity. Repairs are always free.</p>
-      <div class="rr-hero__search-wrap">
-        <input
-          type="text"
-          id="rr-global-search"
-          class="rr-hero__search"
-          placeholder="e.g. 2020 Toyota Camry"
-          autocomplete="off"
-          aria-label="Search for a vehicle"
-        />
-        <div id="rr-global-search-results" class="rr-hero__search-results" hidden></div>
+      <p class="rr-hero__subtitle">Check instantly — enter a make, model, or year. All data sourced from NHTSA. Repairs are always free.</p>
+      <div class="rr-hero__actions">
+        <div class="rr-hero__search-wrap">
+          <input
+            type="text"
+            id="rr-global-search"
+            class="rr-hero__search"
+            placeholder="e.g. 2020 Toyota Camry"
+            autocomplete="off"
+            aria-label="Search for a vehicle"
+          />
+          <div id="rr-global-search-results" class="rr-hero__search-results" hidden></div>
+        </div>
+        <a href="#makes" class="rr-hero__cta">Browse All Makes ↓</a>
       </div>
-      <a href="#makes" class="rr-hero__cta">Browse All Vehicles ↓</a>
     </section>
 
     <section class="rr-stats">

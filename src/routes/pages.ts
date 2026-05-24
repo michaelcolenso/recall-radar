@@ -67,6 +67,14 @@ pageRoutes.get("/og/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}.s
   });
 });
 
+// GET /search — Redirect search queries to browse or search results
+pageRoutes.get("/search", (c) => {
+  const q = (c.req.query("q") || "").trim();
+  if (!q) return c.redirect("/", 302);
+  // Redirect to the homepage with the search query — the JS typeahead will handle it
+  return c.redirect(`/?q=${encodeURIComponent(q)}`, 302);
+});
+
 // GET / — Homepage
 pageRoutes.get("/", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
@@ -135,9 +143,9 @@ pageRoutes.get("/", async (c) => {
       return layout({
         googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
         analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-        title: "Recalled Rides | Vehicle Recall Search",
+        title: "Vehicle Recall Search — Check Your Car Free | Recalled Rides",
         description:
-          "Search and understand vehicle recalls in plain English. Check if your car has open safety recalls.",
+          "Check if your car has open safety recalls. Free, plain-English recall lookup sourced from NHTSA. Enter a make, model, or year to see safety issues and get free repairs.",
         canonical: siteUrl,
         ogType: "website",
         ogImage: "/og-image-home.svg",

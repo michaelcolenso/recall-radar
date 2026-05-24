@@ -41,6 +41,7 @@ export function layout({
   <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
   <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
   <link rel="manifest" href="/site.webmanifest"/>
+  <link rel="search" type="application/opensearchdescription+xml" title="Recalled Rides" href="/opensearch.xml"/>
   <meta name="theme-color" content="#f8f8f7" media="(prefers-color-scheme: light)"/>
   <meta name="theme-color" content="#0a0a0c" media="(prefers-color-scheme: dark)"/>
   ${escapedDesc ? `<meta name="description" content="${escapedDesc}"/>` : ""}
@@ -79,6 +80,9 @@ export function layout({
       </a>
       <div class="rr-nav__links">
         <a href="/#makes">Browse</a>
+        <a href="/toyota">Toyota</a>
+        <a href="/honda">Honda</a>
+        <a href="/ford">Ford</a>
         <a href="/about">About</a>
       </div>
     </div>
@@ -93,6 +97,17 @@ export function layout({
     </div>
   </footer>
   ${!lastUpdated ? `<script>document.getElementById("rr-footer-date").textContent=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})</script>` : ""}
+  <script>
+    // Prefill search from ?q= param
+    (function(){
+      var p=new URLSearchParams(location.search);
+      var q=p.get("q");
+      if(q){
+        var input=document.getElementById("rr-global-search");
+        if(input){input.value=q;input.dispatchEvent(new Event("input",{bubbles:true}))}
+      }
+    })();
+  </script>
   <script>
     // Vehicle search typeahead
     (function(){
