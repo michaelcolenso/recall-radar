@@ -97,6 +97,28 @@ export function layout({
     </div>
   </footer>
   ${!lastUpdated ? `<script>document.getElementById("rr-footer-date").textContent=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})</script>` : ""}
+  <!-- Chat widget -->
+  <button id="rr-chat-toggle" class="rr-chat-toggle" aria-label="Chat about recalls">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <span class="rr-chat-toggle__label">Ask AI</span>
+  </button>
+  <div id="rr-chat-panel" class="rr-chat-panel" hidden>
+    <div class="rr-chat-panel__header">
+      <span class="rr-chat-panel__title">Symptom Matcher</span>
+      <button id="rr-chat-close" class="rr-chat-panel__close" aria-label="Close chat">×</button>
+    </div>
+    <div id="rr-chat-messages" class="rr-chat-messages">
+      <div class="rr-chat-msg rr-chat-msg--bot">
+        <div class="rr-chat-msg__text">Describe what's going on with your car — include the year, make, and model. I'll match your symptoms to known recalls.</div>
+      </div>
+    </div>
+    <form id="rr-chat-form" class="rr-chat-form">
+      <input type="text" id="rr-chat-input" class="rr-chat-input" placeholder="e.g. My 2020 Camry stalls at stoplights..." autocomplete="off"/>
+      <button type="submit" id="rr-chat-send" class="rr-chat-send" aria-label="Send">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </form>
+  </div>
   <script>
     // Prefill search from ?q= param
     (function(){
@@ -139,6 +161,81 @@ export function layout({
   </script>
   <script>
     document.addEventListener("click",function(e){var b=e.target.closest(".rr-share-btn");if(!b)return;var u=b.getAttribute("data-share-url");if(!u)return;var a=u;if(!/^https?:/.test(u))a=location.origin+u;if(navigator.share){navigator.share({url:a}).catch(function(){})}else{navigator.clipboard.writeText(a).then(function(){b.setAttribute("data-shared","1");b.querySelector(".rr-share-btn__icon").innerHTML='<path d="M4 8l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';setTimeout(function(){b.removeAttribute("data-shared");b.querySelector(".rr-share-btn__icon").innerHTML='<path d="M12 10.5c-.5 0-.9.2-1.2.5L5.5 8.3c0-.1.1-.2.1-.3 0-.1 0-.2-.1-.3l5.3-2.7c.3.3.7.5 1.2.5a1.5 1.5 0 1 0-1.5-1.5c0 .1 0 .2.1.3L5.4 7.3c-.3-.3-.7-.5-1.2-.5a1.5 1.5 0 0 0 0 3c.5 0 .9-.2 1.2-.5l5.3 2.7c0 .1-.1.2-.1.3a1.5 1.5 0 1 0 1.5-1.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'},1500)}})});
+  </script>
+  <!-- Chat widget JS -->
+  <script>
+    (function(){
+      var toggle=document.getElementById("rr-chat-toggle");
+      var panel=document.getElementById("rr-chat-panel");
+      var close=document.getElementById("rr-chat-close");
+      var form=document.getElementById("rr-chat-form");
+      var input=document.getElementById("rr-chat-input");
+      var messages=document.getElementById("rr-chat-messages");
+      if(!toggle||!panel)return;
+
+      toggle.addEventListener("click",function(){
+        var isOpen=!panel.hidden;
+        panel.hidden=isOpen;
+        toggle.setAttribute("aria-expanded",String(!isOpen));
+        if(!isOpen){input.focus()}
+      });
+      close.addEventListener("click",function(){
+        panel.hidden=true;
+        toggle.setAttribute("aria-expanded","false");
+      });
+
+      function addMsg(text,role,url){
+        var div=document.createElement("div");
+        div.className="rr-chat-msg rr-chat-msg--"+role;
+        var body='<div class="rr-chat-msg__text">'+escHtml(text)+'</div>';
+        if(url){
+          body+='<a href="'+url+'" class="rr-chat-msg__link">View recall details →</a>';
+        }
+        div.innerHTML=body;
+        messages.appendChild(div);
+        messages.scrollTop=messages.scrollHeight;
+      }
+
+      function setLoading(v){
+        var btn=document.getElementById("rr-chat-send");
+        input.disabled=v;
+        btn.disabled=v;
+        btn.style.opacity=v?"0.5":"1";
+      }
+
+      form.addEventListener("submit",function(e){
+        e.preventDefault();
+        var msg=input.value.trim();
+        if(!msg)return;
+        addMsg(msg,"user");
+        input.value="";
+        setLoading(true);
+
+        var loadingDiv=document.createElement("div");
+        loadingDiv.className="rr-chat-msg rr-chat-msg--bot rr-chat-msg--loading";
+        loadingDiv.innerHTML='<div class="rr-chat-msg__text">Analyzing symptoms<span class="rr-chat-dots"><span>.</span><span>.</span><span>.</span></span></div>';
+        messages.appendChild(loadingDiv);
+        messages.scrollTop=messages.scrollHeight;
+
+        fetch("/api/chat",{
+          method:"POST",
+          headers:{"content-type":"application/json"},
+          body:JSON.stringify({message:msg})
+        })
+        .then(function(r){return r.json()})
+        .then(function(d){
+          loadingDiv.remove();
+          addMsg(d.reply,"bot",d.vehicle?d.vehicle.url:null);
+        })
+        .catch(function(){
+          loadingDiv.remove();
+          addMsg("Sorry, I couldn't connect. Try again?","bot");
+        })
+        .finally(function(){setLoading(false)});
+      });
+
+      function escHtml(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+    })();
   </script>
 </body>
 </html>`;
