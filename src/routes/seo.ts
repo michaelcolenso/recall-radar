@@ -8,7 +8,7 @@ const MAX_URLS_PER_SITEMAP = 50000;
 const YEAR_SITEMAP_CHUNK_SIZE = 45000;
 const COMPONENT_SITEMAP_CHUNK_SIZE = 45000;
 const CAMPAIGN_SITEMAP_CHUNK_SIZE = 45000;
-const SEO_CACHE_VERSION = "v5";
+const SEO_CACHE_VERSION = "v6";
 
 interface CountRow {
   count: number;
