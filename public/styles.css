@@ -230,6 +230,7 @@
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: clip;
 }
 
 body {
@@ -239,6 +240,7 @@ body {
   color: var(--text-primary);
   background: var(--bg-page);
   min-height: 100vh;
+  overflow-x: clip;
 }
 
 a {
@@ -311,6 +313,12 @@ button:focus-visible,
   height: 70%;
   border: 2px solid var(--text-inverse);
   opacity: 0.5;
+}
+
+.rr-logo__wordmark-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .rr-logo__wordmark {
@@ -386,6 +394,36 @@ button:focus-visible,
 .rr-footer a:hover {
   color: var(--text-inverse);
   background: var(--accent);
+}
+
+/* ── Mobile layout ── */
+@media (max-width: 768px) {
+  .rr-nav__inner {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .rr-nav__links {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: var(--space-1);
+  }
+
+  .rr-nav__links a {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .rr-main {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
+  .rr-footer {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
