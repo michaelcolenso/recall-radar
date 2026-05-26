@@ -1485,9 +1485,16 @@ a.rr-readout__campaign:hover {
     width: 100%;
     max-width: 100%;
     height: 100vh;
+    height: 100dvh;
     max-height: 100vh;
+    max-height: 100dvh;
     border: none;
     box-shadow: none;
+  }
+
+  .rr-chat-panel__header,
+  .rr-chat-form {
+    flex-shrink: 0;
   }
 
   .rr-chat-toggle__label {
