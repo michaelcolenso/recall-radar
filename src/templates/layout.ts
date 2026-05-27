@@ -1,4 +1,5 @@
 import { escapeHtml } from "../lib/utils";
+import { ASSET_VERSION } from "../lib/constants";
 
 interface LayoutOptions {
   title: string;
@@ -63,7 +64,7 @@ export function layout({
   <meta name="twitter:image" content="${resolvedOgImage}"/>
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin/>
   <link rel="preload" href="/fonts/literata.woff2" as="font" type="font/woff2" crossorigin/>
-  <link rel="stylesheet" href="/styles.css"/>
+  <link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}"/>
   ${jsonLd}
   ${analyticsToken ? `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon="{&quot;token&quot;: &quot;${analyticsToken}&quot;}"></script>` : ""}
 </head>
