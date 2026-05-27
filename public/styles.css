@@ -694,7 +694,7 @@ button:focus-visible,
 
 .rr-grid--makes { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
 .rr-grid--models { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
-.rr-grid--years { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+.rr-grid--years { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
 
 /* ═══════════════════════════════════════════════════════════════
    CARDS
@@ -708,6 +708,10 @@ button:focus-visible,
   transition: all 0.2s var(--ease-mechanical);
   position: relative;
   overflow: hidden;
+}
+
+.rr-card--year {
+  padding: var(--space-4);
 }
 
 .rr-card::before {
