@@ -7,7 +7,7 @@ import { seoRoutes } from "./routes/seo";
 import { PipelineAgent } from "./agents/pipeline-agent";
 import { IngestionWorkflow } from "./workflows/ingestion-workflow";
 import { EnrichmentWorkflow } from "./workflows/enrichment-workflow";
-import { DEFAULT_YEAR_START } from "./lib/constants";
+import { ASSET_VERSION, DEFAULT_YEAR_START } from "./lib/constants";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -23,7 +23,7 @@ app.onError((err, c) => {
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Something Went Wrong | Recalled Rides</title>
   <meta name="robots" content="noindex, nofollow"/>
-  <link rel="stylesheet" href="/styles.css"/>
+  <link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}"/>
 </head>
 <body class="rr-layout">
   <nav class="rr-nav"><div class="rr-nav__inner"><a href="/" class="rr-logo"><span class="rr-logo__mark" aria-hidden="true">!</span><span>Recalled Rides</span></a></div></nav>
