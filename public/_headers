@@ -1,5 +1,7 @@
+# styles.css ships with each deploy; Cloudflare's asset edge cache keys on path
+# and ignores the ?v= query, so keep a short TTL to let new builds propagate.
 /styles.css
-  Cache-Control: public, max-age=604800
+  Cache-Control: public, max-age=300, stale-while-revalidate=86400
 
 /*.svg
   Cache-Control: public, max-age=604800

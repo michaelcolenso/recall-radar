@@ -28,7 +28,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v7";
+const PAGE_CACHE_VERSION = "v8";
 
 interface CachedPageResponse {
   html: string;
