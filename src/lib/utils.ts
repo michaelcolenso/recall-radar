@@ -26,3 +26,23 @@ export function escapeHtml(str: string): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
+
+const MAKE_LOGO_SLUGS = new Set([
+  "acura", "audi", "bmw", "buick", "cadillac", "chevrolet", "chrysler",
+  "dodge", "ford", "gmc", "honda", "hyundai", "infiniti", "jeep", "kia",
+  "land-rover", "lexus", "lincoln", "mazda", "mercedes-benz", "mini",
+  "mitsubishi", "nissan", "porsche", "ram", "subaru", "tesla", "toyota",
+  "volkswagen", "volvo",
+]);
+
+/** Returns the logo SVG path for a make slug, or null if not available. */
+export function getMakeLogoUrl(makeSlug: string): string | null {
+  return MAKE_LOGO_SLUGS.has(makeSlug) ? `/logos/${makeSlug}.svg` : null;
+}
+
+/** Returns an <img> tag for a make logo, or empty string if unavailable. */
+export function makeLogoImg(makeSlug: string, alt: string, className = "rr-make-logo"): string {
+  const url = getMakeLogoUrl(makeSlug);
+  if (!url) return "";
+  return `<img src="${url}" alt="${escapeHtml(alt)} logo" class="${className}" width="48" height="48" loading="lazy" />`;
+}

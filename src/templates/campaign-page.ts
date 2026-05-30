@@ -64,7 +64,7 @@ export function campaignPageTemplate({
       <div class="rr-meta-bar">
         ${severityBadge(severity)}
         ${indicator}
-        ${reportReceivedDate ? `<span class="rr-readout__date">FILED: ${escapeHtml(reportReceivedDate)}</span>` : ""}
+        ${reportReceivedDate ? `<span class="rr-readout__date"><time datetime="${escapeHtml(reportReceivedDate)}">${escapeHtml(reportReceivedDate)}</time></span>` : ""}
       </div>
     </section>
 

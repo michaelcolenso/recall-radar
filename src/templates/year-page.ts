@@ -1,4 +1,4 @@
-import { escapeHtml } from "../lib/utils";
+import { escapeHtml, makeLogoImg } from "../lib/utils";
 import { severityBadge } from "./components/severity-badge";
 import type { SeverityLevel } from "../db/schema";
 
@@ -63,6 +63,7 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
 
   return `
     <section class="rr-section-header">
+      ${makeLogoImg(makeSlug, make, "rr-make-logo rr-make-logo--hero")}
       <h1 class="rr-section-header__title">${escapeHtml(year)} ${escapeHtml(make)} ${escapeHtml(model)}</h1>
       <div class="rr-meta-bar">
         <span class="rr-meta-bar__count">${recallCount} recall${recallCount !== 1 ? "s" : ""}</span>

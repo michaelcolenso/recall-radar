@@ -1293,3 +1293,32 @@ a.rr-readout__campaign:hover {
 .rr-body a:hover {
   color: var(--accent-hover);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   MAKE LOGO
+   ═══════════════════════════════════════════════════════════════ */
+
+.rr-make-logo {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.rr-make-logo--hero {
+  width: 64px;
+  height: 64px;
+  margin-bottom: var(--space-4);
+}
+
+/* Make cards — center the logo above text */
+.rr-card .rr-make-logo {
+  margin-bottom: var(--space-4);
+}
+
+@media (prefers-color-scheme: dark) {
+  .rr-make-logo {
+    filter: brightness(0) invert(1);
+  }
+}

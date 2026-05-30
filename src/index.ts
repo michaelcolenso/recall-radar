@@ -41,8 +41,10 @@ app.onError((err, c) => {
   );
 });
 
-// Redirect HTTP to HTTPS and trailing slashes to canonical non-slash URLs
+// Security: HSTS, redirect HTTP→HTTPS, www→non-www, trailing-slash canonicalization
 app.use(async (c, next) => {
+  c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+
   const url = new URL(c.req.url);
   if (url.protocol === "http:") {
     return c.redirect(url.href.replace("http:", "https:"), 301);

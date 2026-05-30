@@ -1,4 +1,4 @@
-import { escapeHtml } from "../lib/utils";
+import { escapeHtml, makeLogoImg } from "../lib/utils";
 
 interface MakeSummary {
   slug: string;
@@ -16,6 +16,18 @@ interface PopularModelSummary {
   recall_count: number;
 }
 
+interface LatestRecallSummary {
+  nhtsa_campaign_number: string;
+  component: string;
+  severity_level: string;
+  report_received_date: string | null;
+  make_name: string;
+  make_slug: string;
+  model_name: string;
+  model_slug: string;
+  year: number;
+}
+
 interface Stats {
   recalls: number;
   vehicles: number;
@@ -27,6 +39,7 @@ export function homeTemplate(
   stats: Stats,
   popularMakes: MakeSummary[] = [],
   popularModels: PopularModelSummary[] = [],
+  latestRecalls: LatestRecallSummary[] = [],
 ): string {
   const popularGrid = popularMakes.length > 0
     ? `
@@ -37,6 +50,7 @@ export function homeTemplate(
       <div class="rr-grid rr-grid--makes">
         ${popularMakes.map((m) => `
     <a href="/${m.slug}" class="rr-card" aria-label="${escapeHtml(m.name)}: ${m.recall_count.toLocaleString()} recall${m.recall_count !== 1 ? 's' : ''}, ${m.model_count.toLocaleString()} model${m.model_count !== 1 ? 's' : ''}">
+      ${makeLogoImg(m.slug, m.name, "rr-make-logo")}
       <div class="rr-card__title">${escapeHtml(m.name)}</div>
       <div class="rr-card__meta">
         ${m.recall_count.toLocaleString()} RECALLS
@@ -74,6 +88,7 @@ export function homeTemplate(
 
   const makeGrid = makes.map((m) => `
     <a href="/${m.slug}" class="rr-card" aria-label="${escapeHtml(m.name)}: ${m.recall_count.toLocaleString()} recall${m.recall_count !== 1 ? 's' : ''}, ${m.model_count.toLocaleString()} model${m.model_count !== 1 ? 's' : ''}">
+      ${makeLogoImg(m.slug, m.name, "rr-make-logo")}
       <div class="rr-card__title">${escapeHtml(m.name)}</div>
       <div class="rr-card__meta">
         ${m.recall_count.toLocaleString()} RECALLS
@@ -120,6 +135,26 @@ export function homeTemplate(
 
     ${popularGrid}
     ${popularModelGrid}
+    ${latestRecalls.length > 0 ? `
+    <section style="margin-bottom: var(--space-24);">
+      <div class="rr-section-header">
+        <h2 class="rr-section-header__title">Latest Recalls</h2>
+        <p class="rr-section-header__body">Most recently reported NHTSA safety recalls.</p>
+      </div>
+      <div class="rr-grid rr-grid--models">
+        ${latestRecalls.map((r) => {
+    const compName = r.component.split(":")[0].trim();
+    return `
+        <a href="/${r.make_slug}/${r.model_slug}/${r.year}" class="rr-card rr-card--model" aria-label="${escapeHtml(r.make_name)} ${escapeHtml(r.model_name)} ${r.year}: ${escapeHtml(compName)}">
+          <div class="rr-card__content">
+            <div class="rr-card__title">${escapeHtml(String(r.year))} ${escapeHtml(r.make_name)} ${escapeHtml(r.model_name)}</div>
+            <div class="rr-card__meta">${escapeHtml(compName)}${r.report_received_date ? ` · <time datetime="${escapeHtml(r.report_received_date)}">${escapeHtml(r.report_received_date)}</time>` : ""}</div>
+          </div>
+        </a>`;
+  }).join("")}
+      </div>
+    </section>
+    ` : ""}
 
     <section id="makes">
       <div class="rr-section-header">

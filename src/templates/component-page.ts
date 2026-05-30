@@ -15,6 +15,15 @@ interface RelatedYear {
   isCurrent: boolean;
 }
 
+interface RelatedRecall {
+  make_name: string;
+  make_slug: string;
+  model_name: string;
+  model_slug: string;
+  year: number;
+  recall_count: number;
+}
+
 interface ComponentPageOptions {
   make: string;
   makeSlug: string;
@@ -28,6 +37,7 @@ interface ComponentPageOptions {
   leadGen: string;
   relatedComponents?: RelatedComponent[];
   relatedYears?: RelatedYear[];
+  relatedRecalls?: RelatedRecall[];
 }
 
 export function componentPageTemplate({
@@ -43,6 +53,7 @@ export function componentPageTemplate({
   leadGen,
   relatedComponents,
   relatedYears,
+  relatedRecalls,
 }: ComponentPageOptions): string {
   const relatedCompHtml = relatedComponents && relatedComponents.length > 0
     ? `
@@ -106,5 +117,20 @@ export function componentPageTemplate({
     ${leadGen}
     ${relatedCompHtml}
     ${relatedYearHtml}
+    ${relatedRecalls && relatedRecalls.length > 0 ? `
+    <section style="margin-top: var(--space-20);">
+      <h2 class="rr-label" style="margin-bottom: var(--space-6);">Similar ${escapeHtml(component)} Recalls in Other Vehicles</h2>
+      <div class="rr-grid rr-grid--models">
+        ${relatedRecalls.map((r) => `
+          <a href="/${r.make_slug}/${r.model_slug}/${r.year}" class="rr-card rr-card--model" aria-label="${escapeHtml(r.make_name)} ${escapeHtml(r.model_name)} ${r.year}: ${r.recall_count} recall${r.recall_count !== 1 ? 's' : ''}">
+            <div class="rr-card__content">
+              <div class="rr-card__title">${escapeHtml(String(r.year))} ${escapeHtml(r.make_name)} ${escapeHtml(r.model_name)}</div>
+              <div class="rr-card__meta">${r.recall_count} ${escapeHtml(component)} recall${r.recall_count !== 1 ? "s" : ""}</div>
+            </div>
+          </a>
+        `).join("")}
+      </div>
+    </section>
+    ` : ""}
   `;
 }

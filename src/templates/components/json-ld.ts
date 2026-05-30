@@ -1,4 +1,4 @@
-import { escapeHtml } from "../../lib/utils";
+import { escapeHtml, slugify } from "../../lib/utils";
 
 interface FaqItem {
   campaign: string;
@@ -107,7 +107,7 @@ export function organizationJsonLd(org: OrganizationSchema): string {
 }
 
 export function vehicleJsonLd(make: string, model: string, year: number, pageUrl: string, recallCount: number): string {
-  const schema = {
+  const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Vehicle",
     name: `${year} ${make} ${model}`,
@@ -117,12 +117,36 @@ export function vehicleJsonLd(make: string, model: string, year: number, pageUrl
       name: make,
     },
     url: pageUrl,
+    image: `${pageUrl.replace(/\/[^/]+\/[^/]+\/[^/]+$/, "")}/og/${slugify(make)}/${slugify(model)}/${year}.svg`,
     ...(recallCount > 0
       ? {
           description: `${recallCount} active safety recall${recallCount !== 1 ? "s" : ""} on record for the ${year} ${make} ${model}.`,
         }
       : { description: `No active safety recalls on record for the ${year} ${make} ${model}.` }),
   };
+  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+}
+
+interface HowToStep {
+  name: string;
+  text: string;
+}
+
+export function howToJsonLd(name: string, description: string, steps: HowToStep[], pageUrl?: string): string {
+  const schema: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name,
+    description,
+    step: steps.map((step) => ({
+      "@type": "HowToStep",
+      name: step.name,
+      text: step.text,
+    })),
+  };
+  if (pageUrl) {
+    schema.url = pageUrl;
+  }
   return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
 }
 

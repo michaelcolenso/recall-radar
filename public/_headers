@@ -1,13 +1,26 @@
-# styles.css ships with each deploy; Cloudflare's asset edge cache keys on path
-# and ignores the ?v= query, so keep a short TTL to let new builds propagate.
+# styles.css is versioned via ASSET_VERSION query param. Cloudflare's asset cache
+# ignores query strings, so we keep a short max-age for fast propagation but a long
+# stale-while-revalidate to serve stale content while revalidating in the background.
 /styles.css
-  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
 
-/*.svg
-  Cache-Control: public, max-age=604800
+/favicon.svg
+  Cache-Control: public, max-age=604800, immutable
 
-/*.png
-  Cache-Control: public, max-age=604800
+/og-image-home.svg
+  Cache-Control: public, max-age=86400
+
+/og-image-detail.svg
+  Cache-Control: public, max-age=86400
+
+/apple-touch-icon.png
+  Cache-Control: public, max-age=604800, immutable
+
+/site.webmanifest
+  Cache-Control: public, max-age=86400
+
+/logos/*.svg
+  Cache-Control: public, max-age=604800, immutable
 
 /*.woff2
   Cache-Control: public, max-age=31536000, immutable

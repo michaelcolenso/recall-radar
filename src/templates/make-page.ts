@@ -1,4 +1,4 @@
-import { escapeHtml } from "../lib/utils";
+import { escapeHtml, makeLogoImg } from "../lib/utils";
 
 interface ModelRow {
   name: string;
@@ -55,6 +55,7 @@ export function makePageTemplate(makeName: string, makeSlug: string, models: Mod
 
   return `
     <section class="rr-section-header">
+      ${makeLogoImg(makeSlug, makeName, "rr-make-logo rr-make-logo--hero")}
       <h1 class="rr-section-header__title">${escapeHtml(makeName)} Recalls &amp; Safety Issues</h1>
       <p class="rr-section-header__subtitle">Browse recalls by model to find safety issues for your ${escapeHtml(makeName)} vehicle.</p>
     </section>

@@ -17,6 +17,7 @@ import {
   vehicleJsonLd,
   itemListJsonLd,
   articleJsonLd,
+  howToJsonLd,
 } from "../templates/components/json-ld";
 import { campaignPageTemplate } from "../templates/campaign-page";
 import type { SeverityLevel } from "../db/schema";
@@ -28,7 +29,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v8";
+const PAGE_CACHE_VERSION = "v9";
 
 interface CachedPageResponse {
   html: string;
@@ -87,7 +88,7 @@ pageRoutes.get("/", async (c) => {
         "SELECT MAX(completed_at) as last_run FROM ingestion_logs WHERE status = 'completed'",
       ).first<{ last_run: string | null }>();
 
-      const [makesResult, statsResult] = await Promise.all([
+      const [makesResult, statsResult, popularModelsResult] = await Promise.all([
         c.env.DB.prepare(
           `SELECT m.name, m.slug, COUNT(DISTINCT md.id) as model_count, COUNT(r.id) as recall_count
          FROM makes m
@@ -103,10 +104,9 @@ pageRoutes.get("/", async (c) => {
           c.env.DB.prepare("SELECT COUNT(*) as count FROM vehicle_years").first<{ count: number }>(),
           c.env.DB.prepare("SELECT COUNT(*) as count FROM makes").first<{ count: number }>(),
         ]),
-      ]);
-      const [recallCount, yearCount, makeCount] = statsResult;
-      const popularModelsResult = await c.env.DB.prepare(
-        `SELECT mk.name as make_name,
+
+        c.env.DB.prepare(
+          `SELECT mk.name as make_name,
                 mk.slug as make_slug,
                 m.name as model_name,
                 m.slug as model_slug,
@@ -119,13 +119,40 @@ pageRoutes.get("/", async (c) => {
          GROUP BY m.id, mk.name, mk.slug, m.name, m.slug
          ORDER BY recall_count DESC, year_count DESC, mk.name, m.name
          LIMIT 12`,
+        ).all<{
+          make_name: string;
+          make_slug: string;
+          model_name: string;
+          model_slug: string;
+          year_count: number;
+          recall_count: number;
+        }>(),
+      ]);
+      const [recallCount, yearCount, makeCount] = statsResult;
+
+      // Latest recalls for "trending" section
+      const latestRecallsResult = await c.env.DB.prepare(
+        `SELECT r.nhtsa_campaign_number, r.component, r.severity_level,
+                r.report_received_date,
+                mk.name as make_name, mk.slug as make_slug,
+                m.name as model_name, m.slug as model_slug,
+                vy.year
+         FROM recalls r
+         JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+         JOIN models m ON m.id = vy.model_id
+         JOIN makes mk ON mk.id = m.make_id
+         ORDER BY r.report_received_date DESC
+         LIMIT 6`,
       ).all<{
+        nhtsa_campaign_number: string;
+        component: string;
+        severity_level: SeverityLevel;
+        report_received_date: string | null;
         make_name: string;
         make_slug: string;
         model_name: string;
         model_slug: string;
-        year_count: number;
-        recall_count: number;
+        year: number;
       }>();
 
       const popularNames = new Set(POPULAR_MAKES.map((n) => n.toUpperCase()));
@@ -154,7 +181,7 @@ pageRoutes.get("/", async (c) => {
           recalls: recallCount?.count ?? 0,
           vehicles: yearCount?.count ?? 0,
           makes: makeCount?.count ?? 0,
-        }, popularMakes, popularModelsResult.results),
+        }, popularMakes, popularModelsResult.results, latestRecallsResult.results),
         jsonLd,
       });
     },
@@ -539,6 +566,36 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
         isCurrent: y.year === yearNum,
       }));
 
+      // Related recalls — same component across different models
+      const relatedRecallsResult = await c.env.DB.prepare(
+        `SELECT DISTINCT mk.name as make_name, mk.slug as make_slug,
+                m.name as model_name, m.slug as model_slug,
+                vy.year, COUNT(r2.id) as recall_count
+         FROM recalls r1
+         JOIN vehicle_years vy1 ON vy1.id = r1.vehicle_year_id
+         JOIN models m1 ON m1.id = vy1.model_id
+         JOIN recalls r2 ON (
+           TRIM(CASE WHEN INSTR(r2.component, ':') > 0 THEN SUBSTR(r2.component, 1, INSTR(r2.component, ':') - 1) ELSE r2.component END) = ?
+         )
+         JOIN vehicle_years vy ON vy.id = r2.vehicle_year_id
+         JOIN models m ON m.id = vy.model_id
+         JOIN makes mk ON mk.id = m.make_id
+         WHERE m1.make_id = ? AND m1.slug = ? AND vy1.year = ?
+           AND (m.id != m1.id OR vy.year != vy1.year)
+         GROUP BY mk.name, mk.slug, m.name, m.slug, vy.year
+         ORDER BY recall_count DESC
+         LIMIT 6`,
+      )
+        .bind(componentName, make.id, modelSlug, yearNum)
+        .all<{
+          make_name: string;
+          make_slug: string;
+          model_name: string;
+          model_slug: string;
+          year: number;
+          recall_count: number;
+        }>();
+
       const crumbs = breadcrumbs([
         { href: "/", label: "Home" },
         { href: `/${makeSlug}`, label: make.name },
@@ -562,9 +619,20 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
           leadGen: dealerLeadGen(),
           relatedComponents,
           relatedYears,
+          relatedRecalls: relatedRecallsResult.results,
         });
 
       const componentPageUrl = `${siteUrl}/${makeSlug}/${modelSlug}/${year}/${componentSlug}`;
+      const remedySteps = filteredRecalls
+        .filter((r) => (r.remedy_enriched ?? r.remedy_raw).length > 0)
+        .slice(0, 1)
+        .map((r) => {
+          const remedyText = r.remedy_enriched ?? r.remedy_raw;
+          return {
+            name: `Repair for ${r.component} (Campaign #${r.nhtsa_campaign_number})`,
+            text: remedyText,
+          };
+        });
       const jsonLd =
         faqPageJsonLd(
           filteredRecalls.map((r) => ({
@@ -587,7 +655,15 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
           { name: year, item: `${siteUrl}/${makeSlug}/${modelSlug}/${year}` },
           { name: componentName, item: componentPageUrl },
         ]) +
-        vehicleJsonLd(make.name, model.name, yearNum, componentPageUrl, filteredRecalls.length);
+        vehicleJsonLd(make.name, model.name, yearNum, componentPageUrl, filteredRecalls.length) +
+        (remedySteps.length > 0
+          ? howToJsonLd(
+              `How to get the ${componentName} recall fixed for your ${year} ${make.name} ${model.name}`,
+              `Dealers will repair ${componentName} issues free of charge. Here's what the fix involves.`,
+              remedySteps,
+              componentPageUrl,
+            )
+          : "");
 
       return {
         html: layout({
@@ -779,6 +855,16 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
 
       const yearPageUrl = `${siteUrl}/${makeSlug}/${modelSlug}/${year}`;
       const mostRecentDate = recalls[0]?.report_received_date ?? undefined;
+      const yearRemedySteps = recalls
+        .filter((r) => (r.remedy_enriched ?? r.remedy_raw).length > 0)
+        .slice(0, 1)
+        .map((r) => {
+          const remedyText = r.remedy_enriched ?? r.remedy_raw;
+          return {
+            name: `Repair for ${r.component} (Campaign #${r.nhtsa_campaign_number})`,
+            text: remedyText,
+          };
+        });
       const jsonLd =
         faqPageJsonLd(
           recalls.map((r) => ({
@@ -801,7 +887,15 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           { name: model.name, item: `${siteUrl}/${makeSlug}/${modelSlug}` },
           { name: year, item: yearPageUrl },
         ]) +
-        vehicleJsonLd(make.name, model.name, yearNum, yearPageUrl, recalls.length);
+        vehicleJsonLd(make.name, model.name, yearNum, yearPageUrl, recalls.length) +
+        (yearRemedySteps.length > 0
+          ? howToJsonLd(
+              `How to get recalls fixed for your ${year} ${make.name} ${model.name}`,
+              `Dealers will repair safety issues free of charge. Here's what the fix involves.`,
+              yearRemedySteps,
+              yearPageUrl,
+            )
+          : "");
 
       return {
         html: layout({
