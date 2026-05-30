@@ -69,6 +69,10 @@
     {
       "pattern": "recalledrides.com",
       "custom_domain": true
+    },
+    {
+      "pattern": "www.recalledrides.com/*",
+      "zone_name": "recalledrides.com"
     }
   ],
   // Static assets

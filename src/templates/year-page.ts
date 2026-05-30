@@ -32,12 +32,12 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
   const componentHtml = components && components.length > 0
     ? `
       <section style="margin-top: var(--space-20);">
-        <h2 class="rr-label" style="margin-bottom: var(--space-6);">BROWSE_BY_COMPONENT</h2>
+        <h2 class="rr-label" style="margin-bottom: var(--space-6);">Browse by Component</h2>
         <div class="rr-grid rr-grid--years">
           ${components.map((comp) => `
             <a href="/${makeSlug}/${modelSlug}/${year}/${comp.slug}" class="rr-card rr-card--year" aria-label="${escapeHtml(comp.name)}: ${comp.count} recall${comp.count !== 1 ? 's' : ''}">
               <div class="rr-card__title">${escapeHtml(comp.name)}</div>
-              <div class="rr-card__meta">${comp.count} RECALLS</div>
+              <div class="rr-card__meta">${comp.count} recall${comp.count !== 1 ? "s" : ""}</div>
             </a>
           `).join("")}
         </div>
@@ -48,12 +48,12 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
   const relatedHtml = relatedYears && relatedYears.length > 0
     ? `
       <section style="margin-top: var(--space-20);">
-        <h2 class="rr-label" style="margin-bottom: var(--space-6);">MODEL_HISTORY_LOG</h2>
+        <h2 class="rr-label" style="margin-bottom: var(--space-6);">Other ${escapeHtml(make)} ${escapeHtml(model)} Years</h2>
         <div class="rr-grid rr-grid--years">
           ${relatedYears.map((y) => `
             <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year ${y.isCurrent ? 'rr-card--current' : ''}" aria-label="${y.year}: ${y.recallCount} recall${y.recallCount !== 1 ? 's' : ''}">
               <div class="rr-card__title">${y.year}</div>
-              <div class="rr-card__meta">${y.recallCount} RECALLS</div>
+              <div class="rr-card__meta">${y.recallCount} recall${y.recallCount !== 1 ? "s" : ""}</div>
             </a>
           `).join("")}
         </div>
@@ -65,16 +65,16 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
     <section class="rr-section-header">
       <h1 class="rr-section-header__title">${escapeHtml(year)} ${escapeHtml(make)} ${escapeHtml(model)}</h1>
       <div class="rr-meta-bar">
-        <span class="rr-meta-bar__count">${recallCount} RECALLS_DETECTED</span>
+        <span class="rr-meta-bar__count">${recallCount} recall${recallCount !== 1 ? "s" : ""}</span>
         ${recallCount > 0 ? `
           <span class="rr-meta-bar__notice">
-            <span>SEVERITY_RATING:</span>
+            <span>Highest severity:</span>
             ${severityBadge(topSeverity)}
           </span>
         ` : ""}
       </div>
       ${recallCount > 0 ? `
-        <p class="rr-section-header__body">Industrial safety notice. Authorized dealership repairs are legally mandated at zero cost to the owner.</p>
+        <p class="rr-section-header__body">All recalls are free to repair at your local dealership. Contact your dealer to schedule service.</p>
       ` : ""}
     </section>
 

@@ -72,25 +72,25 @@ export function recallCard(recall: RecallView): string {
     </div>
     <div class="rr-readout__body">
       <div class="rr-readout__field">
-        <div class="rr-readout__field-label">SYSTEM_COMPONENT</div>
+        <div class="rr-readout__field-label">Component</div>
         <h3 class="rr-readout__field-value">${escapeHtml(recall.component)}</h3>
       </div>
       ${recall.manufacturer ? `
       <div class="rr-readout__field">
-        <div class="rr-readout__field-label">MANUFACTURER</div>
+        <div class="rr-readout__field-label">Manufacturer</div>
         <div class="rr-readout__field-value">${escapeHtml(recall.manufacturer)}</div>
       </div>` : ""}
       <div class="rr-readout__field">
-        <div class="rr-readout__field-label">EVENT_SUMMARY</div>
+        <div class="rr-readout__field-label">What Happened</div>
         <div class="rr-readout__field-value">${escapeHtml(summary)}</div>
       </div>
       <div class="rr-readout__field">
-        <div class="rr-readout__field-label">RISK_ASSESSMENT</div>
+        <div class="rr-readout__field-label">Risk if Unfixed</div>
         <div class="rr-readout__field-value">${escapeHtml(consequence)}</div>
       </div>
     </div>
     <div class="rr-readout__fix">
-      <div class="rr-readout__field-label">RESOLUTION_PROTOCOL</div>
+      <div class="rr-readout__field-label">Free Fix</div>
       <div class="rr-readout__field-value">${escapeHtml(remedy)}</div>
     </div>
     ${originalToggle}

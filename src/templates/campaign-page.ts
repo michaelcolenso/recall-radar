@@ -44,7 +44,7 @@ export function campaignPageTemplate({
   const vehiclesHtml = affectedVehicles.length > 0
     ? `
       <section style="margin-top: var(--space-20);">
-        <h2 class="rr-label" style="margin-bottom: var(--space-6);">AFFECTED_VEHICLE_LOG</h2>
+        <h2 class="rr-label" style="margin-bottom: var(--space-6);">Affected Vehicles</h2>
         <div class="rr-grid rr-grid--models">
           ${affectedVehicles.map((v) => `
             <a href="/${v.makeSlug}/${v.modelSlug}/${v.year}" class="rr-card rr-card--model" aria-label="${escapeHtml(String(v.year))} ${escapeHtml(v.make)} ${escapeHtml(v.model)}">
@@ -60,7 +60,7 @@ export function campaignPageTemplate({
 
   return `
     <section class="rr-section-header">
-      <h1 class="rr-section-header__title">CAMPAIGN_${escapeHtml(campaign)}</h1>
+      <h1 class="rr-section-header__title">Campaign ${escapeHtml(campaign)}</h1>
       <div class="rr-meta-bar">
         ${severityBadge(severity)}
         ${indicator}
@@ -77,20 +77,20 @@ export function campaignPageTemplate({
       </div>
       <div class="rr-readout__body">
         <div class="rr-readout__field">
-          <div class="rr-readout__field-label">SYSTEM_COMPONENT</div>
+          <div class="rr-readout__field-label">Component</div>
           <h3 class="rr-readout__field-value">${escapeHtml(component)}</h3>
         </div>
         <div class="rr-readout__field">
-          <div class="rr-readout__field-label">EVENT_SUMMARY</div>
+          <div class="rr-readout__field-label">What Happened</div>
           <div class="rr-readout__field-value">${escapeHtml(summary)}</div>
         </div>
         <div class="rr-readout__field">
-          <div class="rr-readout__field-label rr-readout__field-label--risk">RISK_ASSESSMENT</div>
+          <div class="rr-readout__field-label rr-readout__field-label--risk">Risk if Unfixed</div>
           <div class="rr-readout__field-value">${escapeHtml(consequence)}</div>
         </div>
       </div>
       <div class="rr-readout__fix">
-        <div class="rr-readout__field-label">RESOLUTION_PROTOCOL</div>
+        <div class="rr-readout__field-label">Free Fix</div>
         <div class="rr-readout__field-value">${escapeHtml(remedy)}</div>
       </div>
     </article>

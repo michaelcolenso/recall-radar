@@ -1,9 +1,21 @@
 # RecallRadar SEO Audit Report
 
-**Date:** 2026-05-07  
-**Site:** https://recallradar.com  
+**Date:** 2026-05-25  
+**Site:** https://recalledrides.com  
 **Type:** Programmatic SEO (Vehicle Recall Database)  
 **Scope:** Full site — Technical + On-Page + Content + Schema
+
+---
+
+## 2026-05-25 Refresh
+
+**Live site audited:** https://recalledrides.com
+
+**Current status:** Technical SEO is broadly healthy. The live sitemap is accessible, contains 8,489 URLs, and current Google results show year, component, and campaign pages are being crawled and indexed.
+
+**High-priority finding fixed in this pass:** Search snippets were exposing machine-style interface labels such as `RECALLS_DETECTED`, `CRITICAL_RISK`, `EVENT_SUMMARY`, `RISK_ASSESSMENT`, and `RESOLUTION_PROTOCOL`. Those strings were present in live HTML on year and campaign pages and had already appeared in Google snippets. The templates now render human-readable labels (`What Happened`, `Risk if Unfixed`, `Free Fix`, `High Priority`, etc.), and the page cache version was bumped from `v6` to `v7` so fresh HTML is generated after deployment.
+
+**Fixed follow-up:** `https://www.recalledrides.com/` returned Cloudflare `522` because DNS existed but the Worker custom-domain config only covered the apex hostname. `www.recalledrides.com` is now bound to the Worker and the Worker redirects it to `https://recalledrides.com/`.
 
 ---
 

@@ -47,6 +47,10 @@ app.use(async (c, next) => {
   if (url.protocol === "http:") {
     return c.redirect(url.href.replace("http:", "https:"), 301);
   }
+  if (url.hostname === "www.recalledrides.com") {
+    url.hostname = "recalledrides.com";
+    return c.redirect(url.toString(), 301);
+  }
   const pathname = url.pathname;
   if ((c.req.method === "GET" || c.req.method === "HEAD") && pathname.length > 1 && pathname.endsWith("/")) {
     return c.redirect(pathname.slice(0, -1) + url.search, 301);
