@@ -70,9 +70,10 @@ seoRoutes.get("/robots.txt", (c) => {
   // generic User-agent: * block exists (e.g. Cloudflare managed content).
   return c.text(
     `Sitemap: ${siteUrl}/sitemap.xml\n\n` +
-      `User-agent: *\nAllow: /\nDisallow: /api/\n\n` +
-      `User-agent: Googlebot\nAllow: /\nDisallow: /api/\n\n` +
-      `User-agent: Bingbot\nAllow: /\nDisallow: /api/`,
+      `User-agent: *\nAllow: /\nDisallow: /api/\nContent-Signal: ai-train=no, search=yes, ai-input=yes\n\n` +
+      `User-agent: Googlebot\nAllow: /\nDisallow: /api/\nContent-Signal: ai-train=no, search=yes, ai-input=yes\n\n` +
+      `User-agent: Bingbot\nAllow: /\nDisallow: /api/\nContent-Signal: ai-train=no, search=yes, ai-input=yes\n\n` +
+      `User-agent: AI-Web-Crawler\nAllow: /\nDisallow: /api/\nContent-Signal: ai-train=no, search=yes, ai-input=yes`,
     200,
     { "content-type": "text/plain; charset=utf-8" },
   );

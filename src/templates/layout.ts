@@ -141,6 +141,48 @@ export function layout({
   <script>
     document.addEventListener("click",function(e){var b=e.target.closest(".rr-share-btn");if(!b)return;var u=b.getAttribute("data-share-url");if(!u)return;var a=u;if(!/^https?:/.test(u))a=location.origin+u;if(navigator.share){navigator.share({url:a}).catch(function(){})}else{navigator.clipboard.writeText(a).then(function(){b.setAttribute("data-shared","1");b.querySelector(".rr-share-btn__icon").innerHTML='<path d="M4 8l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';setTimeout(function(){b.removeAttribute("data-shared");b.querySelector(".rr-share-btn__icon").innerHTML='<path d="M12 10.5c-.5 0-.9.2-1.2.5L5.5 8.3c0-.1.1-.2.1-.3 0-.1 0-.2-.1-.3l5.3-2.7c.3.3.7.5 1.2.5a1.5 1.5 0 1 0-1.5-1.5c0 .1 0 .2.1.3L5.4 7.3c-.3-.3-.7-.5-1.2-.5a1.5 1.5 0 0 0 0 3c.5 0 .9-.2 1.2-.5l5.3 2.7c0 .1-.1.2-.1.3a1.5 1.5 0 1 0 1.5-1.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'},1500)}})});
   </script>
+  <script>
+    // WebMCP — expose site tools to AI agents
+    (function(){
+      if(!navigator.modelContext||!navigator.modelContext.registerTool)return;
+      var ctrl=new AbortController();
+      var site=location.origin;
+      var tools=[
+        {
+          name:"search_vehicles",
+          description:"Search for vehicle makes, models, and years on Recalled Rides.",
+          inputSchema:{
+            type:"object",
+            properties:{query:{type:"string",description:"Search query (e.g., Toyota Camry 2020)"}},
+            required:["query"]
+          },
+          execute:function(args){return fetch(site+"/api/search?q="+encodeURIComponent(args.query)).then(function(r){return r.json()});}
+        },
+        {
+          name:"get_recalls",
+          description:"Get safety recalls for a specific make, model, and year.",
+          inputSchema:{
+            type:"object",
+            properties:{
+              make:{type:"string",description:"Vehicle make slug (e.g., toyota)"},
+              model:{type:"string",description:"Vehicle model slug (e.g., camry)"},
+              year:{type:"integer",description:"Model year (e.g., 2020)"}
+            },
+            required:["make","model","year"]
+          },
+          execute:function(args){return fetch(site+"/"+encodeURIComponent(args.make)+"/"+encodeURIComponent(args.model)+"/"+args.year,{headers:{"Accept":"text/markdown"}}).then(function(r){return r.text()});}
+        },
+        {
+          name:"browse_makes",
+          description:"List all available vehicle makes.",
+          inputSchema:{type:"object",properties:{}},
+          execute:function(){return Promise.resolve({url:site+"/",description:"Browse all vehicle makes and models"});}
+        }
+      ];
+      tools.forEach(function(t){navigator.modelContext.registerTool(t,{signal:ctrl.signal});});
+      window.addEventListener("beforeunload",function(){ctrl.abort();});
+    })();
+  </script>
 </body>
 </html>`;
 }

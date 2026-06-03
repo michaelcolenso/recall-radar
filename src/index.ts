@@ -4,6 +4,7 @@ import { pageRoutes } from "./routes/pages";
 import { apiRoutes } from "./routes/api";
 import { adminRoutes } from "./routes/admin";
 import { seoRoutes } from "./routes/seo";
+import { wellKnownRoutes } from "./routes/well-known";
 import { PipelineAgent } from "./agents/pipeline-agent";
 import { IngestionWorkflow } from "./workflows/ingestion-workflow";
 import { EnrichmentWorkflow } from "./workflows/enrichment-workflow";
@@ -60,9 +61,14 @@ app.use(async (c, next) => {
   await next();
 });
 
+app.get("/b9d5420d355147c7941823e6fc9435c3.txt", (c) =>
+       c.text("b9d5420d355147c7941823e6fc9435c3", 200, { "Content-Type": "text/plain" })
+     );
 app.route("/api", apiRoutes);
 app.route("/", seoRoutes);
 app.route("/", adminRoutes);
+app.route("/.well-known", wellKnownRoutes);
+app.route("/", wellKnownRoutes);
 app.route("/", pageRoutes);
 
 export default {

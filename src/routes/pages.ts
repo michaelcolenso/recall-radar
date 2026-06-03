@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { getCachedOrRender } from "../lib/cache";
 import { escapeHtml, slugify, titleCase } from "../lib/utils";
 import { layout } from "../templates/layout";
@@ -24,12 +25,37 @@ import type { SeverityLevel } from "../db/schema";
 import { aboutTemplate } from "../templates/about";
 import { componentPageTemplate } from "../templates/component-page";
 import { POPULAR_MAKES } from "../lib/constants";
+import { acceptsMarkdown, htmlToMarkdown } from "../lib/utils";
 
 export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
 const PAGE_CACHE_VERSION = "v9";
+
+function linkHeaders(siteUrl: string): Record<string, string> {
+  return {
+    link:
+      `<${siteUrl}/.well-known/api-catalog>; rel="api-catalog", ` +
+      `<${siteUrl}/.well-known/oauth-authorization-server>; rel="oauth-authorization-server", ` +
+      `<${siteUrl}/.well-known/oauth-protected-resource>; rel="oauth-protected-resource", ` +
+      `<${siteUrl}/.well-known/mcp/server-card.json>; rel="mcp-server-card", ` +
+      `<${siteUrl}/.well-known/agent-skills/index.json>; rel="agent-skills", ` +
+      `<${siteUrl}/auth.md>; rel="auth-md", ` +
+      `<${siteUrl}/sitemap.xml>; rel="sitemap"`,
+  };
+}
+
+function maybeMarkdown(c: Context, html: string, status: 200 | 404 = 200): Response {
+  if (acceptsMarkdown(c)) {
+    const markdown = htmlToMarkdown(html);
+    return c.body(markdown, status, {
+      "content-type": "text/markdown; charset=utf-8",
+      "x-markdown-tokens": String(markdown.split(/\s+/).length),
+    });
+  }
+  return c.body(html, status, HTML_HEADERS);
+}
 
 interface CachedPageResponse {
   html: string;
@@ -187,7 +213,8 @@ pageRoutes.get("/", async (c) => {
     },
   );
   c.header("Cache-Control", CACHE_CONTROL);
-  return c.html(html);
+  Object.entries(linkHeaders(siteUrl)).forEach(([k, v]) => c.header(k, v));
+  return maybeMarkdown(c, html);
 });
 
 // GET /about — About page
@@ -214,7 +241,8 @@ pageRoutes.get("/about", async (c) => {
   );
   c.header("Cache-Control", CACHE_CONTROL);
   c.header("X-Cache", hit ? "HIT" : "MISS");
-  return c.html(html);
+  Object.entries(linkHeaders(siteUrl)).forEach(([k, v]) => c.header(k, v));
+  return maybeMarkdown(c, html);
 });
 
 // GET /:makeSlug — Make landing page
@@ -297,7 +325,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
   c.header("Cache-Control", CACHE_CONTROL);
   c.header("X-Cache", hit ? "HIT" : "MISS");
   if (value.status === 404) c.header("X-Robots-Tag", "noindex, nofollow");
-  return c.body(value.html, value.status, HTML_HEADERS);
+  Object.entries(linkHeaders(siteUrl)).forEach(([k, v]) => c.header(k, v));
+  return maybeMarkdown(c, value.html, value.status);
 });
 
 // GET /:makeSlug/:modelSlug — Model landing page
@@ -410,7 +439,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
   c.header("Cache-Control", CACHE_CONTROL);
   c.header("X-Cache", hit ? "HIT" : "MISS");
   if (value.status === 404) c.header("X-Robots-Tag", "noindex, nofollow");
-  return c.body(value.html, value.status, HTML_HEADERS);
+  Object.entries(linkHeaders(siteUrl)).forEach(([k, v]) => c.header(k, v));
+  return maybeMarkdown(c, value.html, value.status);
 });
 
 // GET /:makeSlug/:modelSlug/:year/:componentSlug — Component-specific recalls
@@ -685,7 +715,8 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
   c.header("Cache-Control", CACHE_CONTROL);
   c.header("X-Cache", hit ? "HIT" : "MISS");
   if (value.status === 404) c.header("X-Robots-Tag", "noindex, nofollow");
-  return c.body(value.html, value.status, HTML_HEADERS);
+  Object.entries(linkHeaders(siteUrl)).forEach(([k, v]) => c.header(k, v));
+  return maybeMarkdown(c, value.html, value.status);
 });
 
 // GET /:makeSlug/:modelSlug/:year — THE MONEY PAGE
@@ -918,7 +949,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
   c.header("Cache-Control", CACHE_CONTROL);
   c.header("X-Cache", hit ? "HIT" : "MISS");
   if (value.status === 404) c.header("X-Robots-Tag", "noindex, nofollow");
-  return c.body(value.html, value.status, HTML_HEADERS);
+  Object.entries(linkHeaders(siteUrl)).forEach(([k, v]) => c.header(k, v));
+  return maybeMarkdown(c, value.html, value.status);
 });
 
 // GET /recall/:campaignNumber — Campaign detail page
