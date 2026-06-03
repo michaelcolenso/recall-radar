@@ -144,22 +144,26 @@ export function layout({
   <script>
     // WebMCP — expose site tools to AI agents
     (function(){
-      if(!navigator.modelContext||!navigator.modelContext.registerTool)return;
+      var mc = document.modelContext || navigator.modelContext;
+      if(!mc || !mc.registerTool)return;
       var ctrl=new AbortController();
       var site=location.origin;
       var tools=[
         {
           name:"search_vehicles",
+          title:"Search Vehicles",
           description:"Search for vehicle makes, models, and years on Recalled Rides.",
           inputSchema:{
             type:"object",
             properties:{query:{type:"string",description:"Search query (e.g., Toyota Camry 2020)"}},
             required:["query"]
           },
-          execute:function(args){return fetch(site+"/api/search?q="+encodeURIComponent(args.query)).then(function(r){return r.json()});}
+          execute:function(args){return fetch(site+"/api/search?q="+encodeURIComponent(args.query)).then(function(r){return r.json()});},
+          annotations:{readOnlyHint:true}
         },
         {
           name:"get_recalls",
+          title:"Get Recalls",
           description:"Get safety recalls for a specific make, model, and year.",
           inputSchema:{
             type:"object",
@@ -170,16 +174,19 @@ export function layout({
             },
             required:["make","model","year"]
           },
-          execute:function(args){return fetch(site+"/"+encodeURIComponent(args.make)+"/"+encodeURIComponent(args.model)+"/"+args.year,{headers:{"Accept":"text/markdown"}}).then(function(r){return r.text()});}
+          execute:function(args){return fetch(site+"/"+encodeURIComponent(args.make)+"/"+encodeURIComponent(args.model)+"/"+args.year,{headers:{"Accept":"text/markdown"}}).then(function(r){return r.text()});},
+          annotations:{readOnlyHint:true}
         },
         {
           name:"browse_makes",
+          title:"Browse Makes",
           description:"List all available vehicle makes.",
           inputSchema:{type:"object",properties:{}},
-          execute:function(){return Promise.resolve({url:site+"/",description:"Browse all vehicle makes and models"});}
+          execute:function(){return Promise.resolve({url:site+"/",description:"Browse all vehicle makes and models"});},
+          annotations:{readOnlyHint:true}
         }
       ];
-      tools.forEach(function(t){navigator.modelContext.registerTool(t,{signal:ctrl.signal});});
+      tools.forEach(function(t){mc.registerTool(t,{signal:ctrl.signal});});
       window.addEventListener("beforeunload",function(){ctrl.abort();});
     })();
   </script>

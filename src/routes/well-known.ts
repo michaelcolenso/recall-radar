@@ -141,33 +141,54 @@ wellKnownRoutes.get("/api-catalog", (c) => {
   );
 });
 
+function authorizationServerMetadata(siteUrl: string) {
+  return {
+    issuer: siteUrl,
+    authorization_endpoint: `${siteUrl}/api/auth/authorize`,
+    token_endpoint: `${siteUrl}/api/auth/token`,
+    jwks_uri: `${siteUrl}/.well-known/jwks.json`,
+    grant_types_supported: ["client_credentials"],
+    response_types_supported: ["token"],
+    token_endpoint_auth_methods_supported: ["private_key_jwt", "client_secret_basic"],
+    scopes_supported: ["admin:read", "admin:write", "recalls:read"],
+    agent_auth: {
+      skill: `${siteUrl}/.well-known/agent-skills/index.json`,
+      register_uri: `${siteUrl}/api/auth/register`,
+      revocation_uri: `${siteUrl}/api/auth/revoke`,
+      events_supported: ["revoked"],
+      identity_types_supported: ["anonymous", "identity_assertion"],
+      anonymous: {
+        credential_types_supported: ["bearer_token"],
+        claim_uri: `${siteUrl}/auth.md#claims`,
+      },
+      identity_assertion: {
+        assertion_types_supported: [
+          "urn:ietf:params:oauth:token-type:id-jag",
+          "verified_email",
+        ],
+        credential_types_supported: ["bearer_token"],
+        claim_uri: `${siteUrl}/auth.md#claims`,
+      },
+    },
+  };
+}
+
 // OAuth 2.0 Authorization Server Metadata (RFC 8414)
 // GET /.well-known/oauth-authorization-server
 wellKnownRoutes.get("/oauth-authorization-server", (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
-  return c.json(
-    {
-      issuer: siteUrl,
-      authorization_endpoint: `${siteUrl}/api/auth/authorize`,
-      token_endpoint: `${siteUrl}/api/auth/token`,
-      jwks_uri: `${siteUrl}/.well-known/jwks.json`,
-      grant_types_supported: ["client_credentials"],
-      response_types_supported: ["token"],
-      token_endpoint_auth_methods_supported: ["private_key_jwt", "client_secret_basic"],
-      scopes_supported: ["admin:read", "admin:write", "recalls:read"],
-      agent_auth: {
-        skill: `${siteUrl}/.well-known/agent-skills/index.json`,
-        register_uri: `${siteUrl}/api/auth/register`,
-        identity_types_supported: ["anonymous"],
-        anonymous: {
-          credential_types_supported: ["bearer_token"],
-          claim_uri: `${siteUrl}/auth.md#claims`,
-        },
-      },
-    },
-    200,
-    { "content-type": "application/json" },
-  );
+  return c.json(authorizationServerMetadata(siteUrl), 200, {
+    "content-type": "application/json",
+  });
+});
+
+// OpenID Connect Discovery (for scanners that prefer OIDC endpoint)
+// GET /.well-known/openid-configuration
+wellKnownRoutes.get("/openid-configuration", (c) => {
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
+  return c.json(authorizationServerMetadata(siteUrl), 200, {
+    "content-type": "application/json",
+  });
 });
 
 // OAuth Protected Resource Metadata (RFC 9728)
