@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "recalled-rides",
+  "name": "recall-radar",
   "main": "src/index.ts",
   "compatibility_date": "2026-05-13",
   "compatibility_flags": [
@@ -69,10 +69,6 @@
     {
       "pattern": "recalledrides.com",
       "custom_domain": true
-    },
-    {
-      "pattern": "www.recalledrides.com/*",
-      "zone_name": "recalledrides.com"
     }
   ],
   // Static assets
