@@ -439,6 +439,12 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
               { name: model.name, item: `${siteUrl}/${makeSlug}/${modelSlug}` },
               { name: "Statistics", item: statsUrl },
             ]) +
+            articleJsonLd({
+              headline: `${make.name} ${model.name} Recall Statistics & Reliability Analysis`,
+              description: `Original analysis of ${totalRecalls} recalls across ${yearStats.length} model years. Includes risk grades, best and worst years, and common failure components.`,
+              url: statsUrl,
+              author: "Recalled Rides",
+            }) +
             organizationJsonLd({ name: "Recalled Rides", url: siteUrl }),
         }),
         status: 200,
@@ -643,25 +649,41 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
         };
       }
 
-      const models = await c.env.DB.prepare(
-        `SELECT m.name, m.slug,
-              MIN(vy.year) as min_year, MAX(vy.year) as max_year,
-              COUNT(DISTINCT r.id) as recall_count
-       FROM models m
-       LEFT JOIN vehicle_years vy ON vy.model_id = m.id
-       LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
-       WHERE m.make_id = ?
-       GROUP BY m.id
-       ORDER BY m.name`,
-      )
-        .bind(make.id)
-        .all<{ name: string; slug: string; min_year: number | null; max_year: number | null; recall_count: number }>();
+      const [models, components] = await Promise.all([
+        c.env.DB.prepare(
+          `SELECT m.name, m.slug,
+                MIN(vy.year) as min_year, MAX(vy.year) as max_year,
+                COUNT(DISTINCT r.id) as recall_count
+         FROM models m
+         LEFT JOIN vehicle_years vy ON vy.model_id = m.id
+         LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
+         WHERE m.make_id = ?
+         GROUP BY m.id
+         ORDER BY m.name`,
+        )
+          .bind(make.id)
+          .all<{ name: string; slug: string; min_year: number | null; max_year: number | null; recall_count: number }>(),
+
+        c.env.DB.prepare(
+          `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
+                  COUNT(*) as count
+           FROM recalls r
+           JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+           JOIN models m ON m.id = vy.model_id
+           WHERE m.make_id = ?
+           GROUP BY name
+           ORDER BY count DESC
+           LIMIT 12`,
+        )
+          .bind(make.id)
+          .all<{ name: string; count: number }>(),
+      ]);
 
       const crumbs = breadcrumbs([
         { href: "/", label: "Home" },
         { href: `/${makeSlug}`, label: make.name },
       ]);
-      const body = crumbs + makePageTemplate(make.name, make.slug, models.results);
+      const body = crumbs + makePageTemplate(make.name, make.slug, models.results, components.results);
 
       return {
         html: layout({
@@ -1448,6 +1470,21 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
 
       const campaignUrl = `${siteUrl}/recall/${primaryRecall.nhtsa_campaign_number}`;
       const jsonLd =
+        faqPageJsonLd(
+          [{
+            campaign: primaryRecall.nhtsa_campaign_number,
+            component: primaryRecall.component,
+            make: primaryRecall.make_name,
+            model: primaryRecall.model_name,
+            year: String(primaryRecall.year),
+            summary,
+            consequence,
+            remedy,
+            reportReceivedDate: primaryRecall.report_received_date,
+          }],
+          campaignUrl,
+          primaryRecall.enriched_at ?? primaryRecall.report_received_date ?? undefined,
+        ) +
         breadcrumbListJsonLd(siteUrl, [
           { name: "Home", item: siteUrl },
           { name: primaryRecall.make_name, item: `${siteUrl}/${primaryRecall.make_slug}` },
