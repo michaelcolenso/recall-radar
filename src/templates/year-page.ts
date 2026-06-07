@@ -76,7 +76,7 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
         ${riskBadgeHtml}
         ${recallCount > 0 ? `
           <span class="rr-meta-bar__notice">
-            <span>Highest severity:</span>
+            <span>Most severe issue:</span>
             ${severityBadge(topSeverity)}
           </span>
         ` : ""}

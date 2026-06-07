@@ -67,8 +67,8 @@ export function faqPageJsonLd(
     });
   }
 
-  // Per-recall questions
-  for (const r of recalls) {
+  // Per-recall questions — limit to first 5 to avoid schema bloat and improve rich results eligibility
+  for (const r of recalls.slice(0, 5)) {
     entities.push({
       "@type": "Question",
       name: `What is the ${r.component} recall for the ${r.year} ${r.make} ${r.model}? (Campaign #${r.campaign})`,
@@ -258,7 +258,7 @@ interface ArticleSchema {
 export function articleJsonLd(article: ArticleSchema): string {
   const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
-    "@type": "NewsArticle",
+    "@type": "Article",
     headline: article.headline,
     description: article.description,
     url: article.url,

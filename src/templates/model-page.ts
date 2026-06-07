@@ -30,8 +30,13 @@ export function modelPageTemplate(makeName: string, makeSlug: string, modelName:
     <section>
       <h2 class="rr-label" style="margin-bottom: var(--space-4);">Recall History by Year</h2>
       <div class="rr-grid rr-grid--years">
-        ${cards || "<p class='rr-body'>No vehicle years found.</p>"}
+        ${cards || "<p class='rr-body'>No recall data available for this model yet. <a href='/${makeSlug}'>Browse other ${escapeHtml(makeName)} models</a> or check back soon.</p>"}
       </div>
+      <p style="margin-top: var(--space-8);">
+        <a href="/stats/${makeSlug}/${modelSlug}" class="rr-back-link">
+          View ${escapeHtml(makeName)} ${escapeHtml(modelName)} recall statistics and reliability scorecard →
+        </a>
+      </p>
     </section>
   `;
 }

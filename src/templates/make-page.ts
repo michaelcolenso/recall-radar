@@ -62,7 +62,7 @@ export function makePageTemplate(makeName: string, makeSlug: string, models: Mod
     <section>
       <h2 class="rr-label" style="margin-bottom: var(--space-4);">${escapeHtml(makeName)} Models With Recalls</h2>
       <div class="rr-grid rr-grid--models">
-        ${cards || "<p class='rr-body'>No models found.</p>"}
+        ${cards || "<p class='rr-body'>We don't have any recall data for this make yet. <a href='/'>Browse all makes</a> or check back soon.</p>"}
       </div>
     </section>
     ${zeroRecallCards}
