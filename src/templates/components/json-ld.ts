@@ -188,7 +188,7 @@ interface ArticleSchema {
 export function articleJsonLd(article: ArticleSchema): string {
   const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
-    "@type": "NewsArticle",
+    "@type": "Article",
     headline: article.headline,
     description: article.description,
     url: article.url,

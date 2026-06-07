@@ -31,7 +31,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v9";
+const PAGE_CACHE_VERSION = "v10";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -842,7 +842,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
       const cards =
         recalls.length > 0
           ? recalls.map(recallCard).join("")
-          : "<p class='text-gray-500 py-4'>No recalls found for this vehicle year.</p>";
+          : `<p class="rr-body" style="padding: var(--space-8) 0; color: var(--text-tertiary);">No recalls found for this vehicle year.</p>`;
 
       const relatedYearsResult = await c.env.DB.prepare(
         `SELECT vy.year, COUNT(r.id) as recall_count
@@ -963,7 +963,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
     withPageCacheVersion(`page:campaign:${campaignNumber}`),
     86400,
     async () => {
-      const recall = await c.env.DB.prepare(
+      const recallsResult = await c.env.DB.prepare(
         `SELECT r.id, r.nhtsa_campaign_number, r.component, r.manufacturer,
               r.summary_raw, r.consequence_raw, r.remedy_raw,
               r.summary_enriched, r.consequence_enriched, r.remedy_enriched,
@@ -975,10 +975,11 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
        JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
        JOIN models md ON md.id = vy.model_id
        JOIN makes m ON m.id = md.make_id
-       WHERE r.nhtsa_campaign_number = ?`,
+       WHERE r.nhtsa_campaign_number = ?
+       ORDER BY vy.year DESC`,
       )
         .bind(campaignNumber)
-        .first<{
+        .all<{
           id: number;
           nhtsa_campaign_number: string;
           component: string;
@@ -999,7 +1000,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
           year: number;
         }>();
 
-      if (!recall) {
+      if (!recallsResult.results.length) {
         return {
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
@@ -1013,51 +1014,72 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
         };
       }
 
-      const summary = recall.summary_enriched ?? recall.summary_raw;
-      const consequence = recall.consequence_enriched ?? recall.consequence_raw;
-      const remedy = recall.remedy_enriched ?? recall.remedy_raw;
+      const primaryRecall = recallsResult.results[0];
+      const summary = primaryRecall.summary_enriched ?? primaryRecall.summary_raw;
+      const consequence = primaryRecall.consequence_enriched ?? primaryRecall.consequence_raw;
+      const remedy = primaryRecall.remedy_enriched ?? primaryRecall.remedy_raw;
 
-      const title = `NHTSA Campaign ${recall.nhtsa_campaign_number} Recall Details | Recalled Rides`;
-      const description = `${recall.component} recall for the ${recall.year} ${recall.make_name} ${recall.model_name}. ${summary.slice(0, 120)}...`;
+      const title = `NHTSA Campaign ${primaryRecall.nhtsa_campaign_number} Recall Details | Recalled Rides`;
+      const description = `${primaryRecall.component} recall for the ${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name}. ${summary.slice(0, 120)}...`;
 
-      const affectedVehicles = [
-        {
-          make: recall.make_name,
-          makeSlug: recall.make_slug,
-          model: recall.model_name,
-          modelSlug: recall.model_slug,
-          year: recall.year,
-        },
-      ];
+      const affectedVehicles = recallsResult.results.map((r) => ({
+        make: r.make_name,
+        makeSlug: r.make_slug,
+        model: r.model_name,
+        modelSlug: r.model_slug,
+        year: r.year,
+      }));
 
-      const body = campaignPageTemplate({
-        campaign: recall.nhtsa_campaign_number,
-        component: recall.component,
-        manufacturer: recall.manufacturer,
+      const crumbs = breadcrumbs([
+        { href: "/", label: "Home" },
+        { href: `/${primaryRecall.make_slug}`, label: primaryRecall.make_name },
+        { href: `/${primaryRecall.make_slug}/${primaryRecall.model_slug}`, label: primaryRecall.model_name },
+        { href: `/${primaryRecall.make_slug}/${primaryRecall.model_slug}/${primaryRecall.year}`, label: String(primaryRecall.year) },
+        { label: `Campaign ${primaryRecall.nhtsa_campaign_number}` },
+      ]);
+      const body = crumbs + campaignPageTemplate({
+        campaign: primaryRecall.nhtsa_campaign_number,
+        component: primaryRecall.component,
+        manufacturer: primaryRecall.manufacturer,
         summary,
         consequence,
         remedy,
-        severity: recall.severity_level,
-        reportReceivedDate: recall.report_received_date,
-        isEnriched: !!recall.enriched_at,
+        severity: primaryRecall.severity_level,
+        reportReceivedDate: primaryRecall.report_received_date,
+        isEnriched: !!primaryRecall.enriched_at,
         affectedVehicles,
       });
 
-      const campaignUrl = `${siteUrl}/recall/${recall.nhtsa_campaign_number}`;
+      const campaignUrl = `${siteUrl}/recall/${primaryRecall.nhtsa_campaign_number}`;
       const jsonLd =
+        faqPageJsonLd(
+          [{
+            campaign: primaryRecall.nhtsa_campaign_number,
+            component: primaryRecall.component,
+            make: primaryRecall.make_name,
+            model: primaryRecall.model_name,
+            year: String(primaryRecall.year),
+            summary,
+            consequence,
+            remedy,
+            reportReceivedDate: primaryRecall.report_received_date,
+          }],
+          campaignUrl,
+          primaryRecall.report_received_date ?? undefined,
+        ) +
         breadcrumbListJsonLd(siteUrl, [
           { name: "Home", item: siteUrl },
-          { name: recall.make_name, item: `${siteUrl}/${recall.make_slug}` },
-          { name: recall.model_name, item: `${siteUrl}/${recall.make_slug}/${recall.model_slug}` },
-          { name: String(recall.year), item: `${siteUrl}/${recall.make_slug}/${recall.model_slug}/${recall.year}` },
-          { name: `Campaign ${recall.nhtsa_campaign_number}`, item: campaignUrl },
+          { name: primaryRecall.make_name, item: `${siteUrl}/${primaryRecall.make_slug}` },
+          { name: primaryRecall.model_name, item: `${siteUrl}/${primaryRecall.make_slug}/${primaryRecall.model_slug}` },
+          { name: String(primaryRecall.year), item: `${siteUrl}/${primaryRecall.make_slug}/${primaryRecall.model_slug}/${primaryRecall.year}` },
+          { name: `Campaign ${primaryRecall.nhtsa_campaign_number}`, item: campaignUrl },
         ]) +
         articleJsonLd({
-          headline: `NHTSA Campaign ${recall.nhtsa_campaign_number}: ${recall.component} Recall`,
+          headline: `NHTSA Campaign ${primaryRecall.nhtsa_campaign_number}: ${primaryRecall.component} Recall`,
           description: summary.slice(0, 200),
           url: campaignUrl,
-          datePublished: recall.report_received_date ?? undefined,
-          dateModified: recall.enriched_at ?? recall.report_received_date ?? undefined,
+          datePublished: primaryRecall.report_received_date ?? undefined,
+          dateModified: primaryRecall.enriched_at ?? primaryRecall.report_received_date ?? undefined,
           author: "Recalled Rides",
         });
 
@@ -1068,7 +1090,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
           title,
           description,
           canonical: campaignUrl,
-          ogType: "website",
+          ogType: "article",
           ogImage: "/og-image-detail.svg",
           body,
           jsonLd,
@@ -1087,7 +1109,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
 function notFoundBody(message: string, _siteUrl: string): string {
   return `
     <div class="rr-empty">
-      <h1 class="rr-empty__title">Vehicle Not Found</h1>
+      <h1 class="rr-empty__title">Page Not Found</h1>
       <p class="rr-empty__text">${escapeHtml(message)}</p>
       <a href="/" class="rr-empty__action">Browse All Makes</a>
     </div>

@@ -1322,3 +1322,50 @@ a.rr-readout__campaign:hover {
     filter: brightness(0) invert(1);
   }
 }
+/* ═══════════════════════════════════════════════════════════════
+   SEVERITY ACCENT BORDERS ON READOUTS
+   ═══════════════════════════════════════════════════════════════ */
+
+.rr-readout--critical { border-left: 6px solid var(--critical-fg); }
+.rr-readout--high { border-left: 6px solid var(--high-fg); }
+.rr-readout--medium { border-left: 6px solid var(--medium-fg); }
+.rr-readout--low { border-left: 6px solid var(--low-fg); }
+.rr-readout--unknown { border-left: 6px solid var(--unknown-border); }
+
+/* ═══════════════════════════════════════════════════════════════
+   CURRENT CARD INDICATOR
+   ═══════════════════════════════════════════════════════════════ */
+
+.rr-card--current {
+  background: var(--bg-inset);
+}
+
+.rr-card--current::before {
+  transform: scaleY(1);
+  background: var(--text-primary);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ABOUT PAGE HEADINGS
+   ═══════════════════════════════════════════════════════════════ */
+
+.rr-heading {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+  color: var(--text-primary);
+}
+
+.rr-heading--2 {
+  font-size: var(--text-xl);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SEARCH RESULT SUBLABEL
+   ═══════════════════════════════════════════════════════════════ */
+
+.rr-search-result__sublabel {
+  opacity: 0.5;
+  font-size: 10px;
+}

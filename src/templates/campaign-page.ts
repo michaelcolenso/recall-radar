@@ -36,8 +36,8 @@ export function campaignPageTemplate({
   affectedVehicles,
 }: CampaignPageOptions): string {
   const indicator = isEnriched
-    ? `<span class="rr-readout__indicator rr-readout__indicator--enriched">Simplified</span>`
-    : `<span class="rr-readout__indicator rr-readout__indicator--raw">Original NHTSA Language</span>`;
+    ? `<span class="rr-readout__indicator rr-readout__indicator--enriched">Plain English</span>`
+    : `<span class="rr-readout__indicator rr-readout__indicator--raw">NHTSA Official Language</span>`;
 
   const severityClass = severity ? `rr-readout--${severity.toLowerCase()}` : "";
 

@@ -126,7 +126,7 @@ export function layout({
             .then(function(d){
               if(!d.results||!d.results.length){results.hidden=true;results.innerHTML="";return}
               results.innerHTML=d.results.map(function(r){
-                return '<a href="'+r.href+'"><strong>'+escHtml(r.label)+'</strong> <span style="opacity:0.5;font-size:10px">'+escHtml(r.sublabel)+'</span></a>'
+                return '<a href="'+r.href+'"><strong>'+escHtml(r.label)+'</strong> <span class="rr-search-result__sublabel">'+escHtml(r.sublabel)+'</span></a>'
               }).join("");
               results.hidden=false
             })
