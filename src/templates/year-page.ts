@@ -79,12 +79,24 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
       ` : ""}
     </section>
 
+    ${recallCount === 0 ? `
+    <section class="rr-good-news" aria-labelledby="good-news-title">
+      <svg class="rr-good-news__icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
+        <circle cx="32" cy="32" r="28" stroke-dasharray="176" stroke-dashoffset="176" style="animation:rr-draw-circle 0.8s var(--ease-mechanical) 0.2s forwards"/>
+        <path d="M20 33l8 8 16-16" stroke-dasharray="40" stroke-dashoffset="40" style="animation:rr-draw-path 0.5s var(--ease-mechanical) 0.7s forwards"/>
+      </svg>
+      <h2 id="good-news-title" class="rr-good-news__title">All Clear</h2>
+      <p class="rr-good-news__text">No safety recalls on record for the ${escapeHtml(year)} ${escapeHtml(make)} ${escapeHtml(model)}. That's great news — your vehicle has a clean recall history in the NHTSA database.</p>
+      ${relatedYears && relatedYears.length > 0 ? `<p class="rr-good-news__text" style="font-size:var(--text-sm);">Check other model years below, or <a href="/${makeSlug}/${modelSlug}">browse all ${escapeHtml(make)} ${escapeHtml(model)} years</a>.</p>` : ""}
+    </section>
+    ` : `
     <section class="rr-readout-list">
       <h2 class="sr-only">Known Safety Recalls</h2>
       ${cards}
     </section>
 
     ${leadGen}
+    `}
     ${componentHtml}
     ${relatedHtml}
   `;

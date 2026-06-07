@@ -1369,3 +1369,140 @@ a.rr-readout__campaign:hover {
   opacity: 0.5;
   font-size: 10px;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   DELIGHT — Subtle moments of relief & reassurance
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Critical severity: gentle breathing pulse ── */
+@keyframes rr-pulse-soft {
+  0%, 100% { box-shadow: 0 0 0 0 var(--critical-glow); }
+  50% { box-shadow: 0 0 0 5px var(--critical-glow); }
+}
+
+.rr-severity--critical {
+  animation: rr-pulse-soft 3s ease-in-out infinite;
+}
+
+/* ── Scroll-triggered reveals ── */
+@keyframes rr-fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rr-reveal {
+  opacity: 0;
+}
+
+.rr-reveal.is-visible {
+  animation: rr-fade-up 0.5s var(--ease-mechanical) forwards;
+}
+
+/* Stagger delays applied via JS */
+
+/* ── Share toast ── */
+.rr-toast {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  padding: var(--space-3) var(--space-5);
+  background: var(--text-primary);
+  color: var(--text-inverse);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 2px solid var(--text-primary);
+  z-index: 1000;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.3s var(--ease-mechanical);
+  pointer-events: none;
+}
+
+.rr-toast.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Good news empty state ── */
+.rr-good-news {
+  padding: var(--space-20) var(--space-8);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  background: var(--low-bg);
+  border: 3px solid var(--low-border);
+  margin-bottom: var(--space-12);
+}
+
+.rr-good-news__icon {
+  width: 64px;
+  height: 64px;
+  color: var(--low-fg);
+}
+
+.rr-good-news__title {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  font-size: var(--text-xl);
+  text-transform: uppercase;
+  letter-spacing: -0.05em;
+  color: var(--low-fg);
+}
+
+.rr-good-news__text {
+  font-family: "Literata", serif;
+  font-size: var(--text-md);
+  color: var(--text-secondary);
+  max-width: 480px;
+  line-height: 1.5;
+}
+
+.rr-good-news__text a {
+  color: var(--low-fg);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  font-weight: 600;
+}
+
+.rr-good-news__text a:hover {
+  color: var(--text-primary);
+}
+
+/* ── SVG draw animations for checkmark ── */
+@keyframes rr-draw-circle {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes rr-draw-path {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ── Search result keyboard active state ── */
+.rr-hero__search-results a.rr-search-result--active {
+  background: var(--bg-inset);
+  color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .rr-severity--critical {
+    animation: none;
+  }
+  .rr-reveal {
+    opacity: 1;
+  }
+  .rr-reveal.is-visible {
+    animation: none;
+  }
+  .rr-good-news__icon circle,
+  .rr-good-news__icon path {
+    stroke-dashoffset: 0 !important;
+  }
+}

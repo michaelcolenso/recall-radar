@@ -115,9 +115,10 @@ export function layout({
       var input=document.getElementById("rr-global-search");
       var results=document.getElementById("rr-global-search-results");
       if(!input||!results)return;
-      var timer=null;
+      var timer=null,activeIndex=-1;
       input.addEventListener("input",function(){
         clearTimeout(timer);
+        activeIndex=-1;
         var q=input.value.trim();
         if(q.length<2){results.hidden=true;results.innerHTML="";return}
         timer=setTimeout(function(){
@@ -125,21 +126,29 @@ export function layout({
             .then(function(r){return r.json()})
             .then(function(d){
               if(!d.results||!d.results.length){results.hidden=true;results.innerHTML="";return}
-              results.innerHTML=d.results.map(function(r){
-                return '<a href="'+r.href+'"><strong>'+escHtml(r.label)+'</strong> <span class="rr-search-result__sublabel">'+escHtml(r.sublabel)+'</span></a>'
+              results.innerHTML=d.results.map(function(r,i){
+                return '<a href="'+r.href+'" data-index="'+i+'"><strong>'+escHtml(r.label)+'</strong> <span class="rr-search-result__sublabel">'+escHtml(r.sublabel)+'</span></a>'
               }).join("");
               results.hidden=false
             })
             .catch(function(){results.hidden=true})
         },200)
       });
-      document.addEventListener("click",function(e){if(!input.contains(e.target)&&!results.contains(e.target)){results.hidden=true}});
-      input.addEventListener("keydown",function(e){if(e.key==="Escape"){results.hidden=true;input.blur()}});
+      document.addEventListener("click",function(e){if(!input.contains(e.target)&&!results.contains(e.target)){results.hidden=true;activeIndex=-1}});
+      input.addEventListener("keydown",function(e){
+        var items=results.querySelectorAll("a");
+        if(e.key==="Escape"){results.hidden=true;input.blur();activeIndex=-1;return}
+        if(!items.length||results.hidden)return;
+        if(e.key==="ArrowDown"){e.preventDefault();activeIndex=(activeIndex+1)%items.length;updateActive(items)}
+        else if(e.key==="ArrowUp"){e.preventDefault();activeIndex=(activeIndex-1+items.length)%items.length;updateActive(items)}
+        else if(e.key==="Enter"){e.preventDefault();if(activeIndex>=0&&items[activeIndex]){location.href=items[activeIndex].href}}
+      });
+      function updateActive(items){items.forEach(function(item,i){item.classList.toggle("rr-search-result--active",i===activeIndex)})}
       function escHtml(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
     })();
   </script>
   <script>
-    document.addEventListener("click",function(e){var b=e.target.closest(".rr-share-btn");if(!b)return;var u=b.getAttribute("data-share-url");if(!u)return;var a=u;if(!/^https?:/.test(u))a=location.origin+u;if(navigator.share){navigator.share({url:a}).catch(function(){})}else{navigator.clipboard.writeText(a).then(function(){b.setAttribute("data-shared","1");b.querySelector(".rr-share-btn__icon").innerHTML='<path d="M4 8l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';setTimeout(function(){b.removeAttribute("data-shared");b.querySelector(".rr-share-btn__icon").innerHTML='<path d="M12 10.5c-.5 0-.9.2-1.2.5L5.5 8.3c0-.1.1-.2.1-.3 0-.1 0-.2-.1-.3l5.3-2.7c.3.3.7.5 1.2.5a1.5 1.5 0 1 0-1.5-1.5c0 .1 0 .2.1.3L5.4 7.3c-.3-.3-.7-.5-1.2-.5a1.5 1.5 0 0 0 0 3c.5 0 .9-.2 1.2-.5l5.3 2.7c0 .1-.1.2-.1.3a1.5 1.5 0 1 0 1.5-1.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'},1500)}})});
+    document.addEventListener("click",function(e){var b=e.target.closest(".rr-share-btn");if(!b)return;var u=b.getAttribute("data-share-url");if(!u)return;var a=u;if(!/^https?:/.test(u))a=location.origin+u;var showToast=function(msg){var t=document.getElementById("rr-toast");if(!t)return;t.textContent=msg;t.classList.add("is-visible");setTimeout(function(){t.classList.remove("is-visible")},2200)};if(navigator.share){navigator.share({url:a}).then(function(){showToast("Shared successfully")}).catch(function(){})}else{navigator.clipboard.writeText(a).then(function(){b.setAttribute("data-shared","1");var icon=b.querySelector("svg");if(icon){var orig=icon.innerHTML;icon.innerHTML='<path d="M4 8l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';setTimeout(function(){b.removeAttribute("data-shared");icon.innerHTML=orig},1500)}showToast("Link copied to clipboard")})}});
   </script>
   <script>
     // WebMCP — expose site tools to AI agents
@@ -188,6 +197,19 @@ export function layout({
       ];
       tools.forEach(function(t){mc.registerTool(t,{signal:ctrl.signal});});
       window.addEventListener("beforeunload",function(){ctrl.abort();});
+    })();
+  </script>
+  <div id="rr-toast" class="rr-toast" role="status" aria-live="polite"></div>
+  <script>
+    // Scroll-triggered reveal animation
+    (function(){
+      if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+      var groups=document.querySelectorAll(".rr-grid, .rr-readout-list");
+      groups.forEach(function(g){Array.from(g.children).forEach(function(c){c.classList.add("rr-reveal")})});
+      var observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting){var children=Array.from(entry.target.children).filter(function(c){return c.classList.contains("rr-reveal")&&c.classList.contains("is-visible")===false});
+      children.forEach(function(c,i){setTimeout(function(){c.classList.add("is-visible")},Math.min(i*60,400))});
+      if(entry.target.children.length===0||children.length===0)observer.unobserve(entry.target)}})},{threshold:0.05,rootMargin:"0px 0px -40px 0px"});
+      groups.forEach(function(g){observer.observe(g)});
     })();
   </script>
 </body>
