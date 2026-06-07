@@ -19,7 +19,6 @@ import {
   itemListJsonLd,
   articleJsonLd,
   howToJsonLd,
-  aggregateRatingJsonLd,
 } from "../templates/components/json-ld";
 import { campaignPageTemplate } from "../templates/campaign-page";
 import type { SeverityLevel } from "../db/schema";
@@ -29,7 +28,7 @@ import { makeComponentPageTemplate } from "../templates/make-component-page";
 import { modelStatsPageTemplate } from "../templates/model-stats-page";
 import { vinLookupPageTemplate } from "../templates/vin-lookup-page";
 import { relatedLinks } from "../templates/components/related-links";
-import { gradeToStarRating, gradeDescription } from "../lib/risk-score";
+import { gradeDescription } from "../lib/risk-score";
 import { POPULAR_MAKES } from "../lib/constants";
 import { acceptsMarkdown, htmlToMarkdown } from "../lib/utils";
 
@@ -241,7 +240,15 @@ pageRoutes.get("/about", async (c) => {
         ogType: "website",
         ogImage: "/og-image-home.svg",
         body: aboutTemplate(siteUrl),
-        jsonLd: organizationJsonLd({ name: "Recalled Rides", url: siteUrl }),
+        jsonLd:
+          organizationJsonLd({ name: "Recalled Rides", url: siteUrl }) +
+          `<script type="application/ld+json">${JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "AboutPage",
+            name: "About Recalled Rides",
+            url: `${siteUrl}/about`,
+            description: "Learn how Recalled Rides sources vehicle recall data from NHTSA and simplifies it into plain English for drivers.",
+          })}</script>`,
       });
     },
   );
@@ -302,10 +309,10 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
             analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-            title: "Not Found",
+            title: "Page Not Found | Recalled Rides",
             description: "This vehicle page could not be found. Browse all makes on Recalled Rides.",
             noIndex: true,
-            body: notFoundBody("Vehicle make not found.", siteUrl),
+            body: notFoundBody("We couldn't find that vehicle manufacturer. It may not be in our database yet.", siteUrl),
           }),
           status: 404,
         };
@@ -319,10 +326,10 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
             analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-            title: "Not Found",
+            title: "Page Not Found | Recalled Rides",
             description: "This vehicle page could not be found. Browse all makes on Recalled Rides.",
             noIndex: true,
-            body: notFoundBody("Vehicle model not found.", siteUrl),
+            body: notFoundBody("We couldn't find that model. It may not be in our database yet or might be listed under a different name.", siteUrl),
           }),
           status: 404,
         };
@@ -432,6 +439,12 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
               { name: model.name, item: `${siteUrl}/${makeSlug}/${modelSlug}` },
               { name: "Statistics", item: statsUrl },
             ]) +
+            articleJsonLd({
+              headline: `${make.name} ${model.name} Recall Statistics & Reliability Analysis`,
+              description: `Original analysis of ${totalRecalls} recalls across ${yearStats.length} model years. Includes risk grades, best and worst years, and common failure components.`,
+              url: statsUrl,
+              author: "Recalled Rides",
+            }) +
             organizationJsonLd({ name: "Recalled Rides", url: siteUrl }),
         }),
         status: 200,
@@ -463,10 +476,10 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentSlug{[a-z0-9-]+}-recalls", asyn
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
             analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-            title: "Not Found",
+            title: "Page Not Found | Recalled Rides",
             description: "This vehicle page could not be found. Browse all makes on Recalled Rides.",
             noIndex: true,
-            body: notFoundBody("Vehicle make not found.", siteUrl),
+            body: notFoundBody("We couldn't find that vehicle manufacturer. It may not be in our database yet.", siteUrl),
           }),
           status: 404,
         };
@@ -506,10 +519,10 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentSlug{[a-z0-9-]+}-recalls", asyn
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
             analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-            title: "Not Found",
-            description: "No recalls found for this component. Browse all makes on Recalled Rides.",
+            title: "Page Not Found | Recalled Rides",
+            description: "No recalls match this component for this manufacturer. Try browsing by model instead. Browse all makes on Recalled Rides.",
             noIndex: true,
-            body: notFoundBody("No recalls found for this component.", siteUrl),
+            body: notFoundBody("No recalls match this component for this manufacturer. Try browsing by model instead.", siteUrl),
           }),
           status: 404,
         };
@@ -627,34 +640,50 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
             analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-            title: "Not Found",
+            title: "Page Not Found | Recalled Rides",
             description: "This vehicle page could not be found. Browse all makes on Recalled Rides.",
             noIndex: true,
-            body: notFoundBody("Vehicle make not found.", siteUrl),
+            body: notFoundBody("We couldn't find that vehicle manufacturer. It may not be in our database yet.", siteUrl),
           }),
           status: 404,
         };
       }
 
-      const models = await c.env.DB.prepare(
-        `SELECT m.name, m.slug,
-              MIN(vy.year) as min_year, MAX(vy.year) as max_year,
-              COUNT(DISTINCT r.id) as recall_count
-       FROM models m
-       LEFT JOIN vehicle_years vy ON vy.model_id = m.id
-       LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
-       WHERE m.make_id = ?
-       GROUP BY m.id
-       ORDER BY m.name`,
-      )
-        .bind(make.id)
-        .all<{ name: string; slug: string; min_year: number | null; max_year: number | null; recall_count: number }>();
+      const [models, components] = await Promise.all([
+        c.env.DB.prepare(
+          `SELECT m.name, m.slug,
+                MIN(vy.year) as min_year, MAX(vy.year) as max_year,
+                COUNT(DISTINCT r.id) as recall_count
+         FROM models m
+         LEFT JOIN vehicle_years vy ON vy.model_id = m.id
+         LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
+         WHERE m.make_id = ?
+         GROUP BY m.id
+         ORDER BY m.name`,
+        )
+          .bind(make.id)
+          .all<{ name: string; slug: string; min_year: number | null; max_year: number | null; recall_count: number }>(),
+
+        c.env.DB.prepare(
+          `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
+                  COUNT(*) as count
+           FROM recalls r
+           JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+           JOIN models m ON m.id = vy.model_id
+           WHERE m.make_id = ?
+           GROUP BY name
+           ORDER BY count DESC
+           LIMIT 12`,
+        )
+          .bind(make.id)
+          .all<{ name: string; count: number }>(),
+      ]);
 
       const crumbs = breadcrumbs([
         { href: "/", label: "Home" },
         { href: `/${makeSlug}`, label: make.name },
       ]);
-      const body = crumbs + makePageTemplate(make.name, make.slug, models.results);
+      const body = crumbs + makePageTemplate(make.name, make.slug, models.results, components.results);
 
       return {
         html: layout({
@@ -711,10 +740,10 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
             analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-            title: "Not Found",
+            title: "Page Not Found | Recalled Rides",
             description: "This vehicle page could not be found. Browse all makes on Recalled Rides.",
             noIndex: true,
-            body: notFoundBody("Vehicle make not found.", siteUrl),
+            body: notFoundBody("We couldn't find that vehicle manufacturer. It may not be in our database yet.", siteUrl),
           }),
           status: 404,
         };
@@ -728,10 +757,10 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
             analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-            title: "Not Found",
+            title: "Page Not Found | Recalled Rides",
             description: "This vehicle page could not be found. Browse all makes on Recalled Rides.",
             noIndex: true,
-            body: notFoundBody("Vehicle model not found.", siteUrl),
+            body: notFoundBody("We couldn't find that model. It may not be in our database yet or might be listed under a different name.", siteUrl),
           }),
           status: 404,
         };
@@ -822,10 +851,10 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
       layout({
         googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
         analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-        title: "Not Found",
+        title: "Page Not Found | Recalled Rides",
         description: "This vehicle year could not be found. Browse all makes on Recalled Rides.",
         noIndex: true,
-        body: notFoundBody("Invalid year.", siteUrl),
+        body: notFoundBody("Please check the year and try again. We cover most vehicles from 1950 to present.", siteUrl),
       }),
       404,
     );
@@ -844,10 +873,10 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
             analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-            title: "Not Found",
+            title: "Page Not Found | Recalled Rides",
             description: "This vehicle page could not be found. Browse all makes on Recalled Rides.",
             noIndex: true,
-            body: notFoundBody("Vehicle make not found.", siteUrl),
+            body: notFoundBody("We couldn't find that vehicle manufacturer. It may not be in our database yet.", siteUrl),
           }),
           status: 404,
         };
@@ -861,10 +890,10 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
             analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-            title: "Not Found",
+            title: "Page Not Found | Recalled Rides",
             description: "This vehicle page could not be found. Browse all makes on Recalled Rides.",
             noIndex: true,
-            body: notFoundBody("Vehicle model not found.", siteUrl),
+            body: notFoundBody("We couldn't find that model. It may not be in our database yet or might be listed under a different name.", siteUrl),
           }),
           status: 404,
         };
@@ -914,10 +943,10 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
             analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-            title: "Not Found",
-            description: "No recalls found for this component. Browse all makes on Recalled Rides.",
+            title: "Page Not Found | Recalled Rides",
+            description: "No recalls match this component for this manufacturer. Try browsing by model instead. Browse all makes on Recalled Rides.",
             noIndex: true,
-            body: notFoundBody("Component not found for this vehicle year.", siteUrl),
+            body: notFoundBody("No recalls match this component for this vehicle year. Try viewing all recalls for this year instead.", siteUrl),
           }),
           status: 404,
         };
@@ -1098,10 +1127,10 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
       layout({
         googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
         analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-        title: "Not Found",
+        title: "Page Not Found | Recalled Rides",
         description: "This vehicle year could not be found. Browse all makes on Recalled Rides.",
         noIndex: true,
-        body: notFoundBody("Invalid year.", siteUrl),
+        body: notFoundBody("Please check the year and try again. We cover most vehicles from 1950 to present.", siteUrl),
       }),
       404,
     );
@@ -1120,10 +1149,10 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
             analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-            title: "Not Found",
+            title: "Page Not Found | Recalled Rides",
             description: "This vehicle page could not be found. Browse all makes on Recalled Rides.",
             noIndex: true,
-            body: notFoundBody("Vehicle make not found.", siteUrl),
+            body: notFoundBody("We couldn't find that vehicle manufacturer. It may not be in our database yet.", siteUrl),
           }),
           status: 404,
         };
@@ -1137,10 +1166,10 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
             analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-            title: "Not Found",
+            title: "Page Not Found | Recalled Rides",
             description: "This vehicle page could not be found. Browse all makes on Recalled Rides.",
             noIndex: true,
-            body: notFoundBody("Vehicle model not found.", siteUrl),
+            body: notFoundBody("We couldn't find that model. It may not be in our database yet or might be listed under a different name.", siteUrl),
           }),
           status: 404,
         };
@@ -1308,7 +1337,6 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           { name: year, item: yearPageUrl },
         ]) +
         vehicleJsonLd(make.name, model.name, yearNum, yearPageUrl, recalls.length) +
-        aggregateRatingJsonLd(yearPageUrl, gradeToStarRating(riskGrade), recalls.length) +
         (yearRemedySteps.length > 0
           ? howToJsonLd(
               `How to get recalls fixed for your ${year} ${make.name} ${model.name}`,
@@ -1353,7 +1381,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
     withPageCacheVersion(`page:campaign:${campaignNumber}`),
     86400,
     async () => {
-      const recall = await c.env.DB.prepare(
+      const recallsResult = await c.env.DB.prepare(
         `SELECT r.id, r.nhtsa_campaign_number, r.component, r.manufacturer,
               r.summary_raw, r.consequence_raw, r.remedy_raw,
               r.summary_enriched, r.consequence_enriched, r.remedy_enriched,
@@ -1365,10 +1393,11 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
        JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
        JOIN models md ON md.id = vy.model_id
        JOIN makes m ON m.id = md.make_id
-       WHERE r.nhtsa_campaign_number = ?`,
+       WHERE r.nhtsa_campaign_number = ?
+       ORDER BY vy.year DESC`,
       )
         .bind(campaignNumber)
-        .first<{
+        .all<{
           id: number;
           nhtsa_campaign_number: string;
           component: string;
@@ -1389,65 +1418,86 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
           year: number;
         }>();
 
-      if (!recall) {
+      if (recallsResult.results.length === 0) {
         return {
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
             analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-            title: "Not Found",
+            title: "Page Not Found | Recalled Rides",
             description: "This recall campaign could not be found. Browse all makes on Recalled Rides.",
             noIndex: true,
-            body: notFoundBody("Recall campaign not found.", siteUrl),
+            body: notFoundBody("We couldn't find that recall campaign number. It may have been updated or merged with another campaign.", siteUrl),
           }),
           status: 404,
         };
       }
 
-      const summary = recall.summary_enriched ?? recall.summary_raw;
-      const consequence = recall.consequence_enriched ?? recall.consequence_raw;
-      const remedy = recall.remedy_enriched ?? recall.remedy_raw;
+      const primaryRecall = recallsResult.results[0];
+      const summary = primaryRecall.summary_enriched ?? primaryRecall.summary_raw;
+      const consequence = primaryRecall.consequence_enriched ?? primaryRecall.consequence_raw;
+      const remedy = primaryRecall.remedy_enriched ?? primaryRecall.remedy_raw;
 
-      const title = `NHTSA Campaign ${recall.nhtsa_campaign_number} Recall Details | Recalled Rides`;
-      const description = `${recall.component} recall for the ${recall.year} ${recall.make_name} ${recall.model_name}. ${summary.slice(0, 120)}...`;
+      const title = `NHTSA Campaign ${primaryRecall.nhtsa_campaign_number} Recall Details | Recalled Rides`;
+      const description = `${primaryRecall.component} recall for the ${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name}. ${summary.slice(0, 120)}...`;
 
-      const affectedVehicles = [
-        {
-          make: recall.make_name,
-          makeSlug: recall.make_slug,
-          model: recall.model_name,
-          modelSlug: recall.model_slug,
-          year: recall.year,
-        },
-      ];
+      const affectedVehicles = recallsResult.results.map((r) => ({
+        make: r.make_name,
+        makeSlug: r.make_slug,
+        model: r.model_name,
+        modelSlug: r.model_slug,
+        year: r.year,
+      }));
 
-      const body = campaignPageTemplate({
-        campaign: recall.nhtsa_campaign_number,
-        component: recall.component,
-        manufacturer: recall.manufacturer,
+      const crumbs = breadcrumbs([
+        { href: "/", label: "Home" },
+        { href: `/${primaryRecall.make_slug}`, label: primaryRecall.make_name },
+        { href: `/${primaryRecall.make_slug}/${primaryRecall.model_slug}`, label: primaryRecall.model_name },
+        { href: `/${primaryRecall.make_slug}/${primaryRecall.model_slug}/${primaryRecall.year}`, label: String(primaryRecall.year) },
+      ]);
+
+      const body = crumbs + campaignPageTemplate({
+        campaign: primaryRecall.nhtsa_campaign_number,
+        component: primaryRecall.component,
+        manufacturer: primaryRecall.manufacturer,
         summary,
         consequence,
         remedy,
-        severity: recall.severity_level,
-        reportReceivedDate: recall.report_received_date,
-        isEnriched: !!recall.enriched_at,
+        severity: primaryRecall.severity_level,
+        reportReceivedDate: primaryRecall.report_received_date,
+        isEnriched: !!primaryRecall.enriched_at,
         affectedVehicles,
       });
 
-      const campaignUrl = `${siteUrl}/recall/${recall.nhtsa_campaign_number}`;
+      const campaignUrl = `${siteUrl}/recall/${primaryRecall.nhtsa_campaign_number}`;
       const jsonLd =
+        faqPageJsonLd(
+          [{
+            campaign: primaryRecall.nhtsa_campaign_number,
+            component: primaryRecall.component,
+            make: primaryRecall.make_name,
+            model: primaryRecall.model_name,
+            year: String(primaryRecall.year),
+            summary,
+            consequence,
+            remedy,
+            reportReceivedDate: primaryRecall.report_received_date,
+          }],
+          campaignUrl,
+          primaryRecall.enriched_at ?? primaryRecall.report_received_date ?? undefined,
+        ) +
         breadcrumbListJsonLd(siteUrl, [
           { name: "Home", item: siteUrl },
-          { name: recall.make_name, item: `${siteUrl}/${recall.make_slug}` },
-          { name: recall.model_name, item: `${siteUrl}/${recall.make_slug}/${recall.model_slug}` },
-          { name: String(recall.year), item: `${siteUrl}/${recall.make_slug}/${recall.model_slug}/${recall.year}` },
-          { name: `Campaign ${recall.nhtsa_campaign_number}`, item: campaignUrl },
+          { name: primaryRecall.make_name, item: `${siteUrl}/${primaryRecall.make_slug}` },
+          { name: primaryRecall.model_name, item: `${siteUrl}/${primaryRecall.make_slug}/${primaryRecall.model_slug}` },
+          { name: String(primaryRecall.year), item: `${siteUrl}/${primaryRecall.make_slug}/${primaryRecall.model_slug}/${primaryRecall.year}` },
+          { name: `Campaign ${primaryRecall.nhtsa_campaign_number}`, item: campaignUrl },
         ]) +
         articleJsonLd({
-          headline: `NHTSA Campaign ${recall.nhtsa_campaign_number}: ${recall.component} Recall`,
+          headline: `NHTSA Campaign ${primaryRecall.nhtsa_campaign_number}: ${primaryRecall.component} Recall`,
           description: summary.slice(0, 200),
           url: campaignUrl,
-          datePublished: recall.report_received_date ?? undefined,
-          dateModified: recall.enriched_at ?? recall.report_received_date ?? undefined,
+          datePublished: primaryRecall.report_received_date ?? undefined,
+          dateModified: primaryRecall.enriched_at ?? primaryRecall.report_received_date ?? undefined,
           author: "Recalled Rides",
         });
 
@@ -1477,7 +1527,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
 function notFoundBody(message: string, _siteUrl: string): string {
   return `
     <div class="rr-empty">
-      <h1 class="rr-empty__title">Vehicle Not Found</h1>
+      <h1 class="rr-empty__title">Page Not Found</h1>
       <p class="rr-empty__text">${escapeHtml(message)}</p>
       <a href="/" class="rr-empty__action">Browse All Makes</a>
     </div>
