@@ -510,6 +510,7 @@ function getCampaignRows(db: D1Database, limit?: number, offset?: number): Promi
     `SELECT r.nhtsa_campaign_number as campaign_number,
             COALESCE(date(r.report_received_date), date(r.updated_at)) as lastmod
      FROM recalls r
+     GROUP BY r.nhtsa_campaign_number
      ORDER BY r.nhtsa_campaign_number
      ${typeof limit === "number" ? "LIMIT ? OFFSET ?" : ""}`,
   );
@@ -520,7 +521,7 @@ function getCampaignRows(db: D1Database, limit?: number, offset?: number): Promi
 }
 
 function getCampaignUrlCount(db: D1Database): Promise<CountRow | null> {
-  return db.prepare("SELECT COUNT(*) as count FROM recalls").first<CountRow>();
+  return db.prepare("SELECT COUNT(DISTINCT nhtsa_campaign_number) as count FROM recalls").first<CountRow>();
 }
 
 interface StatsSitemapRow {

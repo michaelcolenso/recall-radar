@@ -190,7 +190,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                      component, manufacturer, summary_raw, consequence_raw, remedy_raw,
                      severity_level, created_at, updated_at
                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT (nhtsa_campaign_number) DO UPDATE SET
+                   ON CONFLICT (nhtsa_campaign_number, vehicle_year_id) DO UPDATE SET
                      updated_at = excluded.updated_at,
                      component = excluded.component,
                      manufacturer = excluded.manufacturer`,
@@ -342,7 +342,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                        component, manufacturer, summary_raw, consequence_raw, remedy_raw,
                        severity_level, created_at, updated_at
                      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                     ON CONFLICT (nhtsa_campaign_number) DO UPDATE SET
+                     ON CONFLICT (nhtsa_campaign_number, vehicle_year_id) DO UPDATE SET
                        updated_at = excluded.updated_at,
                        component = excluded.component,
                        manufacturer = excluded.manufacturer`,

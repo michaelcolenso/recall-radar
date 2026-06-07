@@ -61,7 +61,7 @@ export type SeverityLevel = typeof severityLevels[number];
 export const recalls = sqliteTable("recalls", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   vehicleYearId: integer("vehicle_year_id").notNull().references(() => vehicleYears.id, { onDelete: "cascade" }),
-  nhtsaCampaignNumber: text("nhtsa_campaign_number").notNull().unique(),
+  nhtsaCampaignNumber: text("nhtsa_campaign_number").notNull(),
   reportReceivedDate: text("report_received_date"),
   component: text("component").notNull(),
   manufacturer: text("manufacturer"),
@@ -87,6 +87,7 @@ export const recalls = sqliteTable("recalls", {
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => [
+  uniqueIndex("idx_recalls_campaign_vy").on(table.nhtsaCampaignNumber, table.vehicleYearId),
   index("idx_recalls_vy_id").on(table.vehicleYearId),
   index("idx_recalls_campaign").on(table.nhtsaCampaignNumber),
   index("idx_recalls_component").on(table.component),
