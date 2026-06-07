@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
+import { scoreAllVehicleYears, scoreAllVehicleYearsForMake } from "../lib/risk-score";
 
 export const apiRoutes = new Hono<{ Bindings: Env }>();
 
@@ -240,6 +241,45 @@ apiRoutes.post("/admin/prune", async (c) => {
   return c.json(await resp.json());
 });
 
+// POST /api/admin/score — trigger risk score recalculation
+apiRoutes.post("/admin/score", async (c) => {
+  const denied = requireAuth(c);
+  if (denied) return denied;
+
+  const body = await c.req.json().catch(() => ({ makeSlug: undefined })) as { makeSlug?: string };
+  const startedAt = Date.now();
+
+  try {
+    if (body.makeSlug) {
+      const result = await scoreAllVehicleYearsForMake(c.env.DB, body.makeSlug);
+      return c.json({
+        success: true,
+        scopedToMake: body.makeSlug,
+        scored: result.scored,
+        errors: result.errors.length,
+        errorDetails: result.errors.slice(0, 10),
+        durationMs: Date.now() - startedAt,
+      });
+    }
+
+    const result = await scoreAllVehicleYears(c.env.DB);
+    return c.json({
+      success: true,
+      scopedToMake: null,
+      scored: result.scored,
+      errors: result.errors.length,
+      errorDetails: result.errors.slice(0, 10),
+      durationMs: Date.now() - startedAt,
+    });
+  } catch (err) {
+    return c.json({
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+      durationMs: Date.now() - startedAt,
+    }, 500);
+  }
+});
+
 // GET /api/admin/stats — DB stats
 apiRoutes.get("/admin/stats", async (c) => {
   const denied = requireAuth(c);
@@ -249,4 +289,51 @@ apiRoutes.get("/admin/stats", async (c) => {
   const agent = c.env.PIPELINE_AGENT.get(agentId);
   const resp = await agent.fetch(new Request("https://internal/stats"));
   return c.json(await resp.json());
+});
+
+// GET /api/vin-lookup — Public VIN recall lookup (proxies NHTSA)
+apiRoutes.get("/vin-lookup", async (c) => {
+  const vin = (c.req.query("vin") || "").trim().toUpperCase();
+  if (!vin || vin.length !== 17) {
+    return c.json({ error: "Invalid VIN. Please provide a 17-character VIN." }, 400);
+  }
+
+  // Validate VIN characters (no I, O, Q)
+  if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
+    return c.json({ error: "Invalid VIN format. VINs do not contain the letters I, O, or Q." }, 400);
+  }
+
+  try {
+    const res = await fetch(
+      `https://api.nhtsa.gov/recalls/recallsByVin?vin=${encodeURIComponent(vin)}`,
+      { cf: { cacheTtl: 3600 } },
+    );
+    if (!res.ok) {
+      return c.json({ error: "NHTSA lookup failed. Please try again later." }, 502);
+    }
+    const data = await res.json() as {
+      Count?: number;
+      results?: Array<{
+        NHTSACampaignNumber: string;
+        Component: string;
+        Summary: string;
+        Consequence: string;
+        Remedy: string;
+        ReportReceivedDate: string;
+      }>;
+    };
+
+    const recalls = (data.results || []).map((r) => ({
+      campaign: r.NHTSACampaignNumber,
+      component: r.Component,
+      summary: r.Summary,
+      consequence: r.Consequence,
+      remedy: r.Remedy,
+      date: r.ReportReceivedDate,
+    }));
+
+    return c.json({ vin, recalls, count: recalls.length });
+  } catch {
+    return c.json({ error: "Unable to reach NHTSA. Please try again later." }, 502);
+  }
 });

@@ -81,6 +81,7 @@ export function layout({
       </a>
       <div class="rr-nav__links">
         <a href="/#makes">Browse</a>
+        <a href="/vin-lookup">VIN Lookup</a>
         <a href="/toyota">Toyota</a>
         <a href="/honda">Honda</a>
         <a href="/ford">Ford</a>

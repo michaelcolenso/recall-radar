@@ -3,6 +3,7 @@ import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:work
 import { POPULAR_MAKES, DEFAULT_YEAR_START, YEAR_MAX } from "../lib/constants";
 import { fetchAllMakes, fetchModelsForMake, fetchRecallsForVehicle } from "../lib/nhtsa-client";
 import { classifySeverity } from "../lib/severity";
+import { scoreVehicleYear } from "../lib/risk-score";
 import { slugify, parseNhtsaDate } from "../lib/utils";
 
 const IngestionParamsSchema = z
@@ -210,6 +211,13 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                   .run();
                 count++;
               }
+
+              // Update risk score for this vehicle year
+              try {
+                await scoreVehicleYear(this.env.DB, vyRecord.id);
+              } catch (scoreErr) {
+                console.error(`Failed to score vehicle_year ${vyRecord.id}: ${String(scoreErr)}`);
+              }
             } catch (err) {
               const msg = `${row.make_name} ${row.model_name} ${row.year}: ${String(err)}`;
               console.error(msg);
@@ -353,6 +361,13 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                   ),
                 );
                 await this.env.DB.batch(recallStmts);
+
+                // Update risk score for this vehicle year
+                try {
+                  await scoreVehicleYear(this.env.DB, vy.id);
+                } catch (scoreErr) {
+                  console.error(`Failed to score vehicle_year ${vy.id}: ${String(scoreErr)}`);
+                }
               }
 
               return { count: recalls.length, errors: [] };

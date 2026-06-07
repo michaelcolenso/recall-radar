@@ -83,12 +83,14 @@ seoRoutes.get("/robots.txt", (c) => {
 seoRoutes.get("/sitemap.xml", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
-  const [makeCount, modelCount, yearCount, componentCount, campaignCount] = await Promise.all([
+  const [makeCount, modelCount, yearCount, componentCount, campaignCount, statsCount, makeComponentCount] = await Promise.all([
     c.env.DB.prepare("SELECT COUNT(*) as count FROM makes").first<CountRow>(),
     getModelUrlCount(c.env.DB),
     getYearUrlCount(c.env.DB),
     getComponentUrlCount(c.env.DB),
     getCampaignUrlCount(c.env.DB),
+    getStatsUrlCount(c.env.DB),
+    getMakeComponentUrlCount(c.env.DB),
   ]);
 
   const totalUrls =
@@ -97,7 +99,9 @@ seoRoutes.get("/sitemap.xml", async (c) => {
     (modelCount?.count ?? 0) +
     (yearCount?.count ?? 0) +
     (componentCount?.count ?? 0) +
-    (campaignCount?.count ?? 0);
+    (campaignCount?.count ?? 0) +
+    (statsCount?.count ?? 0) +
+    (makeComponentCount?.count ?? 0);
 
   if (totalUrls > MAX_URLS_PER_SITEMAP) {
     const { value: indexXml, hit: indexHit } = await getCachedOrRender(
@@ -126,6 +130,14 @@ seoRoutes.get("/sitemap.xml", async (c) => {
           parts.push(sitemapIndexUrl(`${siteUrl}/sitemap-campaigns-${i}.xml`, now));
         }
 
+        if ((statsCount?.count ?? 0) > 0) {
+          parts.push(sitemapIndexUrl(`${siteUrl}/sitemap-stats.xml`, now));
+        }
+
+        if ((makeComponentCount?.count ?? 0) > 0) {
+          parts.push(sitemapIndexUrl(`${siteUrl}/sitemap-make-components.xml`, now));
+        }
+
         return wrapSitemapIndex(parts);
       },
     );
@@ -141,12 +153,14 @@ seoRoutes.get("/sitemap.xml", async (c) => {
     withSeoCacheVersion("sitemap:xml"),
     86400,
     async () => {
-      const [makesResult, modelsResult, yearsResult, componentRows, campaignRows] = await Promise.all([
+      const [makesResult, modelsResult, yearsResult, componentRows, campaignRows, statsRows, makeComponentRows] = await Promise.all([
         getMakeRows(c.env.DB),
         getModelRows(c.env.DB),
         getYearRows(c.env.DB),
         getComponentRows(c.env.DB),
         getCampaignRows(c.env.DB),
+        getStatsRows(c.env.DB),
+        getMakeComponentRows(c.env.DB),
       ]);
 
       const now = new Date().toISOString().split("T")[0];
@@ -179,6 +193,21 @@ seoRoutes.get("/sitemap.xml", async (c) => {
 
       for (const campaign of campaignRows.results) {
         urls.push(sitemapUrl(`${siteUrl}/recall/${campaign.campaign_number}`, campaign.lastmod, "0.5", "monthly"));
+      }
+
+      for (const stat of statsRows.results) {
+        urls.push(sitemapUrl(`${siteUrl}/stats/${stat.make_slug}/${stat.model_slug}`, stat.lastmod, "0.6", "weekly"));
+      }
+
+      for (const mc of makeComponentRows.results) {
+        urls.push(
+          sitemapUrl(
+            `${siteUrl}/${mc.make_slug}/${slugify(mc.component_name)}-recalls`,
+            mc.lastmod,
+            "0.6",
+            "monthly",
+          ),
+        );
       }
 
       return wrapSitemapUrls(urls);
@@ -292,6 +321,42 @@ seoRoutes.get("/sitemap-campaigns-:page{.+\\.xml}", async (c) => {
         sitemapUrl(`${siteUrl}/recall/${campaign.campaign_number}`, campaign.lastmod, "0.5", "monthly"),
       );
 
+      return wrapSitemapUrls(urls);
+    },
+  );
+
+  return c.body(xml, 200, { "content-type": "application/xml; charset=utf-8", "X-Cache": hit ? "HIT" : "MISS" });
+});
+
+seoRoutes.get("/sitemap-stats.xml", async (c) => {
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
+  const { value: xml, hit } = await getCachedOrRender(
+    c.env.PAGE_CACHE,
+    withSeoCacheVersion("sitemap:stats"),
+    86400,
+    async () => {
+      const statsResult = await getStatsRows(c.env.DB);
+      const urls = statsResult.results.map((s) =>
+        sitemapUrl(`${siteUrl}/stats/${s.make_slug}/${s.model_slug}`, s.lastmod, "0.6", "weekly"),
+      );
+      return wrapSitemapUrls(urls);
+    },
+  );
+
+  return c.body(xml, 200, { "content-type": "application/xml; charset=utf-8", "X-Cache": hit ? "HIT" : "MISS" });
+});
+
+seoRoutes.get("/sitemap-make-components.xml", async (c) => {
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
+  const { value: xml, hit } = await getCachedOrRender(
+    c.env.PAGE_CACHE,
+    withSeoCacheVersion("sitemap:make-components"),
+    86400,
+    async () => {
+      const mcResult = await getMakeComponentRows(c.env.DB);
+      const urls = mcResult.results.map((mc) =>
+        sitemapUrl(`${siteUrl}/${mc.make_slug}/${slugify(mc.component_name)}-recalls`, mc.lastmod, "0.6", "monthly"),
+      );
       return wrapSitemapUrls(urls);
     },
   );
@@ -456,4 +521,74 @@ function getCampaignRows(db: D1Database, limit?: number, offset?: number): Promi
 
 function getCampaignUrlCount(db: D1Database): Promise<CountRow | null> {
   return db.prepare("SELECT COUNT(*) as count FROM recalls").first<CountRow>();
+}
+
+interface StatsSitemapRow {
+  make_slug: string;
+  model_slug: string;
+  lastmod: string;
+}
+
+function getStatsRows(db: D1Database, limit?: number, offset?: number): Promise<D1Result<StatsSitemapRow>> {
+  const query = db.prepare(
+    `SELECT mk.slug as make_slug, m.slug as model_slug,
+            COALESCE(date(MAX(vy.last_ingested_at)), date(MAX(vy.updated_at))) as lastmod
+     FROM models m
+     JOIN makes mk ON mk.id = m.make_id
+     JOIN vehicle_years vy ON vy.model_id = m.id
+     JOIN recalls r ON r.vehicle_year_id = vy.id
+     GROUP BY m.id, mk.slug, m.slug
+     ORDER BY mk.slug, m.slug
+     ${typeof limit === "number" ? "LIMIT ? OFFSET ?" : ""}`,
+  );
+  return typeof limit === "number"
+    ? query.bind(limit, offset ?? 0).all<StatsSitemapRow>()
+    : query.all<StatsSitemapRow>();
+}
+
+function getStatsUrlCount(db: D1Database): Promise<CountRow | null> {
+  return db.prepare(
+    `SELECT COUNT(DISTINCT m.id) as count
+     FROM models m
+     JOIN vehicle_years vy ON vy.model_id = m.id
+     JOIN recalls r ON r.vehicle_year_id = vy.id`
+  ).first<CountRow>();
+}
+
+interface MakeComponentSitemapRow {
+  make_slug: string;
+  component_name: string;
+  lastmod: string;
+}
+
+function getMakeComponentRows(db: D1Database, limit?: number, offset?: number): Promise<D1Result<MakeComponentSitemapRow>> {
+  const query = db.prepare(
+    `SELECT mk.slug as make_slug,
+            TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as component_name,
+            COALESCE(date(MAX(vy.last_ingested_at)), date(MAX(vy.updated_at))) as lastmod
+     FROM recalls r
+     JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+     JOIN models m ON m.id = vy.model_id
+     JOIN makes mk ON mk.id = m.make_id
+     GROUP BY mk.slug, component_name
+     ORDER BY mk.slug, component_name
+     ${typeof limit === "number" ? "LIMIT ? OFFSET ?" : ""}`,
+  );
+  return typeof limit === "number"
+    ? query.bind(limit, offset ?? 0).all<MakeComponentSitemapRow>()
+    : query.all<MakeComponentSitemapRow>();
+}
+
+function getMakeComponentUrlCount(db: D1Database): Promise<CountRow | null> {
+  return db.prepare(
+    `SELECT COUNT(*) as count FROM (
+       SELECT mk.slug,
+              TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as component_name
+       FROM recalls r
+       JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+       JOIN models m ON m.id = vy.model_id
+       JOIN makes mk ON mk.id = m.make_id
+       GROUP BY mk.slug, component_name
+     )`
+  ).first<CountRow>();
 }

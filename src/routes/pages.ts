@@ -19,11 +19,17 @@ import {
   itemListJsonLd,
   articleJsonLd,
   howToJsonLd,
+  aggregateRatingJsonLd,
 } from "../templates/components/json-ld";
 import { campaignPageTemplate } from "../templates/campaign-page";
 import type { SeverityLevel } from "../db/schema";
 import { aboutTemplate } from "../templates/about";
 import { componentPageTemplate } from "../templates/component-page";
+import { makeComponentPageTemplate } from "../templates/make-component-page";
+import { modelStatsPageTemplate } from "../templates/model-stats-page";
+import { vinLookupPageTemplate } from "../templates/vin-lookup-page";
+import { relatedLinks } from "../templates/components/related-links";
+import { gradeToStarRating, gradeDescription } from "../lib/risk-score";
 import { POPULAR_MAKES } from "../lib/constants";
 import { acceptsMarkdown, htmlToMarkdown } from "../lib/utils";
 
@@ -245,6 +251,364 @@ pageRoutes.get("/about", async (c) => {
   return maybeMarkdown(c, html);
 });
 
+// GET /vin-lookup — VIN Lookup landing page
+pageRoutes.get("/vin-lookup", async (c) => {
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
+  const { value: html, hit } = await getCachedOrRender(
+    c.env.PAGE_CACHE,
+    withPageCacheVersion("page:vin-lookup"),
+    86400,
+    async () => {
+      return layout({
+        googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+        analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+        title: "Free VIN Recall Check | Recalled Rides",
+        description:
+          "Enter your Vehicle Identification Number (VIN) to check for open safety recalls. Free, instant lookup sourced directly from NHTSA.",
+        canonical: `${siteUrl}/vin-lookup`,
+        ogType: "website",
+        ogImage: "/og-image-home.svg",
+        body: vinLookupPageTemplate(siteUrl),
+        jsonLd:
+          breadcrumbListJsonLd(siteUrl, [
+            { name: "Home", item: siteUrl },
+            { name: "VIN Lookup", item: `${siteUrl}/vin-lookup` },
+          ]) +
+          organizationJsonLd({ name: "Recalled Rides", url: siteUrl }),
+      });
+    },
+  );
+  c.header("Cache-Control", CACHE_CONTROL);
+  c.header("X-Cache", hit ? "HIT" : "MISS");
+  Object.entries(linkHeaders(siteUrl)).forEach(([k, v]) => c.header(k, v));
+  return maybeMarkdown(c, html);
+});
+
+// GET /stats/:makeSlug/:modelSlug — Model reliability scorecard
+pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
+  const { makeSlug, modelSlug } = c.req.param();
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
+
+  const { value, hit } = await getCachedOrRender<CachedPageResponse>(
+    c.env.PAGE_CACHE,
+    withPageCacheVersion(`page:stats:${makeSlug}:${modelSlug}`),
+    86400,
+    async () => {
+      const make = await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
+        .bind(makeSlug)
+        .first<{ id: number; name: string }>();
+      if (!make) {
+        return {
+          html: layout({
+            googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+            analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+            title: "Not Found",
+            description: "This vehicle page could not be found. Browse all makes on Recalled Rides.",
+            noIndex: true,
+            body: notFoundBody("Vehicle make not found.", siteUrl),
+          }),
+          status: 404,
+        };
+      }
+
+      const model = await c.env.DB.prepare("SELECT id, name, slug FROM models WHERE make_id = ? AND slug = ?")
+        .bind(make.id, modelSlug)
+        .first<{ id: number; name: string; slug: string }>();
+      if (!model) {
+        return {
+          html: layout({
+            googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+            analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+            title: "Not Found",
+            description: "This vehicle page could not be found. Browse all makes on Recalled Rides.",
+            noIndex: true,
+            body: notFoundBody("Vehicle model not found.", siteUrl),
+          }),
+          status: 404,
+        };
+      }
+
+      const yearStatsResult = await c.env.DB.prepare(
+        `SELECT vy.year,
+              COUNT(r.id) as recall_count,
+              vy.risk_grade,
+              COUNT(CASE WHEN r.severity_level = 'CRITICAL' THEN 1 END) as critical_count,
+              COUNT(CASE WHEN r.severity_level = 'HIGH' THEN 1 END) as high_count
+       FROM vehicle_years vy
+       LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
+       WHERE vy.model_id = ?
+       GROUP BY vy.year, vy.risk_grade
+       ORDER BY vy.year DESC`
+      )
+        .bind(model.id)
+        .all<{ year: number; recall_count: number; risk_grade: string | null; critical_count: number; high_count: number }>();
+
+      const yearStats = yearStatsResult.results;
+
+      const componentStatsResult = await c.env.DB.prepare(
+        `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
+              COUNT(*) as count
+       FROM recalls r
+       JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+       WHERE vy.model_id = ?
+       GROUP BY name
+       ORDER BY count DESC
+       LIMIT 10`
+      )
+        .bind(model.id)
+        .all<{ name: string; count: number }>();
+
+      const mostSevereResult = await c.env.DB.prepare(
+        `SELECT vy.year, r.nhtsa_campaign_number, r.component, r.severity_level,
+              COALESCE(r.summary_enriched, r.summary_raw) as summary
+       FROM recalls r
+       JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+       WHERE vy.model_id = ? AND r.severity_level IN ('CRITICAL', 'HIGH')
+       ORDER BY vy.year DESC
+       LIMIT 5`
+      )
+        .bind(model.id)
+        .all<{ year: number; nhtsa_campaign_number: string; component: string; severity_level: SeverityLevel; summary: string }>();
+
+      const brandAvgResult = await c.env.DB.prepare(
+        `SELECT AVG(recall_count) as avg FROM (
+          SELECT COUNT(r.id) as recall_count
+          FROM vehicle_years vy
+          LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
+          JOIN models m ON m.id = vy.model_id
+          WHERE m.make_id = ?
+          GROUP BY vy.id
+        )`
+      )
+        .bind(make.id)
+        .first<{ avg: number | null }>();
+
+      const totalRecalls = yearStats.reduce((sum, y) => sum + y.recall_count, 0);
+      const brandAvgRecalls = brandAvgResult?.avg ?? 0;
+
+      const sortedByRecalls = [...yearStats].sort((a, b) => a.recall_count - b.recall_count);
+      const bestYears = sortedByRecalls.slice(0, 3).filter((y) => y.recall_count > 0);
+      const worstYears = [...sortedByRecalls].reverse().slice(0, 3);
+
+      const crumbs = breadcrumbs([
+        { href: "/", label: "Home" },
+        { href: `/${makeSlug}`, label: make.name },
+        { href: `/${makeSlug}/${modelSlug}`, label: model.name },
+        { href: `/stats/${makeSlug}/${modelSlug}`, label: "Statistics" },
+      ]);
+
+      const body =
+        crumbs +
+        modelStatsPageTemplate({
+          make: make.name,
+          makeSlug,
+          model: model.name,
+          modelSlug,
+          yearStats,
+          componentStats: componentStatsResult.results,
+          mostSevereRecalls: mostSevereResult.results,
+          bestYears,
+          worstYears,
+          brandAvgRecalls,
+          totalRecalls,
+        });
+
+      const statsUrl = `${siteUrl}/stats/${makeSlug}/${modelSlug}`;
+
+      return {
+        html: layout({
+          googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+          analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+          title: `${make.name} ${model.name} Recall Statistics & Reliability Scorecard | Recalled Rides`,
+          description: `Original analysis: ${totalRecalls} total recalls across ${yearStats.length} years. Best and worst years, common components, and risk grades for the ${make.name} ${model.name}.`,
+          canonical: statsUrl,
+          ogType: "website",
+          ogImage: "/og-image-home.svg",
+          body,
+          jsonLd:
+            breadcrumbListJsonLd(siteUrl, [
+              { name: "Home", item: siteUrl },
+              { name: make.name, item: `${siteUrl}/${makeSlug}` },
+              { name: model.name, item: `${siteUrl}/${makeSlug}/${modelSlug}` },
+              { name: "Statistics", item: statsUrl },
+            ]) +
+            organizationJsonLd({ name: "Recalled Rides", url: siteUrl }),
+        }),
+        status: 200,
+      };
+    },
+  );
+  c.header("Cache-Control", CACHE_CONTROL);
+  c.header("X-Cache", hit ? "HIT" : "MISS");
+  if (value.status === 404) c.header("X-Robots-Tag", "noindex, nofollow");
+  Object.entries(linkHeaders(siteUrl)).forEach(([k, v]) => c.header(k, v));
+  return maybeMarkdown(c, value.html, value.status);
+});
+
+// GET /:makeSlug/:componentSlug-recalls — Make-level component aggregation
+pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentSlug{[a-z0-9-]+}-recalls", async (c) => {
+  const { makeSlug, componentSlug } = c.req.param();
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
+
+  const { value, hit } = await getCachedOrRender<CachedPageResponse>(
+    c.env.PAGE_CACHE,
+    withPageCacheVersion(`page:make-component:${makeSlug}:${componentSlug}`),
+    86400,
+    async () => {
+      const make = await c.env.DB.prepare("SELECT id, name, slug FROM makes WHERE slug = ?")
+        .bind(makeSlug)
+        .first<{ id: number; name: string; slug: string }>();
+      if (!make) {
+        return {
+          html: layout({
+            googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+            analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+            title: "Not Found",
+            description: "This vehicle page could not be found. Browse all makes on Recalled Rides.",
+            noIndex: true,
+            body: notFoundBody("Vehicle make not found.", siteUrl),
+          }),
+          status: 404,
+        };
+      }
+
+      const recallsResult = await c.env.DB.prepare(
+        `SELECT m.name as model_name, m.slug as model_slug, vy.year,
+              r.nhtsa_campaign_number, r.component, r.severity_level,
+              COALESCE(r.summary_enriched, r.summary_raw) as summary,
+              r.report_received_date
+       FROM recalls r
+       JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+       JOIN models m ON m.id = vy.model_id
+       WHERE m.make_id = ?
+       ORDER BY r.report_received_date DESC`
+      )
+        .bind(make.id)
+        .all<{
+          model_name: string;
+          model_slug: string;
+          year: number;
+          nhtsa_campaign_number: string;
+          component: string;
+          severity_level: SeverityLevel;
+          summary: string;
+          report_received_date: string | null;
+        }>();
+
+      // Filter by component slug
+      const filteredRecalls = recallsResult.results.filter((r) => {
+        const primary = r.component.split(":")[0].trim();
+        return slugify(primary) === componentSlug;
+      });
+
+      if (filteredRecalls.length === 0) {
+        return {
+          html: layout({
+            googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+            analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+            title: "Not Found",
+            description: "No recalls found for this component. Browse all makes on Recalled Rides.",
+            noIndex: true,
+            body: notFoundBody("No recalls found for this component.", siteUrl),
+          }),
+          status: 404,
+        };
+      }
+
+      const componentName = filteredRecalls[0].component.split(":")[0].trim();
+
+      const severityBreakdown: Record<SeverityLevel, number> = {
+        CRITICAL: 0,
+        HIGH: 0,
+        MEDIUM: 0,
+        LOW: 0,
+        UNKNOWN: 0,
+      };
+      for (const r of filteredRecalls) {
+        severityBreakdown[r.severity_level]++;
+      }
+
+      const modelYearSet = new Set<string>();
+      const years: number[] = [];
+      for (const r of filteredRecalls) {
+        const key = `${r.model_slug}-${r.year}`;
+        if (!modelYearSet.has(key)) {
+          modelYearSet.add(key);
+          years.push(r.year);
+        }
+      }
+      const totalModelYears = modelYearSet.size;
+      const yearRange = years.length > 0 ? `${Math.min(...years)}–${Math.max(...years)}` : "—";
+
+      // Other components for this make
+      const otherComponentsResult = await c.env.DB.prepare(
+        `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
+              COUNT(*) as count
+       FROM recalls r
+       JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+       JOIN models m ON m.id = vy.model_id
+       WHERE m.make_id = ?
+       GROUP BY name
+       ORDER BY count DESC`
+      )
+        .bind(make.id)
+        .all<{ name: string; count: number }>();
+
+      const otherComponents = otherComponentsResult.results
+        .filter((c) => slugify(c.name) !== componentSlug)
+        .map((c) => ({ name: c.name, slug: slugify(c.name), count: c.count }));
+
+      const crumbs = breadcrumbs([
+        { href: "/", label: "Home" },
+        { href: `/${makeSlug}`, label: make.name },
+        { href: `/${makeSlug}/${componentSlug}-recalls`, label: `${componentName} Recalls` },
+      ]);
+
+      const body =
+        crumbs +
+        makeComponentPageTemplate({
+          make: make.name,
+          makeSlug,
+          component: componentName,
+          componentSlug,
+          recalls: filteredRecalls,
+          totalModelYears,
+          yearRange,
+          severityBreakdown,
+          otherComponents,
+        });
+
+      const pageUrl = `${siteUrl}/${makeSlug}/${componentSlug}-recalls`;
+
+      return {
+        html: layout({
+          googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+          analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+          title: `${make.name} ${titleCase(componentName)} Recalls — Complete List by Model & Year | Recalled Rides`,
+          description: `Complete list of ${filteredRecalls.length} ${componentName} recalls for ${make.name} vehicles. Covers ${totalModelYears} model-years from ${yearRange}.`,
+          canonical: pageUrl,
+          ogType: "website",
+          ogImage: "/og-image-home.svg",
+          body,
+          jsonLd:
+            breadcrumbListJsonLd(siteUrl, [
+              { name: "Home", item: siteUrl },
+              { name: make.name, item: `${siteUrl}/${makeSlug}` },
+              { name: `${componentName} Recalls`, item: pageUrl },
+            ]) +
+            organizationJsonLd({ name: "Recalled Rides", url: siteUrl }),
+        }),
+        status: 200,
+      };
+    },
+  );
+  c.header("Cache-Control", CACHE_CONTROL);
+  c.header("X-Cache", hit ? "HIT" : "MISS");
+  if (value.status === 404) c.header("X-Robots-Tag", "noindex, nofollow");
+  Object.entries(linkHeaders(siteUrl)).forEach(([k, v]) => c.header(k, v));
+  return maybeMarkdown(c, value.html, value.status);
+});
+
 // GET /:makeSlug — Make landing page
 pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
   const { makeSlug } = c.req.param();
@@ -376,6 +740,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
       const years = await c.env.DB.prepare(
         `SELECT vy.year,
               COUNT(r.id) as recall_count,
+              vy.risk_grade,
+              vy.risk_score,
               CASE MIN(CASE r.severity_level
                 WHEN 'CRITICAL' THEN 1
                 WHEN 'HIGH' THEN 2
@@ -390,12 +756,13 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
                 ELSE NULL
               END as highest_severity
        FROM vehicle_years vy
-       JOIN recalls r ON r.vehicle_year_id = vy.id
+       LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
        WHERE vy.model_id = ?
-       GROUP BY vy.year ORDER BY vy.year DESC`,
+       GROUP BY vy.year, vy.risk_grade, vy.risk_score
+       ORDER BY vy.year DESC`,
       )
         .bind(model.id)
-        .all<{ year: number; recall_count: number; highest_severity: SeverityLevel | null }>();
+        .all<{ year: number; recall_count: number; risk_grade: string | null; risk_score: number | null; highest_severity: SeverityLevel | null }>();
 
       const crumbs = breadcrumbs([
         { href: "/", label: "Home" },
@@ -779,6 +1146,16 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
         };
       }
 
+      // Fetch vehicle_year record including risk score
+      const vehicleYear = await c.env.DB.prepare(
+        `SELECT vy.id, vy.risk_score, vy.risk_grade, vy.recall_count
+         FROM vehicle_years vy
+         JOIN models m ON m.id = vy.model_id
+         WHERE m.make_id = ? AND m.slug = ? AND vy.year = ?`
+      )
+        .bind(make.id, modelSlug, yearNum)
+        .first<{ id: number; risk_score: number | null; risk_grade: string | null; recall_count: number | null }>();
+
       const recallsResult = await c.env.DB.prepare(
         `SELECT r.id, r.nhtsa_campaign_number, r.component, r.manufacturer,
               r.summary_raw, r.consequence_raw, r.remedy_raw,
@@ -813,6 +1190,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
 
       const recalls = recallsResult.results;
       const topSeverity = recalls[0]?.severity_level ?? "UNKNOWN";
+      const riskGrade = vehicleYear?.risk_grade ?? null;
+      const riskScore = vehicleYear?.risk_score ?? null;
 
       // Extract top component from most severe recall (first segment before colon)
       const topComponent = recalls.length > 0 ? recalls[0].component.split(":")[0].trim() : null;
@@ -830,14 +1209,18 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
       const components = Array.from(componentMap.values()).sort((a, b) => b.count - a.count);
 
       const title =
-        recalls.length > 0 && topComponent
-          ? `${year} ${make.name} ${model.name} Recalls: ${topComponent} Issues Explained | Recalled Rides`
-          : `${year} ${make.name} ${model.name} Recall & Safety Information | Recalled Rides`;
+        recalls.length > 0 && topComponent && riskGrade
+          ? `${year} ${make.name} ${model.name} Recalls: ${recalls.length} Safety Issues, Risk Grade ${riskGrade} | Recalled Rides`
+          : recalls.length > 0 && topComponent
+            ? `${year} ${make.name} ${model.name} Recalls: ${topComponent} Issues Explained | Recalled Rides`
+            : `${year} ${make.name} ${model.name} Recall & Safety Information | Recalled Rides`;
 
       const description =
-        recalls.length > 0 && topComponent
-          ? `Check ${recalls.length} known recalls for the ${year} ${make.name} ${model.name}. Get plain-English explanations of ${topComponent.toLowerCase()} issues and find out how to get free repairs at your local dealer.`
-          : `Good news: the ${year} ${make.name} ${model.name} has no open safety recalls. Check back anytime — we update weekly from NHTSA data.`;
+        recalls.length > 0 && riskGrade
+          ? `Check ${recalls.length} open recalls, NHTSA investigations, and owner complaints for the ${year} ${make.name} ${model.name}. Risk Grade: ${riskGrade}. ${topComponent ?? "Safety"} issues explained in plain English.`
+          : recalls.length > 0 && topComponent
+            ? `Check ${recalls.length} known recalls for the ${year} ${make.name} ${model.name}. Get plain-English explanations of ${topComponent.toLowerCase()} issues and find out how to get free repairs at your local dealer.`
+            : `Good news: the ${year} ${make.name} ${model.name} has no open safety recalls. Check back anytime — we update weekly from NHTSA data.`;
 
       const cards =
         recalls.length > 0
@@ -878,11 +1261,14 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           year,
           recallCount: recalls.length,
           topSeverity,
+          riskGrade,
+          riskScore,
           cards,
           leadGen: dealerLeadGen(),
           relatedYears,
           components,
-        });
+        }) +
+        relatedLinks({ make: make.name, makeSlug, model: model.name, modelSlug, year });
 
       const yearPageUrl = `${siteUrl}/${makeSlug}/${modelSlug}/${year}`;
       const mostRecentDate = recalls[0]?.report_received_date ?? undefined;
@@ -911,6 +1297,9 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           })),
           yearPageUrl,
           mostRecentDate,
+          riskGrade,
+          recalls.length,
+          topSeverity,
         ) +
         breadcrumbListJsonLd(siteUrl, [
           { name: "Home", item: siteUrl },
@@ -919,6 +1308,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           { name: year, item: yearPageUrl },
         ]) +
         vehicleJsonLd(make.name, model.name, yearNum, yearPageUrl, recalls.length) +
+        aggregateRatingJsonLd(yearPageUrl, gradeToStarRating(riskGrade), recalls.length) +
         (yearRemedySteps.length > 0
           ? howToJsonLd(
               `How to get recalls fixed for your ${year} ${make.name} ${model.name}`,

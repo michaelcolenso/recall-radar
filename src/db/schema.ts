@@ -34,11 +34,24 @@ export const vehicleYears = sqliteTable("vehicle_years", {
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
   lastIngestedAt: text("last_ingested_at"),
+
+  // Risk scoring fields (denormalized from recalls for fast reads)
+  recallCount: integer("recall_count").default(0),
+  criticalRecallCount: integer("critical_recall_count").default(0),
+  highRecallCount: integer("high_recall_count").default(0),
+  mediumRecallCount: integer("medium_recall_count").default(0),
+  lowRecallCount: integer("low_recall_count").default(0),
+  riskScore: integer("risk_score"),
+  riskGrade: text("risk_grade"),
+  lastScoredAt: text("last_scored_at"),
 }, (table) => [
   uniqueIndex("idx_vy_model_year").on(table.modelId, table.year),
   index("idx_vy_model_id").on(table.modelId),
   index("idx_vy_year").on(table.year),
   index("idx_vy_last_ingested").on(table.lastIngestedAt),
+  index("idx_vy_risk_score").on(table.riskScore),
+  index("idx_vy_risk_grade").on(table.riskGrade),
+  index("idx_vy_recall_count").on(table.recallCount),
 ]);
 
 // ─── RECALLS ────────────────────────────────────────────────────

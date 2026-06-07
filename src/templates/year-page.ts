@@ -22,13 +22,15 @@ interface YearPageOptions {
   year: string;
   recallCount: number;
   topSeverity: SeverityLevel;
+  riskGrade: string | null;
+  riskScore: number | null;
   cards: string;
   leadGen: string;
   relatedYears?: RelatedYear[];
   components?: ComponentLink[];
 }
 
-export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recallCount, topSeverity, cards, leadGen, relatedYears, components }: YearPageOptions): string {
+export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recallCount, topSeverity, riskGrade, riskScore, cards, leadGen, relatedYears, components }: YearPageOptions): string {
   const componentHtml = components && components.length > 0
     ? `
       <section style="margin-top: var(--space-20);">
@@ -61,12 +63,17 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
     `
     : "";
 
+  const riskBadgeHtml = riskGrade
+    ? `<span class="rr-risk-badge rr-risk-badge--${riskGrade.charAt(0).toLowerCase()}" title="Risk Score: ${riskScore ?? '—'}/100">Risk Grade: ${escapeHtml(riskGrade)}</span>`
+    : "";
+
   return `
     <section class="rr-section-header">
       ${makeLogoImg(makeSlug, make, "rr-make-logo rr-make-logo--hero")}
       <h1 class="rr-section-header__title">${escapeHtml(year)} ${escapeHtml(make)} ${escapeHtml(model)}</h1>
       <div class="rr-meta-bar">
         <span class="rr-meta-bar__count">${recallCount} recall${recallCount !== 1 ? "s" : ""}</span>
+        ${riskBadgeHtml}
         ${recallCount > 0 ? `
           <span class="rr-meta-bar__notice">
             <span>Highest severity:</span>
