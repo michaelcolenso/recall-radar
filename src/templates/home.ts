@@ -67,7 +67,7 @@ export function homeTemplate(
     ? `
     <section style="margin-bottom: var(--space-24);">
       <div class="rr-section-header">
-        <h2 class="rr-section-header__title">Popular Recall Pages</h2>
+        <h2 class="rr-section-header__title">Most Checked Vehicles</h2>
       </div>
       <div class="rr-grid rr-grid--models">
         ${popularModels.map((m) => `
@@ -99,7 +99,7 @@ export function homeTemplate(
 
   return `
     <section class="rr-hero">
-      <span class="rr-hero__marker" aria-hidden="true">SYSTEM:RECALL_DATABASE_V1.0</span>
+      <span class="rr-hero__marker" aria-hidden="true">SAFETY RECALL DATABASE</span>
       <h1 class="rr-hero__title">Is your car under a safety recall?</h1>
       <p class="rr-hero__subtitle">Check instantly — enter a make, model, or year. All data sourced from NHTSA. Repairs are always free.</p>
       <div class="rr-hero__actions">

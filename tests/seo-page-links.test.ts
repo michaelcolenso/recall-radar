@@ -65,3 +65,85 @@ test("recall cards expose campaign detail pages as crawlable links", () => {
   assert.match(html, /href="\/recall\/17V541000"/);
   assert.match(html, /data-share-url="\/recall\/17V541000"/);
 });
+
+import { makeComponentPageTemplate } from "../src/templates/make-component-page.ts";
+import { modelStatsPageTemplate } from "../src/templates/model-stats-page.ts";
+import { vinLookupPageTemplate } from "../src/templates/vin-lookup-page.ts";
+
+test("make component page links to model year pages and campaign pages", () => {
+  const html = makeComponentPageTemplate({
+    make: "Toyota",
+    makeSlug: "toyota",
+    component: "AIR BAG",
+    componentSlug: "air-bag",
+    recalls: [
+      {
+        model_name: "Camry",
+        model_slug: "camry",
+        year: 2020,
+        nhtsa_campaign_number: "20V682000",
+        component: "AIR BAGS",
+        severity_level: "HIGH",
+        summary: "The air bag may not deploy properly.",
+        report_received_date: "2020-10-01",
+      },
+    ],
+    totalModelYears: 5,
+    yearRange: "2018–2022",
+    severityBreakdown: { CRITICAL: 0, HIGH: 1, MEDIUM: 0, LOW: 0, UNKNOWN: 0 },
+    otherComponents: [
+      { name: "BRAKE", slug: "brake", count: 3 },
+    ],
+  });
+
+  assert.match(html, /href="\/toyota\/camry\/2020"/);
+  assert.match(html, /href="\/recall\/20V682000"/);
+  assert.match(html, /href="\/toyota\/brake-recalls"/);
+  assert.match(html, /Model-Years Affected/);
+});
+
+test("model stats page links to year pages and shows analysis", () => {
+  const html = modelStatsPageTemplate({
+    make: "Honda",
+    makeSlug: "honda",
+    model: "Civic",
+    modelSlug: "civic",
+    yearStats: [
+      { year: 2022, recall_count: 1, risk_grade: "A", critical_count: 0, high_count: 0 },
+      { year: 2020, recall_count: 3, risk_grade: "C", critical_count: 1, high_count: 1 },
+    ],
+    componentStats: [
+      { name: "AIR BAG", count: 2 },
+      { name: "FUEL SYSTEM", count: 1 },
+    ],
+    mostSevereRecalls: [
+      {
+        year: 2020,
+        nhtsa_campaign_number: "20V001000",
+        component: "AIR BAGS",
+        severity_level: "HIGH",
+        summary: "Air bag may fail to deploy.",
+      },
+    ],
+    bestYears: [{ year: 2022, recall_count: 1, risk_grade: "A", critical_count: 0, high_count: 0 }],
+    worstYears: [{ year: 2020, recall_count: 3, risk_grade: "C", critical_count: 1, high_count: 1 }],
+    brandAvgRecalls: 2.5,
+    totalRecalls: 4,
+  });
+
+  assert.match(html, /href="\/honda\/civic\/2022"/);
+  assert.match(html, /href="\/honda\/civic\/2020"/);
+  assert.match(html, /Total Recalls/);
+  assert.match(html, /Best Years/);
+  assert.match(html, /Worst Years/);
+});
+
+test("VIN lookup page includes form and sample VINs", () => {
+  const html = vinLookupPageTemplate("https://recalledrides.com");
+
+  assert.match(html, /id="vin-form"/);
+  assert.match(html, /id="vin-input"/);
+  assert.match(html, /5TDZK3EH5CS044883/);
+  assert.match(html, /17-character VIN/);
+  assert.match(html, /Privacy Notice/);
+});

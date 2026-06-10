@@ -12,18 +12,75 @@ interface FaqItem {
   reportReceivedDate?: string | null;
 }
 
-export function faqPageJsonLd(recalls: FaqItem[], pageUrl?: string, dateModified?: string): string {
-  if (recalls.length === 0) return "";
+export function faqPageJsonLd(
+  recalls: FaqItem[],
+  pageUrl?: string,
+  dateModified?: string,
+  riskGrade?: string | null,
+  recallCount?: number,
+  topSeverity?: string | null,
+): string {
+  const entities: Array<Record<string, unknown>> = [];
 
-  const entities = recalls.map((r) => ({
-    "@type": "Question",
-    name: `What is the ${r.component} recall for the ${r.year} ${r.make} ${r.model}? (Campaign #${r.campaign})`,
-    acceptedAnswer: {
-      "@type": "Answer",
-      text: `${r.summary} ${r.consequence} ${r.remedy}`,
-      datePublished: r.reportReceivedDate ?? undefined,
-    },
-  }));
+  // Curated overview questions (always included if data available)
+  if (riskGrade) {
+    entities.push({
+      "@type": "Question",
+      name: `What is the overall risk grade for the ${recalls[0]?.year ?? ""} ${recalls[0]?.make ?? ""} ${recalls[0]?.model ?? ""}?`,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: `The ${recalls[0]?.year ?? ""} ${recalls[0]?.make ?? ""} ${recalls[0]?.model ?? ""} has a risk grade of ${riskGrade}. This grade is calculated from ${recallCount ?? recalls.length} NHTSA safety recalls, weighted by severity, recency, and temporal decay. Grades range from A+ (excellent) to F (avoid).`,
+      },
+    });
+  }
+
+  if (recallCount !== undefined && recallCount > 0) {
+    entities.push({
+      "@type": "Question",
+      name: `How many safety recalls does the ${recalls[0]?.year ?? ""} ${recalls[0]?.make ?? ""} ${recalls[0]?.model ?? ""} have?`,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: `The ${recalls[0]?.year ?? ""} ${recalls[0]?.make ?? ""} ${recalls[0]?.model ?? ""} has ${recallCount} known safety recall${recallCount !== 1 ? "s" : ""} on record. All recalls are repaired free of charge at authorized dealerships.`,
+      },
+    });
+  }
+
+  if (topSeverity && topSeverity !== "UNKNOWN") {
+    entities.push({
+      "@type": "Question",
+      name: `What is the most severe recall for the ${recalls[0]?.year ?? ""} ${recalls[0]?.make ?? ""} ${recalls[0]?.model ?? ""}?`,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: `The most severe recall for the ${recalls[0]?.year ?? ""} ${recalls[0]?.make ?? ""} ${recalls[0]?.model ?? ""} is classified as ${topSeverity.toLowerCase()}. This indicates a ${topSeverity === "CRITICAL" ? "life-threatening safety issue" : topSeverity === "HIGH" ? "serious safety concern" : topSeverity === "MEDIUM" ? "moderate safety issue" : "minor safety issue"} that should be addressed promptly.`,
+      },
+    });
+  }
+
+  if (recalls.length > 0) {
+    entities.push({
+      "@type": "Question",
+      name: `Is the ${recalls[0]?.year ?? ""} ${recalls[0]?.make ?? ""} ${recalls[0]?.model ?? ""} safe to drive?`,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: `The ${recalls[0]?.year ?? ""} ${recalls[0]?.make ?? ""} ${recalls[0]?.model ?? ""} ${recalls.length === 0 ? "has no open safety recalls on record." : `has ${recalls.length} open safety recall${recalls.length !== 1 ? "s" : ""}. While the vehicle may still be driven, owners should contact an authorized dealership to schedule free repairs for any outstanding recalls. Some recalls, especially those classified as critical or high severity, may pose significant safety risks.`}`,
+      },
+    });
+  }
+
+  // Per-recall questions — limit to first 5 to avoid schema bloat and improve rich results eligibility
+  for (const r of recalls.slice(0, 5)) {
+    entities.push({
+      "@type": "Question",
+      name: `What is the ${r.component} recall for the ${r.year} ${r.make} ${r.model}? (Campaign #${r.campaign})`,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: `${r.summary} ${r.consequence} ${r.remedy}`,
+        datePublished: r.reportReceivedDate ?? undefined,
+      },
+    });
+  }
+
+  if (entities.length === 0) return "";
 
   const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -123,6 +180,19 @@ export function vehicleJsonLd(make: string, model: string, year: number, pageUrl
           description: `${recallCount} active safety recall${recallCount !== 1 ? "s" : ""} on record for the ${year} ${make} ${model}.`,
         }
       : { description: `No active safety recalls on record for the ${year} ${make} ${model}.` }),
+  };
+  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+}
+
+export function aggregateRatingJsonLd(pageUrl: string, ratingValue: number, reviewCount: number): string {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "AggregateRating",
+    ratingValue,
+    bestRating: 5,
+    worstRating: 1,
+    reviewCount,
+    url: pageUrl,
   };
   return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
 }

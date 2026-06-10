@@ -81,6 +81,7 @@ export function layout({
       </a>
       <div class="rr-nav__links">
         <a href="/#makes">Browse</a>
+        <a href="/vin-lookup">VIN Lookup</a>
         <a href="/toyota">Toyota</a>
         <a href="/honda">Honda</a>
         <a href="/ford">Ford</a>
@@ -94,7 +95,7 @@ export function layout({
   <footer class="rr-footer">
     <div class="rr-footer__inner">
       <p>Source: <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration</a>. Updated <span id="rr-footer-date">${escapeHtml(lastUpdated || "recently")}</span>.</p>
-      <p>Independent repository. Not affiliated with NHTSA or manufacturers. &middot; <a href="/about">Learn More</a></p>
+      <p>Independent site. Not affiliated with NHTSA or vehicle manufacturers. &middot; <a href="/about">Learn More</a></p>
     </div>
   </footer>
   ${!lastUpdated ? `<script>document.getElementById("rr-footer-date").textContent=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})</script>` : ""}

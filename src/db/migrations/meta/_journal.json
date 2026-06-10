@@ -33,8 +33,15 @@
     {
       "idx": 4,
       "version": "6",
-      "when": 1749282000000,
-      "tag": "0004_campaign_vehicle_unique",
+      "when": 1780825791820,
+      "tag": "0004_risk_score",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789268971000,
+      "tag": "0005_campaign_vehicle_unique",
       "breakpoints": true
     }
   ]
