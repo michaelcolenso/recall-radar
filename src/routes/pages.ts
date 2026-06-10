@@ -7,6 +7,7 @@ import { homeTemplate } from "../templates/home";
 import { makePageTemplate } from "../templates/make-page";
 import { modelPageTemplate } from "../templates/model-page";
 import { yearPageTemplate } from "../templates/year-page";
+import { vinPageTemplate } from "../templates/vin-page";
 import { recallCard } from "../templates/components/recall-card";
 import { dealerLeadGen } from "../templates/components/dealer-lead-gen";
 import { breadcrumbs } from "../templates/components/breadcrumbs";
@@ -26,6 +27,7 @@ import { aboutTemplate } from "../templates/about";
 import { componentPageTemplate } from "../templates/component-page";
 import { POPULAR_MAKES } from "../lib/constants";
 import { acceptsMarkdown, htmlToMarkdown } from "../lib/utils";
+import { fetchRecallsByVin, validateVin } from "../lib/nhtsa-client";
 
 export const pageRoutes = new Hono<{ Bindings: Env }>();
 
@@ -243,6 +245,144 @@ pageRoutes.get("/about", async (c) => {
   c.header("X-Cache", hit ? "HIT" : "MISS");
   Object.entries(linkHeaders(siteUrl)).forEach(([k, v]) => c.header(k, v));
   return maybeMarkdown(c, html);
+});
+
+// GET /vin/:vin — VIN lookup
+pageRoutes.get("/vin/:vin", async (c) => {
+  const { vin } = c.req.param();
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
+
+  // Validate VIN format
+  const validation = validateVin(vin);
+  if (!validation.valid) {
+    c.header("X-Robots-Tag", "noindex, nofollow");
+    return c.html(
+      layout({
+        googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+        analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+        title: "Invalid VIN — Recalled Rides",
+        description: "Please enter a valid 17-character VIN to look up vehicle recalls.",
+        noIndex: true,
+        body: `
+          <div class="rr-empty">
+            <h1 class="rr-empty__title">Invalid VIN</h1>
+            <p class="rr-empty__text">${escapeHtml(validation.error || "Please enter a valid 17-character VIN.")}</p>
+            <a href="/" class="rr-empty__action">Browse All Makes</a>
+          </div>
+        `,
+      }),
+      400,
+    );
+  }
+
+  const cacheKey = withPageCacheVersion(`page:vin:${vin.toUpperCase()}`);
+  const { value, hit } = await getCachedOrRender<CachedPageResponse>(
+    c.env.PAGE_CACHE,
+    cacheKey,
+    86400,
+    async () => {
+      try {
+        const sessionTs = c.env.NHTSA_VIN_SESSION_TS;
+        const sessionKey = c.env.NHTSA_VIN_SESSION_KEY;
+        const result = await fetchRecallsByVin(vin, sessionTs, sessionKey);
+        const { vehicle, recalls, recallsCount } = result;
+
+        const classifySeverity = (component: string): SeverityLevel => {
+          const c = component.toUpperCase();
+          if (/ENGINE|FUEL SYSTEM|BRAKE|STEERING|POWER TRAIN/.test(c)) return "CRITICAL";
+          if (/AIR BAG|SEAT BELT|SUSPENSION|TIRE|WHEEL/.test(c)) return "HIGH";
+          if (/ELECTRICAL|LIGHTING|VISIBILITY|WINDSHIELD WIPER/.test(c)) return "MEDIUM";
+          if (/LABEL|SEAT|EXTERIOR LIGHTING/.test(c)) return "LOW";
+          return "UNKNOWN";
+        };
+
+        const topSeverity = recalls.length > 0 ? classifySeverity(recalls[0].Component) : null;
+
+        const displayCount = recallsCount > 0 ? recallsCount : recalls.length;
+
+        const title =
+          displayCount > 0
+            ? `${displayCount} Recalls for ${vehicle.year} ${vehicle.make} ${vehicle.model} (VIN: ${vin.toUpperCase()}) | Recalled Rides`
+            : `VIN Lookup — ${vehicle.year} ${vehicle.make} ${vehicle.model} | Recalled Rides`;
+
+        const description =
+          displayCount > 0
+            ? `${displayCount} safety recall${displayCount !== 1 ? "s" : ""} found for ${vehicle.year} ${vehicle.make} ${vehicle.model} (VIN ${vin.toUpperCase()}). Check details and get free repairs.`
+            : `VIN decoded as ${vehicle.year} ${vehicle.make} ${vehicle.model}. No recalls on file from NHTSA, but always confirm with your dealer.`;
+
+        const recallViews = recalls.map((r) => ({
+          id: 0,
+          nhtsa_campaign_number: r.NHTSACampaignNumber,
+          component: r.Component,
+          manufacturer: r.Manufacturer,
+          summary_raw: r.Summary,
+          consequence_raw: r.Consequence,
+          remedy_raw: r.Remedy,
+          summary_enriched: null,
+          consequence_enriched: null,
+          remedy_enriched: null,
+          severity_level: classifySeverity(r.Component),
+          report_received_date: r.ReportReceivedDate || null,
+          enriched_at: null,
+        }));
+
+        const cards = recallViews.map(recallCard).join("");
+
+        const body = vinPageTemplate({
+          vin: vin.toUpperCase(),
+          make: vehicle.make,
+          model: vehicle.model,
+          year: vehicle.year,
+          bodyClass: vehicle.bodyClass,
+          vehicleType: vehicle.vehicleType,
+          recallCount: recalls.length,
+          topSeverity,
+          cards,
+        });
+
+        return {
+          html: layout({
+            googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+            analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+            title,
+            description,
+            noIndex: recalls.length === 0,
+            canonical: `${siteUrl}/vin/${vin.toUpperCase()}`,
+            ogType: "website",
+            ogImage: "/og-image-home.svg",
+            body,
+          }),
+          status: 200,
+        };
+      } catch (err) {
+        return {
+          html: layout({
+            googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+            analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+            title: "VIN Not Found — Recalled Rides",
+            description: "We couldn't decode this VIN. Please check the number and try again.",
+            noIndex: true,
+            body: `
+              <div class="rr-empty">
+                <h1 class="rr-empty__title">VIN Not Found</h1>
+                <p class="rr-empty__text">${escapeHtml(err instanceof Error ? err.message : "We couldn't decode this VIN.")}</p>
+                <a href="/" class="rr-empty__action">Browse All Makes</a>
+              </div>
+            `,
+          }),
+          status: 404,
+        };
+      }
+    },
+  );
+
+  c.header("Cache-Control", CACHE_CONTROL);
+  c.header("X-Cache", hit ? "HIT" : "MISS");
+  if (value.status === 404) {
+    c.header("X-Robots-Tag", "noindex, nofollow");
+  }
+  Object.entries(linkHeaders(siteUrl)).forEach(([k, v]) => c.header(k, v));
+  return maybeMarkdown(c, value.html, value.status as 200 | 404);
 });
 
 // GET /:makeSlug — Make landing page

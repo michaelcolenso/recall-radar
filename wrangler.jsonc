@@ -82,7 +82,10 @@
     // Replace with your actual Google Search Console verification string
     "GOOGLE_SITE_VERIFICATION": "",
     // Optional: Cloudflare Web Analytics token for privacy-friendly analytics
-    "CF_ANALYTICS_TOKEN": ""
+    "CF_ANALYTICS_TOKEN": "",
+    // NHTSA byVinProxy session auth (rotated from HAR capture of nhtsa.gov/recalls)
+    "NHTSA_VIN_SESSION_TS": "",
+    "NHTSA_VIN_SESSION_KEY": ""
   },
   // Observability
   "observability": {

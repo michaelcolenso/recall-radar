@@ -13,3 +13,10 @@ ADMIN_TOKEN=your-secret-admin-token
 
 # Cloudflare Web Analytics token (privacy-friendly analytics)
 # CF_ANALYTICS_TOKEN=your-analytics-token
+
+# NHTSA byVinProxy session auth — capture a fresh pair by:
+# 1. Open https://www.nhtsa.gov/recalls in Chrome
+# 2. DevTools → Network, enter a VIN, look for byVinProxy request
+# 3. Copy timestamp= and key= query params
+# NHTSA_VIN_SESSION_TS=1781047536026
+# NHTSA_VIN_SESSION_KEY=-1073958914

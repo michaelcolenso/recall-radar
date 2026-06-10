@@ -15,6 +15,8 @@ declare namespace Cloudflare {
 		GOOGLE_SITE_VERIFICATION: "";
 		CF_ANALYTICS_TOKEN: "";
 		ADMIN_TOKEN: string;
+		NHTSA_VIN_SESSION_TS: string;
+		NHTSA_VIN_SESSION_KEY: string;
 		PIPELINE_AGENT: DurableObjectNamespace<import("./src/index").PipelineAgent>;
 		INGESTION_WORKFLOW: Workflow<Parameters<import("./src/index").IngestionWorkflow['run']>[0]['payload']>;
 		ENRICHMENT_WORKFLOW: Workflow<Parameters<import("./src/index").EnrichmentWorkflow['run']>[0]['payload']>;
@@ -25,7 +27,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "SITE_URL" | "ENVIRONMENT" | "GOOGLE_SITE_VERIFICATION" | "CF_ANALYTICS_TOKEN" | "ADMIN_TOKEN">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "SITE_URL" | "ENVIRONMENT" | "GOOGLE_SITE_VERIFICATION" | "CF_ANALYTICS_TOKEN" | "ADMIN_TOKEN" | "NHTSA_VIN_SESSION_TS" | "NHTSA_VIN_SESSION_KEY">> {}
 }
 
 // Begin runtime types
