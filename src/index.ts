@@ -45,6 +45,15 @@ app.onError((err, c) => {
 // Security: HSTS, redirect HTTP→HTTPS, www→non-www, trailing-slash canonicalization
 app.use(async (c, next) => {
   c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+  c.header(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; " +
+      "style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; " +
+      "connect-src 'self' https://cloudflareinsights.com https://static.cloudflareinsights.com; " +
+      "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests",
+  );
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
 
   const url = new URL(c.req.url);
   if (url.protocol === "http:") {

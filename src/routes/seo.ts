@@ -8,7 +8,15 @@ const MAX_URLS_PER_SITEMAP = 50000;
 const YEAR_SITEMAP_CHUNK_SIZE = 45000;
 const COMPONENT_SITEMAP_CHUNK_SIZE = 45000;
 const CAMPAIGN_SITEMAP_CHUNK_SIZE = 45000;
-const SEO_CACHE_VERSION = "v6";
+const SEO_CACHE_VERSION = "v7";
+
+// Static (non-DB-driven) pages not covered by the make/model/year/etc. sitemaps.
+// Homepage is intentionally excluded — it's already emitted by sitemap-makes.xml
+// and the single-urlset branch below.
+const STATIC_SITEMAP_PATHS: Array<{ path: string; priority: string; changefreq: string }> = [
+  { path: "/about", priority: "0.5", changefreq: "monthly" },
+  { path: "/vin-lookup", priority: "0.8", changefreq: "monthly" },
+];
 
 interface CountRow {
   count: number;
@@ -138,6 +146,8 @@ seoRoutes.get("/sitemap.xml", async (c) => {
           parts.push(sitemapIndexUrl(`${siteUrl}/sitemap-make-components.xml`, now));
         }
 
+        parts.push(sitemapIndexUrl(`${siteUrl}/sitemap-static.xml`, now));
+
         return wrapSitemapIndex(parts);
       },
     );
@@ -167,6 +177,10 @@ seoRoutes.get("/sitemap.xml", async (c) => {
       const urls: string[] = [];
 
       urls.push(sitemapUrl(`${siteUrl}/`, now, "1.0", "daily"));
+
+      for (const { path, priority, changefreq } of STATIC_SITEMAP_PATHS) {
+        urls.push(sitemapUrl(`${siteUrl}${path}`, now, priority, changefreq));
+      }
 
       for (const make of makesResult.results) {
         urls.push(sitemapUrl(`${siteUrl}/${make.slug}`, make.lastmod, "0.8", "weekly"));
@@ -357,6 +371,22 @@ seoRoutes.get("/sitemap-make-components.xml", async (c) => {
       const urls = mcResult.results.map((mc) =>
         sitemapUrl(`${siteUrl}/${mc.make_slug}/${slugify(mc.component_name)}-recalls`, mc.lastmod, "0.6", "monthly"),
       );
+      return wrapSitemapUrls(urls);
+    },
+  );
+
+  return c.body(xml, 200, { "content-type": "application/xml; charset=utf-8", "X-Cache": hit ? "HIT" : "MISS" });
+});
+
+seoRoutes.get("/sitemap-static.xml", async (c) => {
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
+  const { value: xml, hit } = await getCachedOrRender(
+    c.env.PAGE_CACHE,
+    withSeoCacheVersion("sitemap:static"),
+    86400,
+    async () => {
+      const now = new Date().toISOString().split("T")[0];
+      const urls = STATIC_SITEMAP_PATHS.map((p) => sitemapUrl(`${siteUrl}${p.path}`, now, p.priority, p.changefreq));
       return wrapSitemapUrls(urls);
     },
   );

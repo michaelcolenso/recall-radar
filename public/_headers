@@ -1,8 +1,8 @@
-# styles.css is versioned via ASSET_VERSION query param. Cloudflare's asset cache
-# ignores query strings, so we keep a short max-age for fast propagation but a long
-# stale-while-revalidate to serve stale content while revalidating in the background.
+# styles.css is immutable per ASSET_VERSION (src/lib/constants.ts). The <link> URL
+# carries ?v=N, so browsers re-fetch on version bump. RULE: any edit to this file
+# MUST bump ASSET_VERSION and PAGE_CACHE_VERSION, or returning visitors keep stale CSS for a year.
 /styles.css
-  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+  Cache-Control: public, max-age=31536000, immutable
 
 /favicon.svg
   Cache-Control: public, max-age=604800, immutable

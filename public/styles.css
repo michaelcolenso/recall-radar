@@ -1,3 +1,4 @@
+/* @critical:start */
 /* Recalled Rides — Industrial Precision Design System */
 
 /* ═══════════════════════════════════════════════════════════════
@@ -622,6 +623,8 @@ button:focus-visible,
   box-shadow: 4px 4px 0 var(--text-primary);
 }
 
+/* @critical:end */
+
 /* ═══════════════════════════════════════════════════════════════
    STATS
    ═══════════════════════════════════════════════════════════════ */
@@ -913,6 +916,8 @@ a.rr-readout__campaign:hover {
   color: var(--accent-hover);
 }
 
+/* @critical:start */
+
 /* ═══════════════════════════════════════════════════════════════
    SEVERITY
    ═══════════════════════════════════════════════════════════════ */
@@ -979,6 +984,8 @@ a.rr-readout__campaign:hover {
   color: var(--text-primary);
   font-weight: 700;
 }
+
+/* @critical:end */
 
 /* ═══════════════════════════════════════════════════════════════
    DEALER LEAD GEN

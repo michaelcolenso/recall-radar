@@ -1,5 +1,6 @@
 import { escapeHtml } from "../lib/utils";
 import { ASSET_VERSION } from "../lib/constants";
+import { CRITICAL_CSS } from "./critical-css";
 
 interface LayoutOptions {
   title: string;
@@ -64,7 +65,10 @@ export function layout({
   <meta name="twitter:image" content="${resolvedOgImage}"/>
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin/>
   <link rel="preload" href="/fonts/literata.woff2" as="font" type="font/woff2" crossorigin/>
-  <link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}"/>
+  <style>${CRITICAL_CSS}</style>
+  <link rel="preload" href="/styles.css?v=${ASSET_VERSION}" as="style"/>
+  <link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}" media="print" onload="this.media='all'"/>
+  <noscript><link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}"/></noscript>
   ${jsonLd}
   ${analyticsToken ? `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon="{&quot;token&quot;: &quot;${analyticsToken}&quot;}"></script>` : ""}
 </head>

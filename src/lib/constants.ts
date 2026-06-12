@@ -39,4 +39,4 @@ export const YEAR_MAX = 2030;
 // Cache-busting token for static assets (styles.css). Bump when public/styles.css
 // changes so browsers/edge fetch the new file instead of the 7-day cached copy.
 // Also bump PAGE_CACHE_VERSION so cached HTML regenerates with the new URL.
-export const ASSET_VERSION = "10";
+export const ASSET_VERSION = "11";
