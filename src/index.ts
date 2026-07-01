@@ -15,6 +15,8 @@ const app = new Hono<{ Bindings: Env }>();
 // Global error handler — returns a friendly 500 page for uncaught exceptions
 app.onError((err, c) => {
   console.error(JSON.stringify({ message: "unhandled error", path: c.req.path, error: err instanceof Error ? err.message : String(err) }));
+  // TEMPORARY diagnostic — remove once the production 500s are root-caused
+  c.header("X-Debug-Error", (err instanceof Error ? `${err.name}: ${err.message}` : String(err)).replace(/[^\x20-\x7e]/g, "?").slice(0, 500));
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   return c.html(
     `<!doctype html>
