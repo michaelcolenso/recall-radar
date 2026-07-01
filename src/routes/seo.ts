@@ -113,7 +113,6 @@ seoRoutes.get("/sitemap.xml", async (c) => {
 
   if (totalUrls > MAX_URLS_PER_SITEMAP) {
     const { value: indexXml, hit: indexHit } = await getCachedOrRender(
-      c.env.PAGE_CACHE,
       withSeoCacheVersion("sitemap:index"),
       86400,
       async () => {
@@ -159,7 +158,6 @@ seoRoutes.get("/sitemap.xml", async (c) => {
   }
 
   const { value: xml, hit: xmlHit } = await getCachedOrRender(
-    c.env.PAGE_CACHE,
     withSeoCacheVersion("sitemap:xml"),
     86400,
     async () => {
@@ -234,7 +232,6 @@ seoRoutes.get("/sitemap.xml", async (c) => {
 seoRoutes.get("/sitemap-makes.xml", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const { value: xml, hit } = await getCachedOrRender(
-    c.env.PAGE_CACHE,
     withSeoCacheVersion("sitemap:makes"),
     86400,
     async () => {
@@ -255,7 +252,6 @@ seoRoutes.get("/sitemap-makes.xml", async (c) => {
 seoRoutes.get("/sitemap-models.xml", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const { value: xml, hit } = await getCachedOrRender(
-    c.env.PAGE_CACHE,
     withSeoCacheVersion("sitemap:models"),
     86400,
     async () => {
@@ -277,7 +273,6 @@ seoRoutes.get("/sitemap-years-:page{.+\\.xml}", async (c) => {
   const offset = (page - 1) * YEAR_SITEMAP_CHUNK_SIZE;
 
   const { value: xml, hit } = await getCachedOrRender(
-    c.env.PAGE_CACHE,
     withSeoCacheVersion(`sitemap:years:${page}`),
     86400,
     async () => {
@@ -299,7 +294,6 @@ seoRoutes.get("/sitemap-components-:page{.+\\.xml}", async (c) => {
   const offset = (page - 1) * COMPONENT_SITEMAP_CHUNK_SIZE;
 
   const { value: xml, hit } = await getCachedOrRender(
-    c.env.PAGE_CACHE,
     withSeoCacheVersion(`sitemap:components:${page}`),
     86400,
     async () => {
@@ -326,7 +320,6 @@ seoRoutes.get("/sitemap-campaigns-:page{.+\\.xml}", async (c) => {
   const offset = (page - 1) * CAMPAIGN_SITEMAP_CHUNK_SIZE;
 
   const { value: xml, hit } = await getCachedOrRender(
-    c.env.PAGE_CACHE,
     withSeoCacheVersion(`sitemap:campaigns:${page}`),
     86400,
     async () => {
@@ -345,7 +338,6 @@ seoRoutes.get("/sitemap-campaigns-:page{.+\\.xml}", async (c) => {
 seoRoutes.get("/sitemap-stats.xml", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const { value: xml, hit } = await getCachedOrRender(
-    c.env.PAGE_CACHE,
     withSeoCacheVersion("sitemap:stats"),
     86400,
     async () => {
@@ -363,7 +355,6 @@ seoRoutes.get("/sitemap-stats.xml", async (c) => {
 seoRoutes.get("/sitemap-make-components.xml", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const { value: xml, hit } = await getCachedOrRender(
-    c.env.PAGE_CACHE,
     withSeoCacheVersion("sitemap:make-components"),
     86400,
     async () => {
@@ -381,7 +372,6 @@ seoRoutes.get("/sitemap-make-components.xml", async (c) => {
 seoRoutes.get("/sitemap-static.xml", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const { value: xml, hit } = await getCachedOrRender(
-    c.env.PAGE_CACHE,
     withSeoCacheVersion("sitemap:static"),
     86400,
     async () => {

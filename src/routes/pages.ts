@@ -113,7 +113,6 @@ pageRoutes.get("/search", (c) => {
 pageRoutes.get("/", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const { value: html, hit } = await getCachedOrRender(
-    c.env.PAGE_CACHE,
     withPageCacheVersion("page:home"),
     86400,
     async () => {
@@ -228,7 +227,6 @@ pageRoutes.get("/", async (c) => {
 pageRoutes.get("/about", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const { value: html, hit } = await getCachedOrRender(
-    c.env.PAGE_CACHE,
     withPageCacheVersion("page:about"),
     86400,
     async () => {
@@ -264,7 +262,6 @@ pageRoutes.get("/about", async (c) => {
 pageRoutes.get("/vin-lookup", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
   const { value: html, hit } = await getCachedOrRender(
-    c.env.PAGE_CACHE,
     withPageCacheVersion("page:vin-lookup"),
     86400,
     async () => {
@@ -299,7 +296,6 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   const { value, hit } = await getCachedOrRender<CachedPageResponse>(
-    c.env.PAGE_CACHE,
     withPageCacheVersion(`page:stats:${makeSlug}:${modelSlug}`),
     86400,
     async () => {
@@ -466,7 +462,6 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentSlug{[a-z0-9-]+}-recalls", asyn
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   const { value, hit } = await getCachedOrRender<CachedPageResponse>(
-    c.env.PAGE_CACHE,
     withPageCacheVersion(`page:make-component:${makeSlug}:${componentSlug}`),
     86400,
     async () => {
@@ -653,7 +648,6 @@ pageRoutes.get("/vin/:vin", async (c) => {
 
   const cacheKey = withPageCacheVersion(`page:vin:${vin.toUpperCase()}`);
   const { value, hit } = await getCachedOrRender<CachedPageResponse>(
-    c.env.PAGE_CACHE,
     cacheKey,
     86400,
     async () => {
@@ -764,7 +758,6 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   const { value, hit } = await getCachedOrRender<CachedPageResponse>(
-    c.env.PAGE_CACHE,
     withPageCacheVersion(`page:make:${makeSlug}`),
     86400,
     async () => {
@@ -864,7 +857,6 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   const { value, hit } = await getCachedOrRender<CachedPageResponse>(
-    c.env.PAGE_CACHE,
     withPageCacheVersion(`page:model:${makeSlug}:${modelSlug}`),
     86400,
     async () => {
@@ -997,7 +989,6 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
   }
 
   const { value, hit } = await getCachedOrRender<CachedPageResponse>(
-    c.env.PAGE_CACHE,
     withPageCacheVersion(`page:component:${makeSlug}:${modelSlug}:${year}:${componentSlug}`),
     43200,
     async () => {
@@ -1273,7 +1264,6 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
   }
 
   const { value, hit } = await getCachedOrRender<CachedPageResponse>(
-    c.env.PAGE_CACHE,
     withPageCacheVersion(`page:year:${makeSlug}:${modelSlug}:${year}`),
     43200,
     async () => {
@@ -1513,7 +1503,6 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   const { value, hit } = await getCachedOrRender<CachedPageResponse>(
-    c.env.PAGE_CACHE,
     withPageCacheVersion(`page:campaign:${campaignNumber}`),
     86400,
     async () => {
