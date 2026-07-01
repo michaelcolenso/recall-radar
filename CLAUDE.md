@@ -29,7 +29,7 @@ RecallRadar is a **Cloudflare-native programmatic SEO application** that aggrega
 | ------------------- | ------------------------------------------------------------------ |
 | HTTP framework      | Hono v4 on Cloudflare Workers                                      |
 | Database            | Cloudflare D1 (SQLite), accessed via Drizzle ORM                   |
-| Page cache          | Cloudflare Workers KV (HTML read-through cache)                    |
+| Page cache          | Cloudflare Cache API (`caches.default`, read-through)              |
 | Durable pipelines   | Cloudflare Workflows (ingestion + enrichment)                      |
 | Admin orchestration | Cloudflare Durable Objects (`PipelineAgent`)                       |
 | LLM enrichment      | Cloudflare Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`) |
@@ -43,7 +43,7 @@ NHTSA vPIC API ──→ IngestionWorkflow ──→ D1 (raw recall data)
                                               ▼
                                     EnrichmentWorkflow ──→ Workers AI ──→ D1 (enriched text)
                                               │
-D1 + KV ──→ Hono routes ──→ HTML templates ──→ KV cache ──→ HTTP response
+D1 ──→ Hono routes ──→ HTML templates ──→ Cache API ──→ HTTP response
 ```
 
 **Cron schedule** (in `wrangler.jsonc`): Monday 2 AM UTC = ingestion, Monday 4 AM UTC = enrichment.
@@ -58,11 +58,11 @@ D1 + KV ──→ Hono routes ──→ HTML templates ──→ KV cache ──
 | `src/workflows/ingestion-workflow.ts`  | NHTSA API → D1 pipeline (modes: full, delta, single-make, backfill)               |
 | `src/workflows/enrichment-workflow.ts` | D1 → Workers AI → D1 LLM enrichment pipeline                                      |
 | `src/agents/pipeline-agent.ts`         | Durable Object; stateful orchestration, run history, admin RPC                    |
-| `src/routes/pages.ts`                  | SSR public pages with KV caching                                                  |
+| `src/routes/pages.ts`                  | SSR public pages with Cache API caching                                           |
 | `src/routes/api.ts`                    | Admin REST endpoints (Bearer auth required)                                       |
 | `src/routes/seo.ts`                    | `/sitemap.xml` (auto-splits at 50k URLs) and `/robots.txt`                        |
 | `src/lib/nhtsa-client.ts`              | NHTSA/vPIC API client with Zod schemas                                            |
-| `src/lib/cache.ts`                     | `getCachedOrRender()` KV read-through helper                                      |
+| `src/lib/cache.ts`                     | `getCachedOrRender()` Cache API read-through helper                               |
 | `src/lib/severity.ts`                  | Component string → CRITICAL/HIGH/MEDIUM/LOW/UNKNOWN classifier                    |
 | `src/lib/constants.ts`                 | `POPULAR_MAKES` list (30 makes), year range defaults                              |
 | `src/templates/`                       | Pure TypeScript HTML string generators (no React)                                 |
@@ -73,7 +73,7 @@ D1 + KV ──→ Hono routes ──→ HTML templates ──→ KV cache ──
 
 **Raw vs. enriched separation**: `recalls` table has `summaryRaw`/`consequenceRaw`/`remedyRaw` (government text, never overwritten) and `summaryEnriched`/`consequenceEnriched`/`remedyEnriched` (additive LLM output). Templates fall back to raw if enriched is null.
 
-**KV caching**: All page routes use `getCachedOrRender(kv, cacheKey, ttlSeconds, renderFn)` from `src/lib/cache.ts`. Cache keys follow the pattern `page:{type}:{slug}`. Don't bypass this — render functions are expensive.
+**Page caching**: All page routes use `getCachedOrRender(cacheKey, ttlSeconds, renderFn)` from `src/lib/cache.ts`, backed by the Cache API (`caches.default`), which is unmetered — unlike Workers KV, whose free-tier 1,000 writes/day cap caused 429s under crawler traffic. Cache keys follow the pattern `page:{type}:{slug}`. Don't bypass this — render functions are expensive. Entries are per-datacenter and evictable; a miss just re-renders from D1.
 
 **Admin auth**: All `/api/admin/*` routes require `Authorization: Bearer {ADMIN_TOKEN}`. The token is in `wrangler.jsonc` vars (`ADMIN_TOKEN`).
 

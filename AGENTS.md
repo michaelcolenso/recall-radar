@@ -13,7 +13,7 @@ RecallRadar is a Cloudflare-native web application that aggregates and presents 
 | Runtime | Cloudflare Workers (Node.js compatibility) |
 | Web Framework | Hono (lightweight, Express-like) |
 | Database | Cloudflare D1 (SQLite) with Drizzle ORM |
-| Caching | Cloudflare Workers KV |
+| Caching | Cloudflare Cache API (`caches.default`) |
 | AI/LLM | Cloudflare Workers AI |
 | Orchestration | Cloudflare Workflows + Agents (Durable Objects) |
 | Styling | Tailwind CSS (via CDN) |
@@ -43,7 +43,7 @@ recall-radar/
 │   │   ├── nhtsa-client.ts   # NHTSA/vPIC API client
 │   │   ├── enrichment.ts     # LLM enrichment logic (Workers AI)
 │   │   ├── severity.ts       # Component-based severity classification
-│   │   ├── cache.ts          # KV read-through helper
+│   │   ├── cache.ts          # Cache API read-through helper
 │   │   ├── utils.ts          # Slugify, date parsing, HTML escaping
 │   │   └── constants.ts      # Popular makes list, year ranges
 │   └── templates/
@@ -105,7 +105,6 @@ Configure these in `wrangler.jsonc` for production:
 
 **Cloudflare Bindings** (configured in `wrangler.jsonc`):
 - `DB` — D1 database for recall data
-- `PAGE_CACHE` — KV namespace for rendered HTML caching
 - `AI` — Workers AI for LLM fallback
 - `INGESTION_WORKFLOW` — Workflow for data ingestion
 - `ENRICHMENT_WORKFLOW` — Workflow for LLM enrichment
@@ -131,7 +130,7 @@ The database uses 5 core tables with cascading deletes:
 ### Request Flow
 
 ```
-User Request → Hono Router → KV Cache Check → DB Query → Template Render → KV Store → Response
+User Request → Hono Router → Cache API Check → DB Query → Template Render → Cache API Store → Response
                                     ↓
                               Cache Hit → Direct Response
 ```
@@ -273,7 +272,7 @@ curl -X POST https://recallradar.com/api/admin/enrich \
 
 ### Clear Page Cache
 
-KV cache is keyed by `page:<path>`. Use Cloudflare dashboard or Wrangler CLI to delete specific keys or entire namespace.
+Pages are cached in the Cache API (`caches.default`) under synthetic URLs (`https://recalledrides.com/__cache/<key>`). Entries expire via their `Cache-Control` TTL; bump `PAGE_CACHE_VERSION` in `src/routes/pages.ts` (or `SEO_CACHE_VERSION` in `src/routes/seo.ts`) to invalidate everything at once.
 
 ## External Dependencies
 
@@ -286,7 +285,7 @@ KV cache is keyed by `page:<path>`. Use Cloudflare dashboard or Wrangler CLI to 
 
 | Issue | Solution |
 |-------|----------|
-| KV cache stale | Delete key in Cloudflare dashboard or wait for TTL (12-24 hours) |
+| Page cache stale | Bump `PAGE_CACHE_VERSION` / `SEO_CACHE_VERSION` and redeploy, or wait for TTL (12-24 hours) |
 | Workflow stuck | Check Workflow instance in Cloudflare dashboard; retry failed steps |
 | LLM enrichment failing | Check Workers AI availability |
 | Database timeouts | Check indexes; use `EXPLAIN QUERY PLAN` for slow queries |
@@ -297,5 +296,5 @@ KV cache is keyed by `page:<path>`. Use Cloudflare dashboard or Wrangler CLI to 
 When modifying these files, also update:
 - `src/db/schema.ts` → Run `npm run db:generate`
 - `wrangler.jsonc` → Run `npm run cf-typegen`
-- Template changes → Clear affected KV cache keys
+- Template changes → Bump `PAGE_CACHE_VERSION` so cached pages regenerate
 - New routes → Add to sitemap generation in `src/routes/seo.ts`
