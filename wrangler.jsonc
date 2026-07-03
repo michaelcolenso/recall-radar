@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "recall-radar",
+  "name": "recalled-rides",
   "main": "src/index.ts",
   "compatibility_date": "2026-05-13",
   "compatibility_flags": [
@@ -15,7 +15,7 @@
       "migrations_dir": "src/db/migrations"
     }
   ],
-  // Workers KV (page cache)
+  // Legacy KV binding retained for callsites; page rendering uses Cache API.
   "kv_namespaces": [
     {
       "binding": "PAGE_CACHE",

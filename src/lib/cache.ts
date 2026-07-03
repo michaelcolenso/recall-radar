@@ -3,22 +3,33 @@ interface CacheEnvelope<T> {
 }
 
 export async function getCachedOrRender<T>(
-  kv: KVNamespace,
+  _kv: KVNamespace,
   cacheKey: string,
   ttlSeconds: number,
   renderFn: () => Promise<T>
 ): Promise<{ value: T; hit: boolean }> {
-  const cached = await kv.get(cacheKey, "text");
+  const cache = (caches as CacheStorage & { default: Cache }).default;
+  const cacheRequest = new Request(`https://recalledrides.com/__page-cache/${encodeURIComponent(cacheKey)}`);
+
+  const cached = await cache.match(cacheRequest);
   if (cached) {
     try {
-      const parsed = JSON.parse(cached) as CacheEnvelope<T>;
+      const parsed = JSON.parse(await cached.text()) as CacheEnvelope<T>;
       return { value: parsed.value, hit: true };
     } catch {
-      await kv.delete(cacheKey);
+      await cache.delete(cacheRequest);
     }
   }
 
   const value = await renderFn();
-  await kv.put(cacheKey, JSON.stringify({ value }), { expirationTtl: ttlSeconds });
+  await cache.put(
+    cacheRequest,
+    new Response(JSON.stringify({ value }), {
+      headers: {
+        "content-type": "application/json;charset=UTF-8",
+        "cache-control": `public, max-age=${ttlSeconds}`,
+      },
+    }),
+  );
   return { value, hit: false };
 }
