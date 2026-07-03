@@ -85,20 +85,17 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     try {
       if (event.cron === "0 2 * * 1") {
-        // Monday 2 AM UTC — delta ingestion (skips rows checked within the last 6 days)
+        // Monday 2 AM UTC — delta ingestion (skips rows checked within the last 6 days).
+        // Enrichment is chained by the workflow itself when ingestion completes, so a
+        // single cron trigger suffices (free plan allows 5 per account).
         await env.INGESTION_WORKFLOW.create({
           params: {
             mode: "delta",
             yearStart: DEFAULT_YEAR_START,
             yearEnd: new Date().getFullYear() + 1,
             deltaThresholdHours: 144,
+            chainEnrichment: true,
           },
-        });
-      }
-      if (event.cron === "0 4 * * 1") {
-        // Monday 4 AM UTC — enrichment
-        await env.ENRICHMENT_WORKFLOW.create({
-          params: { batchSize: 100, concurrency: 3 },
         });
       }
     } catch (err) {

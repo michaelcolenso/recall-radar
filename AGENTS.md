@@ -139,7 +139,7 @@ User Request → Hono Router → Cache API Check → DB Query → Template Rende
 
 ```
 Cron Trigger (Mon 2AM) → IngestionWorkflow → NHTSA API → D1
-Cron Trigger (Mon 4AM) → EnrichmentWorkflow → Workers AI → D1
+                              └─ (final step) → EnrichmentWorkflow → Workers AI → D1
 Admin API → PipelineAgent (Durable Object) → Workflow Trigger
 ```
 
@@ -245,9 +245,7 @@ Currently, the project relies on:
 
 ## Cron Schedule
 
-Two weekly cron triggers (Monday UTC):
-- **02:00** — Ingestion workflow (fetch new recall data)
-- **04:00** — Enrichment workflow (LLM process unenriched recalls)
+One weekly cron trigger (Monday 02:00 UTC) runs the ingestion workflow (fetch new recall data); its final step launches the enrichment workflow (LLM process unenriched recalls). Kept to a single trigger because the Workers free plan caps cron triggers at 5 per account.
 
 ## Common Tasks
 

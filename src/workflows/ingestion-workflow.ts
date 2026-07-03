@@ -14,6 +14,8 @@ const IngestionParamsSchema = z
     yearEnd: z.number().int().min(1966).max(YEAR_MAX).optional(),
     // delta mode: skip vehicle_year rows checked within this many hours (default 144 = 6 days)
     deltaThresholdHours: z.number().int().min(1).max(8760).optional(),
+    // kick off the enrichment workflow once ingestion completes (used by the weekly cron)
+    chainEnrichment: z.boolean().optional(),
   })
   .refine((d) => d.yearStart == null || d.yearEnd == null || d.yearStart <= d.yearEnd, {
     message: "yearStart must be <= yearEnd",
@@ -41,7 +43,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
       return { ok: false, error: parseResult.error.message };
     }
 
-    const { mode, targetMake, yearStart, yearEnd, deltaThresholdHours } = parseResult.data;
+    const { mode, targetMake, yearStart, yearEnd, deltaThresholdHours, chainEnrichment } = parseResult.data;
 
     const startYear = yearStart ?? DEFAULT_YEAR_START;
     // new Date() is safe here — run() executes in a live request context, not at module init time
@@ -241,6 +243,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
       await step.do("log-ingestion-run", () =>
         this._logRun(startedAt, mode, targetMake, finalStatus, totalRecordsSaved, totalRecordsSaved, errorSummary),
       );
+      if (chainEnrichment) await this._triggerEnrichment(step);
       return { ok: true, recordsSaved: totalRecordsSaved };
     }
 
@@ -394,7 +397,21 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
       this._logRun(startedAt, mode, targetMake, finalStatus, totalRecordsSaved, totalRecordsSaved, errorSummary),
     );
 
+    if (chainEnrichment) await this._triggerEnrichment(step);
+
     return { ok: true, recordsSaved: totalRecordsSaved };
+  }
+
+  private async _triggerEnrichment(step: WorkflowStep) {
+    await step.do(
+      "trigger-enrichment",
+      { retries: { limit: 3, delay: "10 seconds", backoff: "exponential" } },
+      async () => {
+        await this.env.ENRICHMENT_WORKFLOW.create({
+          params: { batchSize: 100, concurrency: 3 },
+        });
+      },
+    );
   }
 
   private async _logRun(
