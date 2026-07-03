@@ -124,9 +124,7 @@ curl https://recalledrides.com/sitemap.xml
 
 ## Cron Schedule
 
-Two weekly triggers (Monday UTC):
-- **02:00** — Delta ingestion (skips rows checked within last 6 days)
-- **04:00** — LLM enrichment
+One weekly trigger (Monday 02:00 UTC): delta ingestion (skips rows checked within last 6 days), which kicks off LLM enrichment as its final step.
 
 ## Conventions
 

@@ -49,11 +49,11 @@
       ]
     }
   ],
-  // Cron Triggers
+  // Cron Triggers — single weekly trigger; the ingestion workflow chains
+  // enrichment itself, keeping the account under the 5-cron free-plan limit
   "triggers": {
     "crons": [
-      "0 2 * * 1",
-      "0 4 * * 1"
+      "0 2 * * 1"
     ]
   },
   // Routes

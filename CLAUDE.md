@@ -46,7 +46,7 @@ NHTSA vPIC API ──→ IngestionWorkflow ──→ D1 (raw recall data)
 D1 ──→ Hono routes ──→ HTML templates ──→ Cache API ──→ HTTP response
 ```
 
-**Cron schedule** (in `wrangler.jsonc`): Monday 2 AM UTC = ingestion, Monday 4 AM UTC = enrichment.
+**Cron schedule** (in `wrangler.jsonc`): Monday 2 AM UTC = delta ingestion, which chains the enrichment workflow when it completes (single cron trigger — the free plan allows 5 per account).
 
 ### Key Files
 
