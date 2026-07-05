@@ -118,6 +118,11 @@ export function homeTemplate(
       </div>
     </section>
 
+    <section class="rr-section-header" style="margin-bottom: var(--space-16);">
+      <h2 class="rr-section-header__title">Your Car's Recall History in Plain English</h2>
+      <p class="rr-section-header__body">We track every NHTSA safety recall across 30 vehicle manufacturers — ${stats.recalls.toLocaleString()} recalls covering ${stats.vehicles.toLocaleString()} vehicles. Instead of government jargon, you get clear explanations of what went wrong, what the risk is, and exactly how to get it fixed — for free.</p>
+    </section>
+
     <section class="rr-stats">
       <div class="rr-stats__item">
         <div class="rr-stats__label">TOTAL RECALLS</div>

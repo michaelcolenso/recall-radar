@@ -76,6 +76,7 @@ export function campaignPageTemplate({
         </div>
       </div>
       <div class="rr-readout__body">
+        <h2 class="rr-readout__field-label" style="font-size:var(--text-lg);margin-bottom:var(--space-4);">What This Recall Means</h2>
         <div class="rr-readout__field">
           <div class="rr-readout__field-label">Component</div>
           <h3 class="rr-readout__field-value">${escapeHtml(component)}</h3>
@@ -90,7 +91,8 @@ export function campaignPageTemplate({
         </div>
       </div>
       <div class="rr-readout__fix">
-        <div class="rr-readout__field-label">Free Fix</div>
+        <h2 class="rr-readout__field-label" style="font-size:var(--text-lg);margin-bottom:var(--space-4);">How to Get This Fixed</h2>
+        <div class="rr-readout__field-label" style="margin-top:0;">Free Fix</div>
         <div class="rr-readout__field-value">${escapeHtml(remedy)}</div>
       </div>
     </article>

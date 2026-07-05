@@ -204,7 +204,7 @@ pageRoutes.get("/", async (c) => {
         analyticsToken: c.env.CF_ANALYTICS_TOKEN,
         title: "Vehicle Recall Search — Check Your Car Free | Recalled Rides",
         description:
-          "Check if your car has open safety recalls. Free, plain-English recall lookup sourced from NHTSA. Enter a make, model, or year to see safety issues and get free repairs.",
+          "Check if your car has open safety recalls. Free NHTSA-sourced lookup covering 16K+ recalls across 30 makes. Find safety issues and get repairs — always free at your dealer.",
         canonical: siteUrl,
         ogType: "website",
         ogImage: "/og-image-home.svg",
@@ -233,7 +233,7 @@ pageRoutes.get("/about", async (c) => {
       return layout({
         googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
         analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-        title: "About Recalled Rides",
+        title: "About Recalled Rides — Free Vehicle Recall Lookup & Safety Database",
         description:
           "Learn how Recalled Rides sources vehicle recall data from NHTSA and simplifies it into plain English for drivers.",
         canonical: `${siteUrl}/about`,
@@ -818,8 +818,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
         html: layout({
           googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
           analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-          title: `${make.name} Vehicle Recalls & Safety Issues | Recalled Rides`,
-          description: `Browse all ${make.name} vehicle recalls and safety issues. Find recalls for your ${make.name} by model and year.`,
+          title: `${make.name} Vehicle Recalls & Safety Issues — Browse by Model | Recalled Rides`,
+          description: `Check ${make.name} vehicle recalls by model — ${models.results.filter(m => m.recall_count > 0).length} models with active safety issues. Find your ${make.name}, see the risks, and learn how to get free repairs at your dealer.`,
           canonical: `${siteUrl}/${makeSlug}`,
           ogType: "website",
           ogImage: "/og-image-home.svg",
@@ -933,7 +933,12 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
           googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
           analyticsToken: c.env.CF_ANALYTICS_TOKEN,
           title: `${make.name} ${model.name} Recalls by Year | Recalled Rides`,
-          description: `Check ${make.name} ${model.name} recalls by model year. Find safety issues and get free repairs for your vehicle.`,
+          description: (() => {
+            const y = years.results;
+            const totalRecalls = y.reduce((sum, yr) => sum + yr.recall_count, 0);
+            const yearRange = y.length > 0 ? `${y[y.length-1].year}–${y[0].year}` : "";
+            return `Check ${make.name} ${model.name} recalls across ${y.length} model years (${yearRange}). ${totalRecalls} total safety issues tracked. Find your year and get free repair info from your dealer.`;
+          })(),
           noIndex: years.results.length === 0,
           canonical: `${siteUrl}/${makeSlug}/${modelSlug}`,
           ogType: "website",
@@ -1563,7 +1568,17 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
       const remedy = primaryRecall.remedy_enriched ?? primaryRecall.remedy_raw;
 
       const title = `NHTSA Campaign ${primaryRecall.nhtsa_campaign_number} Recall Details | Recalled Rides`;
-      const description = `${primaryRecall.component} recall for the ${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name}. ${summary.slice(0, 120)}...`;
+
+      // Build description max 160 chars — component name trimmed, summary truncated
+      const componentShort = primaryRecall.component.split(":")[0].trim();
+      const descPrefix = `${componentShort} recall: ${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name}. `;
+      const remaining = 158 - descPrefix.length;
+      let descBody = summary.length > remaining ? summary.slice(0, remaining - 3) + "..." : summary;
+      let description = descPrefix + descBody;
+      if (description.length > 160) {
+        const trunc = description.lastIndexOf(" ", 157);
+        description = description.slice(0, trunc) + ".";
+      }
 
       const affectedVehicles = recallsResult.results.map((r) => ({
         make: r.make_name,
