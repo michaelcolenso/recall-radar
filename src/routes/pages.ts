@@ -33,12 +33,17 @@ import { relatedLinks } from "../templates/components/related-links";
 import { gradeDescription } from "../lib/risk-score";
 import { POPULAR_MAKES } from "../lib/constants";
 import { acceptsMarkdown, htmlToMarkdown } from "../lib/utils";
+import { primaryPartner } from "../lib/affiliates";
+import { vinReportCta } from "../templates/components/affiliate-box";
+import { alertSignup } from "../templates/components/alert-signup";
+import { adSlot } from "../templates/components/ad-slot";
+import { privacyPageTemplate, disclosurePageTemplate } from "../templates/static-pages";
 
 export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v10";
+const PAGE_CACHE_VERSION = "v11";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -258,6 +263,54 @@ pageRoutes.get("/about", async (c) => {
   return maybeMarkdown(c, html);
 });
 
+// GET /privacy — Privacy policy
+pageRoutes.get("/privacy", async (c) => {
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
+  const { value: html, hit } = await getCachedOrRender(
+    withPageCacheVersion("page:privacy"),
+    86400,
+    async () =>
+      layout({
+        googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+        analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+        title: "Privacy Policy | Recalled Rides",
+        description: "What Recalled Rides collects (very little), what it never stores (your VIN), and how recall-alert emails are handled.",
+        canonical: `${siteUrl}/privacy`,
+        ogType: "website",
+        ogImage: "/og-image-home.svg",
+        body: privacyPageTemplate(siteUrl),
+        jsonLd: organizationJsonLd({ name: "Recalled Rides", url: siteUrl }),
+      }),
+  );
+  c.header("Cache-Control", CACHE_CONTROL);
+  c.header("X-Cache", hit ? "HIT" : "MISS");
+  return maybeMarkdown(c, html);
+});
+
+// GET /disclosure — FTC affiliate disclosure
+pageRoutes.get("/disclosure", async (c) => {
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
+  const { value: html, hit } = await getCachedOrRender(
+    withPageCacheVersion("page:disclosure"),
+    86400,
+    async () =>
+      layout({
+        googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+        analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+        title: "Affiliate Disclosure | Recalled Rides",
+        description: "How Recalled Rides makes money: clearly labeled partner links to vehicle-history-report services. Recall data is always free.",
+        canonical: `${siteUrl}/disclosure`,
+        ogType: "website",
+        ogImage: "/og-image-home.svg",
+        body: disclosurePageTemplate(c.env.AFFILIATE_PARTNERS),
+        jsonLd: organizationJsonLd({ name: "Recalled Rides", url: siteUrl }),
+      }),
+  );
+  c.header("Cache-Control", CACHE_CONTROL);
+  c.header("X-Cache", hit ? "HIT" : "MISS");
+  return maybeMarkdown(c, html);
+});
+
 // GET /vin-lookup — VIN Lookup landing page
 pageRoutes.get("/vin-lookup", async (c) => {
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
@@ -274,7 +327,13 @@ pageRoutes.get("/vin-lookup", async (c) => {
         canonical: `${siteUrl}/vin-lookup`,
         ogType: "website",
         ogImage: "/og-image-home.svg",
-        body: vinLookupPageTemplate(siteUrl),
+        body: vinLookupPageTemplate(
+          siteUrl,
+          (() => {
+            const partner = primaryPartner(c.env.AFFILIATE_PARTNERS);
+            return partner ? vinReportCta({ partner, variant: "lookup" }) : undefined;
+          })(),
+        ),
         jsonLd:
           breadcrumbListJsonLd(siteUrl, [
             { name: "Home", item: siteUrl },
@@ -416,7 +475,7 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
           worstYears,
           brandAvgRecalls,
           totalRecalls,
-        });
+        }) + adSlot({ client: c.env.ADSENSE_CLIENT || undefined, slot: c.env.ADSENSE_SLOT || undefined });
 
       const statsUrl = `${siteUrl}/stats/${makeSlug}/${modelSlug}`;
 
@@ -444,6 +503,7 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
               author: "Recalled Rides",
             }) +
             organizationJsonLd({ name: "Recalled Rides", url: siteUrl }),
+          adsenseClient: c.env.ADSENSE_CLIENT || undefined,
         }),
         status: 200,
       };
@@ -697,6 +757,7 @@ pageRoutes.get("/vin/:vin", async (c) => {
 
         const cards = recallViews.map(recallCard).join("");
 
+        const partner = primaryPartner(c.env.AFFILIATE_PARTNERS);
         const body = vinPageTemplate({
           vin: vin.toUpperCase(),
           make: vehicle.make,
@@ -707,6 +768,18 @@ pageRoutes.get("/vin/:vin", async (c) => {
           recallCount: displayCount,
           topSeverity,
           cards,
+          affiliateCtaHtml: partner
+            ? vinReportCta({ partner, variant: "vin", vin: vin.toUpperCase() })
+            : undefined,
+          alertSignupHtml: alertSignup({
+            make: vehicle.make,
+            makeSlug: slugify(vehicle.make),
+            model: vehicle.model,
+            modelSlug: slugify(vehicle.model),
+            year: String(vehicle.year),
+            turnstileSiteKey: c.env.TURNSTILE_SITE_KEY || undefined,
+            source: "vin-page",
+          }),
         });
 
         return {
@@ -1411,6 +1484,13 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
         { href: `/${makeSlug}/${modelSlug}/${year}`, label: year },
       ]);
 
+      const partner = primaryPartner(c.env.AFFILIATE_PARTNERS);
+      const affiliateCta = partner
+        ? vinReportCta({ partner, variant: "year", make: make.name, model: model.name, year })
+        : "";
+      const yearAdSlot =
+        recalls.length > 0 ? adSlot({ client: c.env.ADSENSE_CLIENT || undefined, slot: c.env.ADSENSE_SLOT || undefined }) : "";
+
       const body =
         crumbs +
         yearPageTemplate({
@@ -1424,7 +1504,16 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           riskGrade,
           riskScore,
           cards,
-          leadGen: dealerLeadGen(),
+          leadGen: dealerLeadGen() + affiliateCta + yearAdSlot,
+          alertSignupHtml: alertSignup({
+            make: make.name,
+            makeSlug,
+            model: model.name,
+            modelSlug,
+            year,
+            turnstileSiteKey: c.env.TURNSTILE_SITE_KEY || undefined,
+            source: "year-page",
+          }),
           relatedYears,
           components,
         }) +
@@ -1489,6 +1578,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           ogImage: `/og/${makeSlug}/${modelSlug}/${year}.svg`,
           body,
           jsonLd,
+          adsenseClient: recalls.length > 0 ? c.env.ADSENSE_CLIENT || undefined : undefined,
         }),
         status: 200,
       };
@@ -1606,7 +1696,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
         reportReceivedDate: primaryRecall.report_received_date,
         isEnriched: !!primaryRecall.enriched_at,
         affectedVehicles,
-      });
+      }) + adSlot({ client: c.env.ADSENSE_CLIENT || undefined, slot: c.env.ADSENSE_SLOT || undefined });
 
       const campaignUrl = `${siteUrl}/recall/${primaryRecall.nhtsa_campaign_number}`;
       const jsonLd =
@@ -1652,6 +1742,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
           ogImage: "/og-image-detail.svg",
           body,
           jsonLd,
+          adsenseClient: c.env.ADSENSE_CLIENT || undefined,
         }),
         status: 200,
       };

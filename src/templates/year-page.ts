@@ -26,11 +26,13 @@ interface YearPageOptions {
   riskScore: number | null;
   cards: string;
   leadGen: string;
+  /** Recall-alert email signup card — rendered on every year page. */
+  alertSignupHtml?: string;
   relatedYears?: RelatedYear[];
   components?: ComponentLink[];
 }
 
-export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recallCount, topSeverity, riskGrade, riskScore, cards, leadGen, relatedYears, components }: YearPageOptions): string {
+export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recallCount, topSeverity, riskGrade, riskScore, cards, leadGen, alertSignupHtml, relatedYears, components }: YearPageOptions): string {
   const componentHtml = components && components.length > 0
     ? `
       <section style="margin-top: var(--space-20);">
@@ -96,12 +98,14 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
       <p class="rr-good-news__text">No safety recalls on record for the ${escapeHtml(year)} ${escapeHtml(make)} ${escapeHtml(model)}. That's great news — your vehicle has a clean recall history in the NHTSA database.</p>
       ${relatedYears && relatedYears.length > 0 ? `<p class="rr-good-news__text" style="font-size:var(--text-sm);">Check other model years below, or <a href="/${makeSlug}/${modelSlug}">browse all ${escapeHtml(make)} ${escapeHtml(model)} years</a>.</p>` : ""}
     </section>
+    ${alertSignupHtml ?? ""}
     ` : `
     <section class="rr-readout-list">
       <h2 class="sr-only">Known Safety Recalls</h2>
       ${cards}
     </section>
 
+    ${alertSignupHtml ?? ""}
     ${leadGen}
     `}
     ${componentHtml}

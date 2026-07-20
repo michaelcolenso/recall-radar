@@ -43,6 +43,20 @@
       "when": 1789268971000,
       "tag": "0005_campaign_vehicle_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1784498536699,
+      "tag": "0006_affiliate_clicks",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1784521054872,
+      "tag": "0007_alert_subscriptions",
+      "breakpoints": true
     }
   ]
 }

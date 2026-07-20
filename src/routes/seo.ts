@@ -16,6 +16,8 @@ const SEO_CACHE_VERSION = "v7";
 const STATIC_SITEMAP_PATHS: Array<{ path: string; priority: string; changefreq: string }> = [
   { path: "/about", priority: "0.5", changefreq: "monthly" },
   { path: "/vin-lookup", priority: "0.8", changefreq: "monthly" },
+  { path: "/privacy", priority: "0.3", changefreq: "yearly" },
+  { path: "/disclosure", priority: "0.3", changefreq: "yearly" },
 ];
 
 interface CountRow {
@@ -78,13 +80,25 @@ seoRoutes.get("/robots.txt", (c) => {
   // generic User-agent: * block exists (e.g. Cloudflare managed content).
   return c.text(
     `Sitemap: ${siteUrl}/sitemap.xml\n\n` +
-      `User-agent: *\nAllow: /\nDisallow: /api/\nContent-Signal: ai-train=no, search=yes, ai-input=yes\n\n` +
-      `User-agent: Googlebot\nAllow: /\nDisallow: /api/\nContent-Signal: ai-train=no, search=yes, ai-input=yes\n\n` +
-      `User-agent: Bingbot\nAllow: /\nDisallow: /api/\nContent-Signal: ai-train=no, search=yes, ai-input=yes\n\n` +
-      `User-agent: AI-Web-Crawler\nAllow: /\nDisallow: /api/\nContent-Signal: ai-train=no, search=yes, ai-input=yes`,
+      `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /go/\nContent-Signal: ai-train=no, search=yes, ai-input=yes\n\n` +
+      `User-agent: Googlebot\nAllow: /\nDisallow: /api/\nDisallow: /go/\nContent-Signal: ai-train=no, search=yes, ai-input=yes\n\n` +
+      `User-agent: Bingbot\nAllow: /\nDisallow: /api/\nDisallow: /go/\nContent-Signal: ai-train=no, search=yes, ai-input=yes\n\n` +
+      `User-agent: AI-Web-Crawler\nAllow: /\nDisallow: /api/\nDisallow: /go/\nContent-Signal: ai-train=no, search=yes, ai-input=yes`,
     200,
     { "content-type": "text/plain; charset=utf-8" },
   );
+});
+
+// GET /ads.txt — served only once an AdSense publisher id is configured
+seoRoutes.get("/ads.txt", (c) => {
+  // Widened: the generated Env types vars as literal "" until values are set.
+  const client = c.env.ADSENSE_CLIENT as string;
+  if (!client) return c.notFound();
+  // ads.txt wants the bare pub-… id, while the loader script uses ca-pub-….
+  const pubId = client.replace(/^ca-/, "");
+  return c.text(`google.com, ${pubId}, DIRECT, f08c47fec0942fa0`, 200, {
+    "content-type": "text/plain; charset=utf-8",
+  });
 });
 
 // GET /sitemap.xml

@@ -30,6 +30,11 @@
       "name": "enrichment-workflow",
       "binding": "ENRICHMENT_WORKFLOW",
       "class_name": "EnrichmentWorkflow"
+    },
+    {
+      "name": "alert-digest-workflow",
+      "binding": "ALERT_DIGEST_WORKFLOW",
+      "class_name": "AlertDigestWorkflow"
     }
   ],
   // Agent (Durable Object)
@@ -49,11 +54,14 @@
       ]
     }
   ],
-  // Cron Triggers — single weekly trigger; the ingestion workflow chains
-  // enrichment itself, keeping the account under the 5-cron free-plan limit
+  // Cron Triggers (2 of 5 on the free plan):
+  //  - Monday 02:00 UTC: delta ingestion (chains enrichment itself)
+  //  - Tuesday 02:00 UTC: recall-alert email digest (day after enrichment,
+  //    so new recalls carry plain-English text)
   "triggers": {
     "crons": [
-      "0 2 * * 1"
+      "0 2 * * 1",
+      "0 2 * * 2"
     ]
   },
   // Routes
@@ -77,7 +85,21 @@
     "CF_ANALYTICS_TOKEN": "",
     // NHTSA byVinProxy session auth (rotated from HAR capture of nhtsa.gov/recalls)
     "NHTSA_VIN_SESSION_TS": "",
-    "NHTSA_VIN_SESSION_KEY": ""
+    "NHTSA_VIN_SESSION_KEY": "",
+    // Comma-separated affiliate partner ids to enable (see src/lib/affiliates.ts).
+    // Empty = no affiliate CTAs rendered. Example: "dvh,epicvin"
+    "AFFILIATE_PARTNERS": "",
+    // Cloudflare Turnstile site key for the alert signup form (public value).
+    // Secret counterpart: `wrangler secret put TURNSTILE_SECRET_KEY`
+    "TURNSTILE_SITE_KEY": "",
+    // Verified Resend sender, e.g. "Recalled Rides Alerts <alerts@alerts.recalledrides.com>"
+    "ALERT_FROM_ADDRESS": "",
+    // CAN-SPAM physical postal address shown in every alert email footer
+    "EMAIL_POSTAL_ADDRESS": "",
+    // AdSense publisher id (ca-pub-…). Empty = no ads, no ads.txt, no CSP relaxation.
+    "ADSENSE_CLIENT": "",
+    // Optional AdSense ad-unit slot id for the manual units
+    "ADSENSE_SLOT": ""
   },
   // Observability
   "observability": {

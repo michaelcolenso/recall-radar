@@ -1055,6 +1055,182 @@ a.rr-readout__campaign:hover {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   AFFILIATE CTA (vehicle history reports)
+   ═══════════════════════════════════════════════════════════════ */
+
+.rr-aff {
+  margin-top: var(--space-12);
+  padding: var(--space-8);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-left: 4px solid var(--accent);
+  text-align: left;
+}
+
+.rr-aff__title {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  font-size: var(--text-lg);
+  text-transform: uppercase;
+  letter-spacing: -0.03em;
+  margin-bottom: var(--space-3);
+  color: var(--text-primary);
+}
+
+.rr-aff__text {
+  font-family: "Literata", serif;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-5);
+  max-width: 560px;
+}
+
+.rr-aff__vin {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+}
+
+.rr-aff__cta {
+  display: inline-block;
+  padding: var(--space-3) var(--space-6);
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--accent);
+  color: var(--text-inverse);
+  border: 2px solid var(--text-primary);
+  transition: all 0.2s var(--ease-mechanical);
+}
+
+.rr-aff__cta:hover {
+  background: var(--accent-hover);
+  transform: translateY(-2px);
+  box-shadow: 4px 4px 0 var(--text-primary);
+}
+
+.rr-aff__disclosure {
+  margin-top: var(--space-4);
+  font-family: "Literata", serif;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary, var(--text-secondary));
+}
+
+.rr-aff__disclosure a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RECALL ALERT SIGNUP
+   ═══════════════════════════════════════════════════════════════ */
+
+.rr-alert {
+  margin-top: var(--space-12);
+  padding: var(--space-8);
+  background: var(--bg-surface);
+  border: 3px solid var(--accent);
+}
+
+.rr-alert__title {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  font-size: var(--text-lg);
+  text-transform: uppercase;
+  letter-spacing: -0.03em;
+  margin-bottom: var(--space-3);
+  color: var(--text-primary);
+}
+
+.rr-alert__text {
+  font-family: "Literata", serif;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-5);
+  max-width: 560px;
+}
+
+.rr-alert__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.rr-alert__input {
+  flex: 1 1 220px;
+  padding: var(--space-3) var(--space-4);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  background: var(--bg-primary, transparent);
+  border: 2px solid var(--text-primary);
+}
+
+.rr-alert__input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.rr-alert__submit {
+  padding: var(--space-3) var(--space-6);
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--accent);
+  color: var(--text-inverse);
+  border: 2px solid var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s var(--ease-mechanical);
+}
+
+.rr-alert__submit:hover {
+  background: var(--accent-hover);
+  transform: translateY(-2px);
+  box-shadow: 4px 4px 0 var(--text-primary);
+}
+
+.rr-alert__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+.rr-alert__status {
+  font-family: "Literata", serif;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  min-height: 1.4em;
+  margin-bottom: var(--space-2);
+}
+
+.rr-alert__privacy {
+  font-family: "Literata", serif;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.rr-alert__privacy a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AD SLOT (fixed-height container — CLS guard)
+   ═══════════════════════════════════════════════════════════════ */
+
+.rr-ad {
+  margin-top: var(--space-12);
+  min-height: 280px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    DETAILS / ACCORDION
    ═══════════════════════════════════════════════════════════════ */
 
