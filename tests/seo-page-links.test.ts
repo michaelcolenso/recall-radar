@@ -42,7 +42,7 @@ test("home page links high-value model pages directly", () => {
     ],
   );
 
-  assert.match(html, /Popular Recall Pages/);
+  assert.match(html, /Most Checked Vehicles/);
   assert.match(html, /href="\/subaru\/forester"/);
 });
 

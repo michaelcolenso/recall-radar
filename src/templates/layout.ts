@@ -14,6 +14,8 @@ interface LayoutOptions {
   googleVerification?: string;
   analyticsToken?: string;
   lastUpdated?: string;
+  /** AdSense publisher id — when set, the adsbygoogle loader is emitted. */
+  adsenseClient?: string;
 }
 
 export function layout({
@@ -28,6 +30,7 @@ export function layout({
   googleVerification,
   analyticsToken,
   lastUpdated,
+  adsenseClient,
 }: LayoutOptions): string {
   const escapedTitle = escapeHtml(title);
   const escapedDesc = description ? escapeHtml(description) : "";
@@ -71,6 +74,7 @@ export function layout({
   <noscript><link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}"/></noscript>
   ${jsonLd}
   ${analyticsToken ? `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon="{&quot;token&quot;: &quot;${analyticsToken}&quot;}"></script>` : ""}
+  ${adsenseClient ? `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${escapeHtml(adsenseClient)}" crossorigin="anonymous"></script>` : ""}
 </head>
 <body class="rr-layout">
   <a href="#main" class="rr-skip-link">Skip to main content</a>
@@ -99,7 +103,7 @@ export function layout({
   <footer class="rr-footer">
     <div class="rr-footer__inner">
       <p>Source: <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration</a>. Updated <span id="rr-footer-date">${escapeHtml(lastUpdated || "recently")}</span>.</p>
-      <p>Independent site. Not affiliated with NHTSA or vehicle manufacturers. &middot; <a href="/about">Learn More</a></p>
+      <p>Independent site. Not affiliated with NHTSA or vehicle manufacturers. &middot; <a href="/about">Learn More</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/disclosure">Disclosure</a></p>
     </div>
   </footer>
   ${!lastUpdated ? `<script>document.getElementById("rr-footer-date").textContent=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})</script>` : ""}

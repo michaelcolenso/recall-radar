@@ -20,3 +20,26 @@ ADMIN_TOKEN=your-secret-admin-token
 # 3. Copy timestamp= and key= query params
 # NHTSA_VIN_SESSION_TS=1781047536026
 # NHTSA_VIN_SESSION_KEY=-1073958914
+
+# ─── Monetization (Phases 1–3) ───────────────────────────────────
+
+# Affiliate partner ids to enable, comma-separated (see src/lib/affiliates.ts).
+# Leave empty to render no affiliate CTAs.
+# AFFILIATE_PARTNERS=dvh,epicvin
+
+# Recall-alert email capture (Phase 2)
+# Resend API key (https://resend.com) — required for signups & digests
+# RESEND_API_KEY=re_xxxxxxxx
+# Svix signing secret for the Resend webhook (Resend dashboard → Webhooks)
+# RESEND_WEBHOOK_SECRET=whsec_xxxxxxxx
+# Cloudflare Turnstile keypair (dash.cloudflare.com → Turnstile)
+# TURNSTILE_SITE_KEY=0x4AAAAAAA...
+# TURNSTILE_SECRET_KEY=0x4AAAAAAA...
+# Verified Resend sender address
+# ALERT_FROM_ADDRESS=Recalled Rides Alerts <alerts@alerts.recalledrides.com>
+# CAN-SPAM physical postal address (required in every commercial email)
+# EMAIL_POSTAL_ADDRESS=PO Box 123, Anytown, ST 00000
+
+# Display ads (Phase 3) — leave empty for no ads / no ads.txt / strict CSP
+# ADSENSE_CLIENT=ca-pub-0000000000000000
+# ADSENSE_SLOT=0000000000

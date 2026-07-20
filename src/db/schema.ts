@@ -108,6 +108,92 @@ export const enrichmentFailures = sqliteTable("enrichment_failures", {
   index("idx_failures_resolved").on(table.resolved),
 ]);
 
+// ─── AFFILIATE CLICKS ───────────────────────────────────────────
+// Click log for /go/:partner redirects. No PII: page path, placement, and a
+// truncated VIN prefix (first 8 chars, no serial number) only.
+export const affiliateClicks = sqliteTable("affiliate_clicks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  partner: text("partner").notNull(),
+  placement: text("placement").notNull(),
+  pagePath: text("page_path").notNull(),
+  vinPrefix: text("vin_prefix"),
+  referer: text("referer"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => [
+  index("idx_aff_clicks_partner_created").on(table.partner, table.createdAt),
+]);
+
+// ─── ALERT SUBSCRIPTIONS ────────────────────────────────────────
+// Per-vehicle-year recall alerts. Double opt-in: rows start 'pending' and only
+// become 'active' when the confirm token is clicked. 'bounced'/'complained'
+// are permanent suppressions set by the Resend webhook.
+export const alertSubscriptionStatuses = [
+  "pending",
+  "active",
+  "unsubscribed",
+  "bounced",
+  "complained",
+] as const;
+export type AlertSubscriptionStatus = typeof alertSubscriptionStatuses[number];
+
+export const alertSubscriptions = sqliteTable("alert_subscriptions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull(),
+  vehicleYearId: integer("vehicle_year_id").notNull().references(() => vehicleYears.id, { onDelete: "cascade" }),
+  status: text("status", { enum: alertSubscriptionStatuses }).notNull().default("pending"),
+  confirmToken: text("confirm_token").notNull().unique(),
+  unsubToken: text("unsub_token").notNull().unique(),
+  source: text("source"),
+  ipHash: text("ip_hash"),
+  createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
+  confirmedAt: text("confirmed_at"),
+  unsubscribedAt: text("unsubscribed_at"),
+  lastSentAt: text("last_sent_at"),
+}, (table) => [
+  uniqueIndex("idx_alert_subs_email_vy").on(table.email, table.vehicleYearId),
+  index("idx_alert_subs_status").on(table.status),
+  index("idx_alert_subs_vy_status").on(table.vehicleYearId, table.status),
+]);
+
+// ─── ALERT SENDS ────────────────────────────────────────────────
+// One row per (subscription, recall) delivered — the UNIQUE constraint is the
+// digest idempotency guarantee: reruns and overlapping windows cannot double-send.
+export const alertSends = sqliteTable("alert_sends", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  subscriptionId: integer("subscription_id").notNull().references(() => alertSubscriptions.id, { onDelete: "cascade" }),
+  recallId: integer("recall_id").notNull().references(() => recalls.id, { onDelete: "cascade" }),
+  digestRun: text("digest_run").notNull(),
+  resendId: text("resend_id"),
+  status: text("status").notNull().default("sent"),
+  sentAt: text("sent_at"),
+}, (table) => [
+  uniqueIndex("idx_alert_sends_sub_recall").on(table.subscriptionId, table.recallId),
+  index("idx_alert_sends_digest_run").on(table.digestRun),
+]);
+
+// ─── ALERT DIGEST RUNS ──────────────────────────────────────────
+// Also serves as the "last successful digest" watermark: new recalls are those
+// with created_at > MAX(completed_at) WHERE status='completed'.
+export const alertDigestRuns = sqliteTable("alert_digest_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  startedAt: text("started_at").notNull(),
+  completedAt: text("completed_at"),
+  recallsMatched: integer("recalls_matched").default(0),
+  emailsSent: integer("emails_sent").default(0),
+  status: text("status").notNull().default("running"),
+  error: text("error"),
+}, (table) => [
+  index("idx_alert_digest_runs_status").on(table.status),
+]);
+
+// ─── RATE LIMITS ────────────────────────────────────────────────
+// Tiny fixed-window counter store (e.g. alert signups per IP per hour).
+export const rateLimits = sqliteTable("rate_limits", {
+  key: text("key").primaryKey(),
+  windowStart: text("window_start").notNull(),
+  count: integer("count").notNull().default(0),
+});
+
 // ─── INGESTION LOGS ─────────────────────────────────────────────
 export const ingestionLogs = sqliteTable("ingestion_logs", {
   id: integer("id").primaryKey({ autoIncrement: true }),

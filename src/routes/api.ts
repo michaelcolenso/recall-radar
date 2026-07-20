@@ -291,6 +291,102 @@ apiRoutes.get("/admin/stats", async (c) => {
   return c.json(await resp.json());
 });
 
+// GET /api/admin/affiliate-stats — clicks by partner/placement, last 30 days
+apiRoutes.get("/admin/affiliate-stats", async (c) => {
+  const denied = requireAuth(c);
+  if (denied) return denied;
+
+  const since = new Date(Date.now() - 30 * 24 * 3_600_000).toISOString();
+  const [byPartner, byPlacement, byDay, total] = await Promise.all([
+    c.env.DB.prepare(
+      "SELECT partner, COUNT(*) as clicks FROM affiliate_clicks WHERE created_at > ? GROUP BY partner ORDER BY clicks DESC",
+    ).bind(since).all<{ partner: string; clicks: number }>(),
+    c.env.DB.prepare(
+      "SELECT partner, placement, COUNT(*) as clicks FROM affiliate_clicks WHERE created_at > ? GROUP BY partner, placement ORDER BY clicks DESC",
+    ).bind(since).all<{ partner: string; placement: string; clicks: number }>(),
+    c.env.DB.prepare(
+      "SELECT date(created_at) as day, COUNT(*) as clicks FROM affiliate_clicks WHERE created_at > ? GROUP BY day ORDER BY day DESC",
+    ).bind(since).all<{ day: string; clicks: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM affiliate_clicks").first<{ count: number }>(),
+  ]);
+
+  return c.json({
+    windowDays: 30,
+    totalAllTime: total?.count ?? 0,
+    byPartner: byPartner.results,
+    byPlacement: byPlacement.results,
+    byDay: byDay.results,
+  });
+});
+
+// GET /api/admin/alerts/stats — subscriber counts, signups, digest health
+apiRoutes.get("/admin/alerts/stats", async (c) => {
+  const denied = requireAuth(c);
+  if (denied) return denied;
+
+  const now = Date.now();
+  const since7d = new Date(now - 7 * 24 * 3_600_000).toISOString();
+  const since30d = new Date(now - 30 * 24 * 3_600_000).toISOString();
+
+  const [byStatus, signups7d, signups30d, topVehicles, lastRuns, sends30d] = await Promise.all([
+    c.env.DB.prepare(
+      "SELECT status, COUNT(*) as count FROM alert_subscriptions GROUP BY status",
+    ).all<{ status: string; count: number }>(),
+    c.env.DB.prepare(
+      "SELECT COUNT(*) as count FROM alert_subscriptions WHERE created_at > ?",
+    ).bind(since7d).first<{ count: number }>(),
+    c.env.DB.prepare(
+      "SELECT COUNT(*) as count FROM alert_subscriptions WHERE created_at > ?",
+    ).bind(since30d).first<{ count: number }>(),
+    c.env.DB.prepare(
+      `SELECT mk.name as make, m.name as model, vy.year, COUNT(*) as subscribers
+       FROM alert_subscriptions s
+       JOIN vehicle_years vy ON vy.id = s.vehicle_year_id
+       JOIN models m ON m.id = vy.model_id
+       JOIN makes mk ON mk.id = m.make_id
+       WHERE s.status = 'active'
+       GROUP BY vy.id ORDER BY subscribers DESC LIMIT 10`,
+    ).all<{ make: string; model: string; year: number; subscribers: number }>(),
+    c.env.DB.prepare(
+      "SELECT id, started_at, completed_at, recalls_matched, emails_sent, status, error FROM alert_digest_runs ORDER BY id DESC LIMIT 5",
+    ).all(),
+    c.env.DB.prepare(
+      "SELECT COUNT(*) as count FROM alert_sends WHERE sent_at > ?",
+    ).bind(since30d).first<{ count: number }>(),
+  ]);
+
+  const statusCounts: Record<string, number> = {};
+  for (const row of byStatus.results) statusCounts[row.status] = row.count;
+  const active = statusCounts["active"] ?? 0;
+  const bounced = statusCounts["bounced"] ?? 0;
+  const complained = statusCounts["complained"] ?? 0;
+  const delivered = active + bounced + complained;
+
+  return c.json({
+    byStatus: statusCounts,
+    signupsLast7d: signups7d?.count ?? 0,
+    signupsLast30d: signups30d?.count ?? 0,
+    emailsSentLast30d: sends30d?.count ?? 0,
+    // rough proxy until Resend delivery totals are wired in
+    bounceRate: delivered > 0 ? bounced / delivered : 0,
+    complaintRate: delivered > 0 ? complained / delivered : 0,
+    topSubscribedVehicles: topVehicles.results,
+    recentDigestRuns: lastRuns.results,
+  });
+});
+
+// POST /api/admin/alerts/digest — trigger the digest workflow manually
+apiRoutes.post("/admin/alerts/digest", async (c) => {
+  const denied = requireAuth(c);
+  if (denied) return denied;
+
+  const body = await c.req.json<{ dryRun?: boolean }>().catch(() => ({} as { dryRun?: boolean }));
+  const instance = await c.env.ALERT_DIGEST_WORKFLOW.create({
+    params: { dryRun: body.dryRun === true },
+  });
+  return c.json({ ok: true, workflowId: instance.id, dryRun: body.dryRun === true });
+});
+
 // GET /api/vin-lookup — Public VIN recall lookup (proxies NHTSA)
 apiRoutes.get("/vin-lookup", async (c) => {
   const vin = (c.req.query("vin") || "").trim().toUpperCase();

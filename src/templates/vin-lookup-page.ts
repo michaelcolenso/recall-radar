@@ -1,6 +1,6 @@
 import { escapeHtml } from "../lib/utils";
 
-export function vinLookupPageTemplate(siteUrl: string): string {
+export function vinLookupPageTemplate(siteUrl: string, affiliateCtaHtml?: string): string {
   return `
     <section class="rr-section-header">
       <h1 class="rr-section-header__title">Free VIN Recall Check</h1>
@@ -30,6 +30,7 @@ export function vinLookupPageTemplate(siteUrl: string): string {
       </form>
 
       <div id="vin-results" class="rr-vin-results" hidden></div>
+      ${affiliateCtaHtml ? `<div id="vin-aff-cta" hidden>${affiliateCtaHtml}</div>` : ""}
     </section>
 
     <section style="margin-bottom: var(--space-16);">
@@ -82,6 +83,17 @@ export function vinLookupPageTemplate(siteUrl: string): string {
               if(data.error){
                 results.innerHTML='<p class="rr-body rr-body--error">'+escHtml(data.error)+'</p>';
                 return;
+              }
+              // Reveal the affiliate CTA after a successful lookup, deep-linking the typed VIN
+              var aff=document.getElementById('vin-aff-cta');
+              if(aff){
+                var link=aff.querySelector('[data-aff-cta]');
+                if(link){
+                  var base=link.getAttribute('data-base-href')||link.getAttribute('href');
+                  link.setAttribute('data-base-href',base);
+                  link.setAttribute('href',base+(base.indexOf('?')>=0?'&':'?')+'vin='+encodeURIComponent(vin));
+                }
+                aff.hidden=false;
               }
               if(!data.recalls||data.recalls.length===0){
                 results.innerHTML='<div class="rr-empty"><h2 class="rr-empty__title">No Open Recalls</h2><p class="rr-empty__text">Good news — NHTSA shows no open recalls for this VIN.</p></div>';

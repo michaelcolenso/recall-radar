@@ -12,6 +12,10 @@ interface VinPageOptions {
   recallCount: number;
   topSeverity: SeverityLevel | null;
   cards: string;
+  /** Vehicle-history-report affiliate CTA (Phase 1) — shown under the VIN summary. */
+  affiliateCtaHtml?: string;
+  /** Recall-alert signup card (Phase 2), prefilled from the decoded VIN. */
+  alertSignupHtml?: string;
 }
 
 export function vinPageTemplate({
@@ -24,6 +28,8 @@ export function vinPageTemplate({
   recallCount,
   topSeverity,
   cards,
+  affiliateCtaHtml,
+  alertSignupHtml,
 }: VinPageOptions): string {
   const makeSlug = slugify(make);
   const modelSlug = slugify(model);
@@ -63,6 +69,8 @@ export function vinPageTemplate({
       </div>
     </section>
 
+    ${affiliateCtaHtml ?? ""}
+
     ${recallCount === 0 ? `
     <section class="rr-good-news" aria-labelledby="good-news-title" style="margin-top: var(--space-16);">
       <svg class="rr-good-news__icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
@@ -87,6 +95,8 @@ export function vinPageTemplate({
       </p>
     </section>
     ` : ""}
+
+    ${alertSignupHtml ?? ""}
 
     <section style="margin-top: var(--space-12); padding-top: var(--space-8); border-top: 1px solid var(--border-subtle);">
       <a href="${yearPagePath}" class="rr-empty__action" style="display: inline-flex; align-items: center; gap: var(--space-2);">

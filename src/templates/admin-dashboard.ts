@@ -153,6 +153,34 @@ export function adminDashboard(): string {
   </section>
 
   <!-- Recent Runs -->
+  <!-- Monetization -->
+  <section>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold">Monetization</h2>
+      <button id="money-btn" class="text-sm text-blue-400 hover:text-blue-300">Load</button>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <div id="money-clicks" class="text-2xl font-bold text-white">—</div>
+        <div class="text-xs text-slate-400 mt-1">Affiliate Clicks (30d)</div>
+      </div>
+      <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <div id="money-subs" class="text-2xl font-bold text-white">—</div>
+        <div class="text-xs text-slate-400 mt-1">Active Subscribers</div>
+      </div>
+      <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <div id="money-signups" class="text-2xl font-bold text-white">—</div>
+        <div class="text-xs text-slate-400 mt-1">Signups (7d)</div>
+      </div>
+      <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <div id="money-digest" class="text-lg font-bold text-white">—</div>
+        <div class="text-xs text-slate-400 mt-1">Last Digest</div>
+      </div>
+    </div>
+    <div id="money-detail" class="text-xs text-slate-400 mt-2"></div>
+    <p id="money-error" class="text-red-400 text-sm mt-2 hidden"></p>
+  </section>
+
   <section>
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-lg font-semibold">Recent Pipeline Runs</h2>
@@ -391,6 +419,40 @@ export function adminDashboard(): string {
     }
   }
   document.getElementById('enrich-stats-btn').addEventListener('click', loadEnrichStats);
+
+  // Monetization (affiliate clicks + alert subscribers)
+  async function loadMoneyStats() {
+    const err = document.getElementById('money-error');
+    err.classList.add('hidden');
+    try {
+      const [affR, alertsR] = await Promise.all([
+        fetch('/api/admin/affiliate-stats', { headers: headers() }),
+        fetch('/api/admin/alerts/stats', { headers: headers() }),
+      ]);
+      if (affR.status === 401 || alertsR.status === 401) { err.textContent = 'Unauthorized — check your token.'; err.classList.remove('hidden'); return; }
+      const aff = affR.ok ? await affR.json() : null;
+      const alerts = alertsR.ok ? await alertsR.json() : null;
+      if (aff) {
+        const total30 = (aff.byPartner || []).reduce((s, p) => s + p.clicks, 0);
+        document.getElementById('money-clicks').textContent = fmt(total30);
+      }
+      if (alerts) {
+        document.getElementById('money-subs').textContent = fmt(alerts.byStatus?.active ?? 0);
+        document.getElementById('money-signups').textContent = fmt(alerts.signupsLast7d ?? 0);
+        const run = (alerts.recentDigestRuns || [])[0];
+        document.getElementById('money-digest').textContent = run ? run.status + ' · ' + fmt(run.emails_sent) + ' sent' : 'never run';
+        const parts = [];
+        if (aff && aff.byPartner) parts.push('Clicks by partner: ' + (aff.byPartner.map(p => p.partner + ' ' + p.clicks).join(', ') || 'none'));
+        parts.push('Subs: ' + Object.entries(alerts.byStatus || {}).map(([k, v]) => k + ' ' + v).join(', '));
+        parts.push('Complaint rate: ' + ((alerts.complaintRate ?? 0) * 100).toFixed(2) + '%');
+        document.getElementById('money-detail').textContent = parts.join(' · ');
+      }
+    } catch (e) {
+      err.textContent = 'Network error';
+      err.classList.remove('hidden');
+    }
+  }
+  document.getElementById('money-btn').addEventListener('click', loadMoneyStats);
 
   document.getElementById('refresh-btn').addEventListener('click', loadAll);
 

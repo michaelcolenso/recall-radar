@@ -5,9 +5,12 @@ import { apiRoutes } from "./routes/api";
 import { adminRoutes } from "./routes/admin";
 import { seoRoutes } from "./routes/seo";
 import { wellKnownRoutes } from "./routes/well-known";
+import { goRoutes } from "./routes/go";
+import { alertRoutes } from "./routes/alerts";
 import { PipelineAgent } from "./agents/pipeline-agent";
 import { IngestionWorkflow } from "./workflows/ingestion-workflow";
 import { EnrichmentWorkflow } from "./workflows/enrichment-workflow";
+import { AlertDigestWorkflow } from "./workflows/alert-digest-workflow";
 import { ASSET_VERSION, DEFAULT_YEAR_START } from "./lib/constants";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -45,11 +48,27 @@ app.onError((err, c) => {
 // Security: HSTS, redirect HTTP→HTTPS, www→non-www, trailing-slash canonicalization
 app.use(async (c, next) => {
   c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+
+  // Turnstile (alert signup) needs challenges.cloudflare.com in script/frame/connect.
+  // AdSense sources are only added once ADSENSE_CLIENT is configured.
+  const adsense = !!c.env.ADSENSE_CLIENT;
+  const scriptSrc =
+    "'self' 'unsafe-inline' https://static.cloudflareinsights.com https://challenges.cloudflare.com" +
+    (adsense ? " https://pagead2.googlesyndication.com https://adservice.google.com" : "");
+  const imgSrc =
+    "'self' data:" +
+    (adsense ? " https://pagead2.googlesyndication.com https://www.google.com https://googleads.g.doubleclick.net" : "");
+  const connectSrc =
+    "'self' https://cloudflareinsights.com https://static.cloudflareinsights.com https://challenges.cloudflare.com" +
+    (adsense ? " https://pagead2.googlesyndication.com" : "");
+  const frameSrc =
+    "https://challenges.cloudflare.com" +
+    (adsense ? " https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://www.google.com" : "");
   c.header(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; " +
-      "style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; " +
-      "connect-src 'self' https://cloudflareinsights.com https://static.cloudflareinsights.com; " +
+    `default-src 'self'; script-src ${scriptSrc}; ` +
+      `style-src 'self' 'unsafe-inline'; img-src ${imgSrc}; font-src 'self'; ` +
+      `connect-src ${connectSrc}; frame-src ${frameSrc}; ` +
       "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests",
   );
   c.header("X-Content-Type-Options", "nosniff");
@@ -73,7 +92,9 @@ app.use(async (c, next) => {
 app.get("/b9d5420d355147c7941823e6fc9435c3.txt", (c) =>
        c.text("b9d5420d355147c7941823e6fc9435c3", 200, { "Content-Type": "text/plain" })
      );
+app.route("/", alertRoutes); // /api/alerts/* + /api/webhooks/resend (before apiRoutes' /api mount)
 app.route("/api", apiRoutes);
+app.route("/", goRoutes);
 app.route("/", seoRoutes);
 app.route("/", adminRoutes);
 app.route("/.well-known", wellKnownRoutes);
@@ -86,8 +107,8 @@ export default {
     try {
       if (event.cron === "0 2 * * 1") {
         // Monday 2 AM UTC — delta ingestion (skips rows checked within the last 6 days).
-        // Enrichment is chained by the workflow itself when ingestion completes, so a
-        // single cron trigger suffices (free plan allows 5 per account).
+        // Enrichment is chained by the workflow itself when ingestion completes.
+        // (2 of 5 free-plan cron triggers in use, including the Tuesday digest.)
         await env.INGESTION_WORKFLOW.create({
           params: {
             mode: "delta",
@@ -97,6 +118,11 @@ export default {
             chainEnrichment: true,
           },
         });
+      }
+      if (event.cron === "0 2 * * 2") {
+        // Tuesday 2 AM UTC — recall-alert digest. Runs the day after ingestion +
+        // enrichment so new recalls carry plain-English text in the email.
+        await env.ALERT_DIGEST_WORKFLOW.create({ params: {} });
       }
     } catch (err) {
       console.error(
@@ -111,4 +137,4 @@ export default {
   },
 };
 
-export { PipelineAgent, IngestionWorkflow, EnrichmentWorkflow };
+export { PipelineAgent, IngestionWorkflow, EnrichmentWorkflow, AlertDigestWorkflow };
