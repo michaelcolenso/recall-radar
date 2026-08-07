@@ -4,6 +4,7 @@ import { makePageTemplate } from "../src/templates/make-page.ts";
 import { modelPageTemplate } from "../src/templates/model-page.ts";
 import { homeTemplate } from "../src/templates/home.ts";
 import { recallCard } from "../src/templates/components/recall-card.ts";
+import { newRecallsPageTemplate } from "../src/templates/new-recalls-page.ts";
 
 test("make pages link only models with recall detail", () => {
   const html = makePageTemplate("Honda", "honda", [
@@ -147,3 +148,62 @@ test("VIN lookup page includes form and sample VINs", () => {
   assert.match(html, /17-character VIN/);
   assert.match(html, /Privacy Notice/);
 });
+
+const newRecallRow = {
+  nhtsa_campaign_number: "26V300000",
+  component: "STEERING:ELECTRIC POWER ASSIST",
+  severity_level: "CRITICAL" as const,
+  report_received_date: "2026-08-01",
+  make_name: "Toyota",
+  make_slug: "toyota",
+  model_name: "Camry",
+  model_slug: "camry",
+  year: 2026,
+};
+
+test("new recalls page links to campaign pages and vehicle year pages", () => {
+  const html = newRecallsPageTemplate({
+    recalls: [newRecallRow],
+    severity: "",
+    page: 1,
+    totalPages: 1,
+    totalCount: 1,
+  });
+
+  assert.match(html, /href="\/recall\/26V300000"/);
+  assert.match(html, /href="\/toyota\/camry\/2026"/);
+  assert.match(html, /Reported 2026-08-01/);
+  assert.match(html, /New Recalls/);
+});
+
+test("new recalls page renders severity filter pills with active state", () => {
+  const html = newRecallsPageTemplate({
+    recalls: [newRecallRow],
+    severity: "CRITICAL",
+    page: 1,
+    totalPages: 1,
+    totalCount: 1,
+  });
+
+  assert.match(html, /href="\/new\?severity=CRITICAL"/);
+  assert.match(html, /rr-filter__pill--active/);
+  assert.match(html, /aria-current="page"/);
+  // "All" pill links back to /new without a severity param
+  assert.match(html, /href="\/new"/);
+});
+
+test("new recalls page renders pagination links and preserves severity filter", () => {
+  const html = newRecallsPageTemplate({
+    recalls: [newRecallRow],
+    severity: "HIGH",
+    page: 2,
+    totalPages: 5,
+    totalCount: 101,
+  });
+
+  // Page 1 is the bare URL (no ?page=1) — canonical-friendly
+  assert.match(html, /href="\/new\?severity=HIGH" rel="prev"/);
+  assert.match(html, /rel="next"/);
+  assert.match(html, /page 2 of 5/);
+});
+
