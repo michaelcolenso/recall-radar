@@ -105,9 +105,10 @@ export default {
   fetch: app.fetch,
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     try {
-      if (event.cron === "0 2 * * 1") {
-        // Monday 2 AM UTC — delta ingestion (skips rows checked within the last 6 days).
+      if (event.cron === "0 2 * * *") {
+        // Daily 2 AM UTC — delta ingestion (skips rows checked within the last 6 days).
         // Enrichment is chained by the workflow itself when ingestion completes.
+        // Daily cadence keeps campaign pages + /new fresh within 24h of NHTSA publishing.
         // (2 of 5 free-plan cron triggers in use, including the Tuesday digest.)
         await env.INGESTION_WORKFLOW.create({
           params: {
@@ -119,8 +120,8 @@ export default {
           },
         });
       }
-      if (event.cron === "0 2 * * 2") {
-        // Tuesday 2 AM UTC — recall-alert digest. Runs the day after ingestion +
+      if (event.cron === "0 5 * * 2") {
+        // Tuesday 5 AM UTC — recall-alert digest. Runs after the daily 2 AM ingestion +
         // enrichment so new recalls carry plain-English text in the email.
         await env.ALERT_DIGEST_WORKFLOW.create({ params: {} });
       }
