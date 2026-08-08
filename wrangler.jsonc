@@ -55,13 +55,15 @@
     }
   ],
   // Cron Triggers (2 of 5 on the free plan):
-  //  - Monday 02:00 UTC: delta ingestion (chains enrichment itself)
-  //  - Tuesday 02:00 UTC: recall-alert email digest (day after enrichment,
-  //    so new recalls carry plain-English text)
+  //  - Daily 02:00 UTC: delta ingestion (chains enrichment itself). The delta
+  //    threshold (144h) means each run only fetches newly-announced or changed
+  //    recalls, so daily cadence is cheap and keeps /new + campaign pages fresh.
+  //  - Tuesday 05:00 UTC: recall-alert email digest (runs after the Tuesday
+  //    ingestion+enrichment has completed, so new recalls carry plain-English text)
   "triggers": {
     "crons": [
-      "0 2 * * 1",
-      "0 2 * * 2"
+      "0 2 * * *",
+      "0 5 * * 2"
     ]
   },
   // Routes
