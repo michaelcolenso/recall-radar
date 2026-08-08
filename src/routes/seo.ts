@@ -15,6 +15,7 @@ const SEO_CACHE_VERSION = "v7";
 // and the single-urlset branch below.
 const STATIC_SITEMAP_PATHS: Array<{ path: string; priority: string; changefreq: string }> = [
   { path: "/about", priority: "0.5", changefreq: "monthly" },
+  { path: "/new", priority: "0.7", changefreq: "daily" },
   { path: "/vin-lookup", priority: "0.8", changefreq: "monthly" },
   { path: "/privacy", priority: "0.3", changefreq: "yearly" },
   { path: "/disclosure", priority: "0.3", changefreq: "yearly" },

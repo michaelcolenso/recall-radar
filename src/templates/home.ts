@@ -144,7 +144,7 @@ export function homeTemplate(
     <section style="margin-bottom: var(--space-24);">
       <div class="rr-section-header">
         <h2 class="rr-section-header__title">Latest Recalls</h2>
-        <p class="rr-section-header__body">Most recently reported NHTSA safety recalls.</p>
+        <p class="rr-section-header__body">Most recently reported NHTSA safety recalls. <a href="/new">See all new recalls →</a></p>
       </div>
       <div class="rr-grid rr-grid--models">
         ${latestRecalls.map((r) => {

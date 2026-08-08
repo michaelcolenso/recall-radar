@@ -27,6 +27,7 @@ import { componentPageTemplate } from "../templates/component-page";
 import { makeComponentPageTemplate } from "../templates/make-component-page";
 import { modelStatsPageTemplate } from "../templates/model-stats-page";
 import { vinLookupPageTemplate } from "../templates/vin-lookup-page";
+import { newRecallsPageTemplate, NEW_RECALLS_PAGE_SIZE } from "../templates/new-recalls-page";
 import { vinPageTemplate } from "../templates/vin-page";
 import { fetchRecallsByVin, validateVin } from "../lib/nhtsa-client";
 import { relatedLinks } from "../templates/components/related-links";
@@ -223,6 +224,114 @@ pageRoutes.get("/", async (c) => {
       });
     },
   );
+  c.header("Cache-Control", CACHE_CONTROL);
+  Object.entries(linkHeaders(siteUrl)).forEach(([k, v]) => c.header(k, v));
+  return maybeMarkdown(c, html);
+});
+
+// GET /new — Newest recalls, filterable by severity, paginated
+const VALID_SEVERITIES = new Set(["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]);
+
+pageRoutes.get("/new", async (c) => {
+  const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
+  const rawSeverity = (c.req.query("severity") || "").toUpperCase();
+  const severity = VALID_SEVERITIES.has(rawSeverity) ? rawSeverity : "";
+  const rawPage = Number.parseInt(c.req.query("page") || "1", 10);
+  const page = Number.isFinite(rawPage) && rawPage >= 1 ? Math.floor(rawPage) : 1;
+
+  const cacheKey = withPageCacheVersion(`page:new:${severity || "all"}:${page}`);
+  const { value: html } = await getCachedOrRender(cacheKey, 21600, async () => {
+    const [lastUpdatedResult] = await Promise.all([
+      c.env.DB.prepare(
+        "SELECT MAX(completed_at) as last_run FROM ingestion_logs WHERE status = 'completed'",
+      ).first<{ last_run: string | null }>(),
+    ]);
+
+    const whereSql = severity ? "WHERE r.severity_level = ?" : "";
+    const params = severity ? [severity] : [];
+
+    const countResult = await c.env.DB.prepare(
+      `SELECT COUNT(*) as count
+       FROM recalls r
+       ${whereSql}`,
+    ).bind(...params).first<{ count: number }>();
+
+    const totalCount = countResult?.count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(totalCount / NEW_RECALLS_PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const offset = (safePage - 1) * NEW_RECALLS_PAGE_SIZE;
+
+    const recallsResult = await c.env.DB.prepare(
+      `SELECT r.nhtsa_campaign_number, r.component, r.severity_level,
+              r.report_received_date,
+              mk.name as make_name, mk.slug as make_slug,
+              m.name as model_name, m.slug as model_slug,
+              vy.year
+       FROM recalls r
+       JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+       JOIN models m ON m.id = vy.model_id
+       JOIN makes mk ON mk.id = m.make_id
+       ${whereSql}
+       ORDER BY COALESCE(r.report_received_date, r.created_at) DESC, r.id DESC
+       LIMIT ? OFFSET ?`,
+    ).bind(...params, NEW_RECALLS_PAGE_SIZE, offset).all<{
+      nhtsa_campaign_number: string;
+      component: string;
+      severity_level: SeverityLevel;
+      report_received_date: string | null;
+      make_name: string;
+      make_slug: string;
+      model_name: string;
+      model_slug: string;
+      year: number;
+    }>();
+
+    const canonicalUrl = severity
+      ? `${siteUrl}/new?severity=${encodeURIComponent(severity)}${safePage > 1 ? `&page=${safePage}` : ""}`
+      : safePage > 1
+        ? `${siteUrl}/new?page=${safePage}`
+        : `${siteUrl}/new`;
+
+    const jsonLd = itemListJsonLd(
+      "New Recalls",
+      recallsResult.results.slice(0, 25).map((r) => ({
+        name: `${r.year} ${r.make_name} ${r.model_name} — ${r.component.split(":")[0].trim()}`,
+        url: `${siteUrl}/recall/${encodeURIComponent(r.nhtsa_campaign_number)}`,
+        description: r.report_received_date ? `Reported to NHTSA ${r.report_received_date}` : "Newly reported NHTSA safety recall",
+      })),
+      canonicalUrl,
+    );
+
+    const lastUpdated = lastUpdatedResult?.last_run
+      ? new Date(lastUpdatedResult.last_run).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+      : undefined;
+
+    const titleSuffix = severity ? ` — ${severity.charAt(0) + severity.slice(1).toLowerCase()}` : "";
+    const body = newRecallsPageTemplate({
+      recalls: recallsResult.results,
+      severity,
+      page: safePage,
+      totalPages,
+      totalCount,
+    });
+
+    return layout({
+      googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+      analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+      title: `New Recalls${titleSuffix} — Latest NHTSA Vehicle Safety Recalls | Recalled Rides`,
+      description:
+        severity
+          ? `Recently reported ${severity.toLowerCase()} vehicle safety recalls from NHTSA. Check the newest ${severity.toLowerCase()}-severity recalls and get free repairs at your dealer.`
+          : "The newest vehicle safety recalls reported to NHTSA. See what was just announced, filter by severity, and get repairs free at your dealer.",
+      canonical: canonicalUrl,
+      ogType: "website",
+      ogImage: "/og-image-home.svg",
+      lastUpdated,
+      body,
+      jsonLd,
+    });
+  });
+
   c.header("Cache-Control", CACHE_CONTROL);
   Object.entries(linkHeaders(siteUrl)).forEach(([k, v]) => c.header(k, v));
   return maybeMarkdown(c, html);
