@@ -1,5 +1,21 @@
 import { escapeHtml, slugify } from "../../lib/utils";
 
+/**
+ * Serializes a JSON-LD payload for embedding in a <script type="application/ld+json">
+ * tag. JSON.stringify alone would preserve a literal "</script" sequence coming
+ * from any interpolated field (component/make/model text, summaries, etc.),
+ * letting the HTML parser close the tag early and treat the remainder as markup.
+ * Escaping "<" (and "&"/">" for good measure) as \uXXXX keeps it valid JSON that
+ * still parses to the exact same value.
+ */
+function jsonLdScript(schema: unknown): string {
+  const json = JSON.stringify(schema)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
+  return `<script type="application/ld+json">${json}</script>`;
+}
+
 interface FaqItem {
   campaign: string;
   component: string;
@@ -96,7 +112,7 @@ export function faqPageJsonLd(
     schema.dateModified = dateModified;
   }
 
-  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+  return jsonLdScript(schema);
 }
 
 interface BreadcrumbItem {
@@ -122,7 +138,7 @@ export function breadcrumbListJsonLd(_siteUrl: string, items: BreadcrumbItem[]):
     }),
   };
 
-  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+  return jsonLdScript(schema);
 }
 
 interface OrganizationSchema {
@@ -148,7 +164,7 @@ export function websiteJsonLd(siteUrl: string, siteName: string, description: st
       "query-input": "required name=search_term_string",
     },
   };
-  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+  return jsonLdScript(schema);
 }
 
 export function organizationJsonLd(org: OrganizationSchema): string {
@@ -160,7 +176,7 @@ export function organizationJsonLd(org: OrganizationSchema): string {
     ...(org.logo ? { logo: org.logo } : {}),
     ...(org.sameAs ? { sameAs: org.sameAs } : {}),
   };
-  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+  return jsonLdScript(schema);
 }
 
 export function vehicleJsonLd(make: string, model: string, year: number, pageUrl: string, recallCount: number): string {
@@ -181,7 +197,7 @@ export function vehicleJsonLd(make: string, model: string, year: number, pageUrl
         }
       : { description: `No active safety recalls on record for the ${year} ${make} ${model}.` }),
   };
-  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+  return jsonLdScript(schema);
 }
 
 export function aggregateRatingJsonLd(pageUrl: string, ratingValue: number, reviewCount: number): string {
@@ -194,7 +210,7 @@ export function aggregateRatingJsonLd(pageUrl: string, ratingValue: number, revi
     reviewCount,
     url: pageUrl,
   };
-  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+  return jsonLdScript(schema);
 }
 
 interface HowToStep {
@@ -217,7 +233,7 @@ export function howToJsonLd(name: string, description: string, steps: HowToStep[
   if (pageUrl) {
     schema.url = pageUrl;
   }
-  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+  return jsonLdScript(schema);
 }
 
 interface ItemListEntry {
@@ -242,7 +258,7 @@ export function itemListJsonLd(name: string, items: ItemListEntry[], pageUrl?: s
   if (pageUrl) {
     schema.url = pageUrl;
   }
-  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+  return jsonLdScript(schema);
 }
 
 interface ArticleSchema {
@@ -267,7 +283,7 @@ export function articleJsonLd(article: ArticleSchema): string {
     ...(article.author ? { author: { "@type": "Organization", name: article.author } } : {}),
     ...(article.image ? { image: article.image } : {}),
   };
-  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+  return jsonLdScript(schema);
 }
 
 interface ModelOverviewFaqInput {
@@ -358,9 +374,8 @@ export function modelOverviewFaqJsonLd(input: ModelOverviewFaqInput): string {
   if (input.dateModified) {
     schema.dateModified = input.dateModified;
   }
-  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+  return jsonLdScript(schema);
 }
 
 // Legacy export for backwards compatibility
-export const pageJsonLd = (payload: Record<string, unknown>): string =>
-  `<script type="application/ld+json">${JSON.stringify(payload)}</script>`;
+export const pageJsonLd = (payload: Record<string, unknown>): string => jsonLdScript(payload);

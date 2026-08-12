@@ -211,6 +211,29 @@ test("modelOverviewFaqJsonLd emits valid FAQPage schema grounded in the verified
   assert.doesNotMatch(json, /"@type":"Review"/);
 });
 
+test("modelOverviewFaqJsonLd: a </script>-bearing component can't break out of the JSON-LD script tag", () => {
+  // Defense in depth against malformed/contaminated upstream NHTSA text —
+  // JSON.stringify alone preserves a literal "</script" sequence, which would
+  // let the HTML parser close the tag early and treat the rest as markup.
+  const json = modelOverviewFaqJsonLd({
+    make: "Audi",
+    model: "A6",
+    totalRecalls: 1,
+    yearCount: 1,
+    yearRange: "2022–2022",
+    recallYearCount: 1,
+    recallYearRange: "2022–2022",
+    topComponent: "</script><script>alert(1)</script>",
+    pageUrl: "https://recalledrides.com/audi/a6",
+  });
+
+  assert.doesNotMatch(json, /<\/script><script>/);
+  assert.match(json, /\\u003c\/script\\u003e/);
+  // Still valid, parseable JSON once extracted from the tag.
+  const inner = json.replace(/^<script[^>]*>/, "").replace(/<\/script>$/, "");
+  assert.doesNotThrow(() => JSON.parse(inner));
+});
+
 test("modelOverviewFaqJsonLd: zero-recall answer carries the same coverage caveat as the visible All Clear copy", () => {
   const json = modelOverviewFaqJsonLd({
     make: "Infiniti",
