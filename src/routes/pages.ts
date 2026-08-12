@@ -1078,7 +1078,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         };
       }
 
-      const [years, componentStatsResult, notableRecallsResult, lastIngestedResult] = await Promise.all([
+      const [years, componentStatsResult, notableRecallsResult, lastIngestedResult, distinctCampaignsResult] = await Promise.all([
         c.env.DB.prepare(
           `SELECT vy.year,
                 COUNT(r.id) as recall_count,
@@ -1145,9 +1145,21 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         c.env.DB.prepare(
           "SELECT MAX(last_ingested_at) as last_ingested FROM vehicle_years WHERE model_id = ?",
         ).bind(model.id).first<{ last_ingested: string | null }>(),
+
+        // recalls has one row per (campaign, vehicle_year) — a campaign spanning
+        // several years would otherwise be counted once per year. The headline
+        // count is "known recalls" (i.e. distinct NHTSA campaigns), not rows.
+        c.env.DB.prepare(
+          `SELECT COUNT(DISTINCT r.nhtsa_campaign_number) as distinct_count
+           FROM recalls r
+           JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+           WHERE vy.model_id = ?`,
+        ).bind(model.id).first<{ distinct_count: number }>(),
       ]);
 
-      const totalRecalls = years.results.reduce((sum, y) => sum + y.recall_count, 0);
+      // Distinct NHTSA campaigns, not summed per-year row counts — a campaign spanning
+      // multiple years would otherwise be double-counted (see distinctCampaignsResult).
+      const totalRecalls = distinctCampaignsResult?.distinct_count ?? 0;
       const hasYearData = years.results.length > 0;
       const yearRange = hasYearData ? `${years.results[years.results.length - 1].year}–${years.results[0].year}` : "";
       const topComponent = componentStatsResult.results[0]?.name;

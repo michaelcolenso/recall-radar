@@ -81,7 +81,7 @@ export function modelPageMeta({
   if (totalRecalls === 0) {
     return {
       title: `${make} ${model} Recalls: None Found — Affected Years & VIN Check | Recalled Rides`,
-      description: `Good news: the ${make} ${model} has no NHTSA safety recalls on record across ${yearCount} model years (${yearRange}). Verify your specific VIN to be sure.`,
+      description: `The ${make} ${model} has no NHTSA safety recalls on record for tracked model years ${yearRange}. Verify your specific VIN for a definitive check.`,
     };
   }
 
@@ -228,7 +228,7 @@ export function modelPageTemplate({
     <section class="rr-section-header">
       ${makeLogoImg(makeSlug, make, "rr-make-logo rr-make-logo--hero")}
       <h1 class="rr-section-header__title">${escapeHtml(make)} ${escapeHtml(model)} Recalls${totalRecalls > 0 ? `: ${totalRecalls} Found` : ": None Found"}</h1>
-      <p class="rr-section-header__subtitle">${totalRecalls > 0 ? `Affected years, leading issues, and a free VIN check for the ${escapeHtml(make)} ${escapeHtml(model)}.` : `Verified recall history and a free VIN check for the ${escapeHtml(make)} ${escapeHtml(model)}.`}</p>
+      <p class="rr-section-header__subtitle">${totalRecalls > 0 ? `Affected years, leading issues, and a free VIN check for the ${escapeHtml(make)} ${escapeHtml(model)}.` : `Recall history for tracked model years and a free VIN check for the ${escapeHtml(make)} ${escapeHtml(model)}.`}</p>
       <div class="rr-meta-bar">
         <span class="rr-meta-bar__count">${years.length} model year${years.length !== 1 ? "s" : ""} tracked (${escapeHtml(yearRange)})</span>
         ${leadingSeverity ? `<span class="rr-meta-bar__notice"><span>Most severe issue:</span>${severityBadge(leadingSeverity)}</span>` : ""}
@@ -245,7 +245,7 @@ export function modelPageTemplate({
         <path d="M20 33l8 8 16-16" stroke-dasharray="40" stroke-dashoffset="40" style="animation:rr-draw-path 0.5s var(--ease-mechanical) 0.7s forwards"/>
       </svg>
       <h2 id="good-news-title" class="rr-good-news__title">All Clear</h2>
-      <p class="rr-good-news__text">No safety recalls on record for the ${escapeHtml(make)} ${escapeHtml(model)} across ${years.length} tracked model years (${escapeHtml(yearRange)}). That's great news — but always confirm with your specific VIN, since NHTSA issues new recalls regularly.</p>
+      <p class="rr-good-news__text">No safety recalls on record for the ${escapeHtml(make)} ${escapeHtml(model)} in NHTSA's database for model years ${escapeHtml(yearRange)}. If this model was sold before 2000 or discontinued earlier, those years aren't reflected here. Either way, only a VIN check confirms an individual vehicle — model-year history alone can't rule a specific car in or out.</p>
     </section>
     ` : ""}
 

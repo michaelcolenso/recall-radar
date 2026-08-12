@@ -125,6 +125,12 @@ test("zero-recall model (verified): stays accurate, no false recall claim, still
   assert.match(html, /No safety recalls on record for the Infiniti J30/);
   assert.doesNotMatch(html, /Recent &amp; Notable Recalls/);
   assert.match(html, /href="\/vin-lookup"/);
+  // Zero recalls in our tracked years must not be sold as a clean bill of
+  // health for the model's whole life — vehicle_years rows exist for every
+  // year in the ingestion window regardless of whether the model was ever
+  // produced then, so a pre-2000/discontinued model must not read as "safe."
+  assert.doesNotMatch(html, /That's great news/);
+  assert.match(html, /sold before 2000 or discontinued earlier, those years aren't reflected here/);
 });
 
 test("sparse model (no year data at all): does not fabricate a recall count", () => {
@@ -192,8 +198,10 @@ test("modelPageMeta: verified zero recalls never implies an unverified recall ex
   });
 
   assert.equal(meta.title, "Infiniti J30 Recalls: None Found — Affected Years & VIN Check | Recalled Rides");
-  assert.match(meta.description, /no NHTSA safety recalls on record/);
+  assert.match(meta.description, /no NHTSA safety recalls on record for tracked model years 2000–2027/);
+  assert.match(meta.description, /Verify your specific VIN for a definitive check/);
   assert.doesNotMatch(meta.description, /has \d+ known/);
+  assert.doesNotMatch(meta.description, /Good news/);
 });
 
 test("modelPageMeta: no year data falls back to a safety-information title instead of a fabricated count", () => {
