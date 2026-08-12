@@ -51,6 +51,10 @@
       {
         "name": "PIPELINE_AGENT",
         "class_name": "PipelineAgent"
+      },
+      {
+        "name": "RECALL_MCP",
+        "class_name": "RecallMcp"
       }
     ]
   },
@@ -59,6 +63,12 @@
       "tag": "v1",
       "new_sqlite_classes": [
         "PipelineAgent"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "RecallMcp"
       ]
     }
   ],

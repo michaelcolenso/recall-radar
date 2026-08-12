@@ -1,5 +1,24 @@
 # Recalled Rides
 
+## MCP server
+
+Recalled Rides exposes a public, read-only [Model Context Protocol](https://modelcontextprotocol.io/) server over Streamable HTTP at:
+
+```text
+https://recalledrides.com/mcp
+```
+
+It provides four tools backed by the same D1 recall database as the website:
+
+- `search_vehicles` — find make/model/year combinations with recalls
+- `list_models` — list recalled models for a manufacturer
+- `get_vehicle_recalls` — retrieve plain-English recall details for one vehicle
+- `get_recall_campaign` — retrieve an NHTSA campaign and its affected vehicles
+
+For local development, run `npm run dev` and configure an MCP client to use
+`http://localhost:8787/mcp`. The server is intentionally read-only and does not
+expose ingestion, enrichment, alert, or other administrative operations.
+
 Cloudflare-native vehicle recall search. Aggregates NHTSA safety recall data, enriches it with LLM plain-English summaries, and serves thousands of SEO-optimized pages from the edge.
 
 **Stack**: Hono → D1 (SQLite) → Cache API → Workflows (ingestion + enrichment) → Agents SDK (admin orchestration)

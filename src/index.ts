@@ -11,6 +11,7 @@ import { PipelineAgent } from "./agents/pipeline-agent";
 import { IngestionWorkflow } from "./workflows/ingestion-workflow";
 import { EnrichmentWorkflow } from "./workflows/enrichment-workflow";
 import { AlertDigestWorkflow } from "./workflows/alert-digest-workflow";
+import { RecallMcp } from "./agents/recall-mcp";
 import { ASSET_VERSION, DEFAULT_YEAR_START } from "./lib/constants";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -101,8 +102,15 @@ app.route("/.well-known", wellKnownRoutes);
 app.route("/", wellKnownRoutes);
 app.route("/", pageRoutes);
 
+const mcpHandler = RecallMcp.serve("/mcp", { binding: "RECALL_MCP" });
+
 export default {
-  fetch: app.fetch,
+  fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    if (new URL(request.url).pathname === "/mcp") {
+      return mcpHandler.fetch(request, env, ctx);
+    }
+    return app.fetch(request, env, ctx);
+  },
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     try {
       if (event.cron === "0 2 * * *") {
@@ -138,4 +146,4 @@ export default {
   },
 };
 
-export { PipelineAgent, IngestionWorkflow, EnrichmentWorkflow, AlertDigestWorkflow };
+export { PipelineAgent, RecallMcp, IngestionWorkflow, EnrichmentWorkflow, AlertDigestWorkflow };
