@@ -17,10 +17,19 @@ test("make pages link only models with recall detail", () => {
 });
 
 test("model pages link only years with recall detail", () => {
-  const html = modelPageTemplate("Subaru", "subaru", "Forester", "forester", [
-    { year: 2025, recall_count: 2, highest_severity: "HIGH" },
-    { year: 2022, recall_count: 0, highest_severity: null },
-  ]);
+  const html = modelPageTemplate({
+    make: "Subaru",
+    makeSlug: "subaru",
+    model: "Forester",
+    modelSlug: "forester",
+    years: [
+      { year: 2025, recall_count: 2, risk_grade: null, risk_score: null, highest_severity: "HIGH" },
+      { year: 2022, recall_count: 0, risk_grade: null, risk_score: null, highest_severity: null },
+    ],
+    totalRecalls: 2,
+    topComponents: [],
+    notableRecalls: [],
+  });
 
   assert.match(html, /href="\/subaru\/forester\/2025"/);
   assert.doesNotMatch(html, /href="\/subaru\/forester\/2022"/);

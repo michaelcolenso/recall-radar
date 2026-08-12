@@ -270,6 +270,80 @@ export function articleJsonLd(article: ArticleSchema): string {
   return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
 }
 
+interface ModelOverviewFaqInput {
+  make: string;
+  model: string;
+  totalRecalls: number;
+  yearCount: number;
+  yearRange: string;
+  topComponent?: string;
+  pageUrl: string;
+  dateModified?: string;
+}
+
+/**
+ * Model-level (all-years) FAQ schema. Distinct from faqPageJsonLd, which is
+ * scoped to a single model year — this covers the aggregate make/model page
+ * and always includes a VIN-eligibility disclaimer question.
+ */
+export function modelOverviewFaqJsonLd({
+  make,
+  model,
+  totalRecalls,
+  yearCount,
+  yearRange,
+  topComponent,
+  pageUrl,
+  dateModified,
+}: ModelOverviewFaqInput): string {
+  if (yearCount === 0) return "";
+
+  const vehicle = `${make} ${model}`;
+  const entities: Array<Record<string, unknown>> = [
+    {
+      "@type": "Question",
+      name: `How many recalls does the ${vehicle} have?`,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text:
+          totalRecalls > 0
+            ? `The ${vehicle} has ${totalRecalls} known NHTSA safety recall${totalRecalls !== 1 ? "s" : ""} across ${yearCount} tracked model year${yearCount !== 1 ? "s" : ""} (${yearRange})${topComponent ? `, most commonly involving ${topComponent.toLowerCase()}` : ""}. All recalls are repaired free of charge at authorized dealerships.`
+            : `The ${vehicle} has no NHTSA safety recalls on record across ${yearCount} tracked model year${yearCount !== 1 ? "s" : ""} (${yearRange}).`,
+      },
+    },
+    {
+      "@type": "Question",
+      name: `Which ${vehicle} model years have open recalls?`,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text:
+          totalRecalls > 0
+            ? `Recall history is tracked separately for each ${vehicle} model year. Select a model year above to see exactly which recalls apply to that year.`
+            : `No ${vehicle} model years currently have recalls on record. NHTSA issues new recalls regularly, so it's worth checking back or verifying with your specific VIN.`,
+      },
+    },
+    {
+      "@type": "Question",
+      name: `Is the ${vehicle} safe to drive?`,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: `Model-level recall counts describe the ${vehicle} as a whole, not any individual vehicle. Only your VIN can confirm whether a specific car is included in an open recall — use the free VIN check on this page for an authoritative answer.`,
+      },
+    },
+  ];
+
+  const schema: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: entities,
+    url: pageUrl,
+  };
+  if (dateModified) {
+    schema.dateModified = dateModified;
+  }
+  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+}
+
 // Legacy export for backwards compatibility
 export const pageJsonLd = (payload: Record<string, unknown>): string =>
   `<script type="application/ld+json">${JSON.stringify(payload)}</script>`;

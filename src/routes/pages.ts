@@ -5,7 +5,7 @@ import { escapeHtml, slugify, titleCase } from "../lib/utils";
 import { layout } from "../templates/layout";
 import { homeTemplate } from "../templates/home";
 import { makePageTemplate } from "../templates/make-page";
-import { modelPageTemplate } from "../templates/model-page";
+import { modelPageTemplate, modelPageMeta } from "../templates/model-page";
 import { yearPageTemplate } from "../templates/year-page";
 import { recallCard } from "../templates/components/recall-card";
 import { dealerLeadGen } from "../templates/components/dealer-lead-gen";
@@ -19,6 +19,7 @@ import {
   itemListJsonLd,
   articleJsonLd,
   howToJsonLd,
+  modelOverviewFaqJsonLd,
 } from "../templates/components/json-ld";
 import { campaignPageTemplate } from "../templates/campaign-page";
 import type { SeverityLevel } from "../db/schema";
@@ -44,7 +45,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v11";
+const PAGE_CACHE_VERSION = "v12";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -1076,61 +1077,128 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         };
       }
 
-      const years = await c.env.DB.prepare(
-        `SELECT vy.year,
-              COUNT(r.id) as recall_count,
-              vy.risk_grade,
-              vy.risk_score,
-              CASE MIN(CASE r.severity_level
-                WHEN 'CRITICAL' THEN 1
-                WHEN 'HIGH' THEN 2
-                WHEN 'MEDIUM' THEN 3
-                WHEN 'LOW' THEN 4
-                ELSE 5
-              END)
-                WHEN 1 THEN 'CRITICAL'
-                WHEN 2 THEN 'HIGH'
-                WHEN 3 THEN 'MEDIUM'
-                WHEN 4 THEN 'LOW'
-                ELSE NULL
-              END as highest_severity
-       FROM vehicle_years vy
-       LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
-       WHERE vy.model_id = ?
-       GROUP BY vy.year, vy.risk_grade, vy.risk_score
-       ORDER BY vy.year DESC`,
-      )
-        .bind(model.id)
-        .all<{ year: number; recall_count: number; risk_grade: string | null; risk_score: number | null; highest_severity: SeverityLevel | null }>();
+      const [years, componentStatsResult, notableRecallsResult, lastUpdatedResult] = await Promise.all([
+        c.env.DB.prepare(
+          `SELECT vy.year,
+                COUNT(r.id) as recall_count,
+                vy.risk_grade,
+                vy.risk_score,
+                CASE MIN(CASE r.severity_level
+                  WHEN 'CRITICAL' THEN 1
+                  WHEN 'HIGH' THEN 2
+                  WHEN 'MEDIUM' THEN 3
+                  WHEN 'LOW' THEN 4
+                  ELSE 5
+                END)
+                  WHEN 1 THEN 'CRITICAL'
+                  WHEN 2 THEN 'HIGH'
+                  WHEN 3 THEN 'MEDIUM'
+                  WHEN 4 THEN 'LOW'
+                  ELSE NULL
+                END as highest_severity
+         FROM vehicle_years vy
+         LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
+         WHERE vy.model_id = ?
+         GROUP BY vy.year, vy.risk_grade, vy.risk_score
+         ORDER BY vy.year DESC`,
+        )
+          .bind(model.id)
+          .all<{ year: number; recall_count: number; risk_grade: string | null; risk_score: number | null; highest_severity: SeverityLevel | null }>(),
+
+        c.env.DB.prepare(
+          `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
+                COUNT(*) as count
+         FROM recalls r
+         JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+         WHERE vy.model_id = ?
+         GROUP BY name
+         ORDER BY count DESC
+         LIMIT 3`,
+        )
+          .bind(model.id)
+          .all<{ name: string; count: number }>(),
+
+        c.env.DB.prepare(
+          `SELECT vy.year, r.nhtsa_campaign_number, r.component, r.severity_level, r.report_received_date,
+                COALESCE(r.summary_enriched, r.summary_raw) as summary
+         FROM recalls r
+         JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+         WHERE vy.model_id = ?
+         ORDER BY
+           CASE r.severity_level
+             WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 WHEN 'LOW' THEN 4 ELSE 5
+           END ASC,
+           r.report_received_date DESC
+         LIMIT 5`,
+        )
+          .bind(model.id)
+          .all<{ year: number; nhtsa_campaign_number: string; component: string; severity_level: SeverityLevel; report_received_date: string | null; summary: string }>(),
+
+        c.env.DB.prepare(
+          "SELECT MAX(completed_at) as last_run FROM ingestion_logs WHERE status = 'completed'",
+        ).first<{ last_run: string | null }>(),
+      ]);
+
+      const totalRecalls = years.results.reduce((sum, y) => sum + y.recall_count, 0);
+      const hasYearData = years.results.length > 0;
+      const yearRange = hasYearData ? `${years.results[years.results.length - 1].year}–${years.results[0].year}` : "";
+      const topComponent = componentStatsResult.results[0]?.name;
+      const lastUpdated = lastUpdatedResult?.last_run
+        ? new Date(lastUpdatedResult.last_run).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+        : undefined;
+
+      const { title, description } = modelPageMeta({
+        make: make.name,
+        model: model.name,
+        totalRecalls,
+        yearCount: years.results.length,
+        yearRange,
+        topComponent,
+        lastUpdated,
+      });
+
+      const partner = primaryPartner(c.env.AFFILIATE_PARTNERS);
+      const affiliateCta = partner
+        ? vinReportCta({ partner, variant: "lookup", make: make.name, model: model.name })
+        : undefined;
 
       const crumbs = breadcrumbs([
         { href: "/", label: "Home" },
         { href: `/${makeSlug}`, label: make.name },
         { href: `/${makeSlug}/${modelSlug}`, label: model.name },
       ]);
-      const body = crumbs + modelPageTemplate(make.name, makeSlug, model.name, modelSlug, years.results);
+      const body = crumbs + modelPageTemplate({
+        make: make.name,
+        makeSlug,
+        model: model.name,
+        modelSlug,
+        years: years.results,
+        totalRecalls,
+        topComponents: componentStatsResult.results,
+        notableRecalls: notableRecallsResult.results,
+        lastUpdated,
+        affiliateCtaHtml: affiliateCta,
+      });
+
+      const modelPageUrl = `${siteUrl}/${makeSlug}/${modelSlug}`;
 
       return {
         html: layout({
           googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
           analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-          title: `${make.name} ${model.name} Recalls by Year | Recalled Rides`,
-          description: (() => {
-            const y = years.results;
-            const totalRecalls = y.reduce((sum, yr) => sum + yr.recall_count, 0);
-            const yearRange = y.length > 0 ? `${y[y.length-1].year}–${y[0].year}` : "";
-            return `Check ${make.name} ${model.name} recalls across ${y.length} model years (${yearRange}). ${totalRecalls} total safety issues tracked. Find your year and get free repair info from your dealer.`;
-          })(),
+          title,
+          description,
           noIndex: years.results.length === 0,
-          canonical: `${siteUrl}/${makeSlug}/${modelSlug}`,
+          canonical: modelPageUrl,
           ogType: "website",
           ogImage: "/og-image-home.svg",
+          lastUpdated,
           body,
           jsonLd:
             breadcrumbListJsonLd(siteUrl, [
               { name: "Home", item: siteUrl },
               { name: make.name, item: `${siteUrl}/${makeSlug}` },
-              { name: model.name, item: `${siteUrl}/${makeSlug}/${modelSlug}` },
+              { name: model.name, item: modelPageUrl },
             ]) +
             itemListJsonLd(
               `${make.name} ${model.name} Recall History`,
@@ -1140,8 +1208,18 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
                 description:
                   y.recall_count > 0 ? `${y.recall_count} recall${y.recall_count !== 1 ? "s" : ""}` : undefined,
               })),
-              `${siteUrl}/${makeSlug}/${modelSlug}`,
-            ),
+              modelPageUrl,
+            ) +
+            modelOverviewFaqJsonLd({
+              make: make.name,
+              model: model.name,
+              totalRecalls,
+              yearCount: years.results.length,
+              yearRange,
+              topComponent,
+              pageUrl: modelPageUrl,
+              dateModified: lastUpdatedResult?.last_run ?? undefined,
+            }),
         }),
         status: 200,
       };
