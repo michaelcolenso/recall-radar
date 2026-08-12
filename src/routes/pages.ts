@@ -1106,9 +1106,12 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
           .bind(model.id)
           .all<{ year: number; recall_count: number; risk_grade: string | null; risk_score: number | null; highest_severity: SeverityLevel | null }>(),
 
+        // COUNT(DISTINCT campaign), not COUNT(*) — a campaign spanning several years
+        // would otherwise inflate a component's count (and could misrank it as the
+        // model's top issue) the same way the row-count total did.
         c.env.DB.prepare(
           `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
-                COUNT(*) as count
+                COUNT(DISTINCT r.nhtsa_campaign_number) as count
          FROM recalls r
          JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
          WHERE vy.model_id = ?
@@ -1163,6 +1166,17 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
       const hasYearData = years.results.length > 0;
       const yearRange = hasYearData ? `${years.results[years.results.length - 1].year}–${years.results[0].year}` : "";
       const topComponent = componentStatsResult.results[0]?.name;
+
+      // vehicle_years has a row for every year in the ingestion window regardless of
+      // whether the model actually existed then, so "N tracked years" overstates how
+      // spread out the recalls are. Scope the "recalls across N years" claim to the
+      // years that actually have a recall — a verified, non-synthetic subset.
+      const yearsWithRecalls = years.results.filter((y) => y.recall_count > 0);
+      const recallYearCount = yearsWithRecalls.length;
+      const recallYearRange =
+        recallYearCount > 0
+          ? `${Math.min(...yearsWithRecalls.map((y) => y.year))}–${Math.max(...yearsWithRecalls.map((y) => y.year))}`
+          : "";
       const lastUpdated = lastIngestedResult?.last_ingested
         ? new Date(lastIngestedResult.last_ingested).toLocaleDateString("en-US", { month: "long", year: "numeric" })
         : undefined;
@@ -1181,6 +1195,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         totalRecalls,
         yearCount: years.results.length,
         yearRange,
+        recallYearCount,
+        recallYearRange,
         topComponent,
         lastUpdated,
       });
@@ -1244,6 +1260,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
               totalRecalls,
               yearCount: years.results.length,
               yearRange,
+              recallYearCount,
+              recallYearRange,
               topComponent,
               pageUrl: modelPageUrl,
               dateModified: lastIngestedResult?.last_ingested ?? undefined,

@@ -32,7 +32,10 @@ test("full model page: title/H1 answer count, years, and refresh date", () => {
   });
 
   assert.match(html, /<h1[^>]*>Audi A6 Recalls: 4 Found<\/h1>/);
-  assert.match(html, /3 model years tracked \(2020–2022\)/);
+  // Meta bar reports years WITH a recall (2020 has none), not all tracked years —
+  // vehicle_years has a row for every tracked year regardless of whether the
+  // model existed then, so "years tracked" would overstate the recall spread.
+  assert.match(html, /2 model years with recalls \(2021–2022\)/);
   assert.match(html, /Data refreshed August 2026/);
   assert.match(html, /href="\/audi\/a6\/2022"/);
   assert.doesNotMatch(html, /href="\/audi\/a6\/2020"/); // 2020 has zero recalls, not linked
@@ -159,13 +162,17 @@ test("modelOverviewFaqJsonLd emits valid FAQPage schema grounded in the verified
     totalRecalls: 4,
     yearCount: 3,
     yearRange: "2020–2022",
+    recallYearCount: 2,
+    recallYearRange: "2021–2022",
     topComponent: "AIR BAGS",
     pageUrl: "https://recalledrides.com/audi/a6",
     dateModified: "2026-08-01T00:00:00.000Z",
   });
 
   assert.match(json, /"@type":"FAQPage"/);
-  assert.match(json, /4 known NHTSA safety recalls across 3 tracked model years \(2020–2022\)/);
+  // Scoped to years with a verified recall (2 of the 3 tracked years), not the
+  // full tracked-year count — see the recallYearCount/recallYearRange fix.
+  assert.match(json, /4 known NHTSA safety recalls across 2 model years \(2021–2022\)/);
   assert.match(json, /Only your VIN can confirm/);
   assert.doesNotMatch(json, /AggregateRating/);
   assert.doesNotMatch(json, /"@type":"Review"/);
@@ -175,17 +182,40 @@ test("modelPageMeta: verified count drives title and description, ungrounded cla
   const meta = modelPageMeta({
     make: "Audi",
     model: "A6",
-    totalRecalls: 110,
+    totalRecalls: 42,
     yearCount: 27,
     yearRange: "2000–2027",
+    recallYearCount: 27,
+    recallYearRange: "2000–2027",
     topComponent: "AIR BAGS",
     lastUpdated: "August 2026",
   });
 
-  assert.equal(meta.title, "Audi A6 Recalls: 110 Found, Affected Years & VIN Check | Recalled Rides");
-  assert.match(meta.description, /110 known NHTSA safety recalls across 27 model years \(2000–2027\)/);
+  assert.equal(meta.title, "Audi A6 Recalls: 42 Found, Affected Years & VIN Check | Recalled Rides");
+  assert.match(meta.description, /42 known NHTSA safety recalls across 27 model years \(2000–2027\)/);
   assert.match(meta.description, /most often involving air bags/);
   assert.match(meta.description, /data refreshed August 2026/);
+});
+
+test("modelPageMeta: recall-year range is scoped to years with a verified recall, not every tracked year", () => {
+  // vehicle_years has a row for every tracked year (2000–2027) regardless of
+  // whether the model was ever produced then — a discontinued model like the
+  // BMW 128i (really built 2008–2013) must not read as recalled across 28 years.
+  const meta = modelPageMeta({
+    make: "BMW",
+    model: "128i",
+    totalRecalls: 7,
+    yearCount: 28,
+    yearRange: "2000–2027",
+    recallYearCount: 6,
+    recallYearRange: "2008–2013",
+    topComponent: "ENGINE AND ENGINE COOLING",
+    lastUpdated: "August 2026",
+  });
+
+  assert.match(meta.description, /7 known NHTSA safety recalls across 6 model years \(2008–2013\)/);
+  assert.doesNotMatch(meta.description, /28 model years/);
+  assert.doesNotMatch(meta.description, /2000–2027/);
 });
 
 test("modelPageMeta: verified zero recalls never implies an unverified recall exists", () => {
@@ -195,6 +225,8 @@ test("modelPageMeta: verified zero recalls never implies an unverified recall ex
     totalRecalls: 0,
     yearCount: 28,
     yearRange: "2000–2027",
+    recallYearCount: 0,
+    recallYearRange: "",
   });
 
   assert.equal(meta.title, "Infiniti J30 Recalls: None Found — Affected Years & VIN Check | Recalled Rides");
@@ -211,6 +243,8 @@ test("modelPageMeta: no year data falls back to a safety-information title inste
     totalRecalls: 0,
     yearCount: 0,
     yearRange: "",
+    recallYearCount: 0,
+    recallYearRange: "",
   });
 
   assert.equal(meta.title, "Rare Concept Recalls & Safety Information | Recalled Rides");
@@ -224,6 +258,8 @@ test("modelOverviewFaqJsonLd returns empty string when there is no year data", (
     totalRecalls: 0,
     yearCount: 0,
     yearRange: "",
+    recallYearCount: 0,
+    recallYearRange: "",
     pageUrl: "https://recalledrides.com/rare/concept",
   });
 

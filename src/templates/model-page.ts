@@ -46,6 +46,9 @@ export interface ModelPageMetaInput {
   totalRecalls: number;
   yearCount: number;
   yearRange: string;
+  /** Count/range of years with a verified recall — narrower than yearCount/yearRange, which include tracked years the model may never have existed in. */
+  recallYearCount: number;
+  recallYearRange: string;
   topComponent?: string;
   lastUpdated?: string;
 }
@@ -66,6 +69,8 @@ export function modelPageMeta({
   totalRecalls,
   yearCount,
   yearRange,
+  recallYearCount,
+  recallYearRange,
   topComponent,
   lastUpdated,
 }: ModelPageMetaInput): ModelPageMeta {
@@ -87,7 +92,7 @@ export function modelPageMeta({
 
   return {
     title: `${make} ${model} Recalls: ${totalRecalls} Found, Affected Years & VIN Check | Recalled Rides`,
-    description: `The ${make} ${model} has ${totalRecalls} known NHTSA safety recall${totalRecalls !== 1 ? "s" : ""} across ${yearCount} model years (${yearRange})${topComponent ? `, most often involving ${topComponent.toLowerCase()}` : ""}. See affected years and verify your VIN — data refreshed ${lastUpdated ?? "recently"}.`,
+    description: `The ${make} ${model} has ${totalRecalls} known NHTSA safety recall${totalRecalls !== 1 ? "s" : ""} across ${recallYearCount} model year${recallYearCount !== 1 ? "s" : ""} (${recallYearRange})${topComponent ? `, most often involving ${topComponent.toLowerCase()}` : ""}. See affected years and verify your VIN — data refreshed ${lastUpdated ?? "recently"}.`,
   };
 }
 
@@ -113,6 +118,13 @@ export function modelPageTemplate({
   const hasYearData = years.length > 0;
   const recallYears = years.filter((y) => y.recall_count > 0);
   const yearRange = hasYearData ? `${years[years.length - 1].year}–${years[0].year}` : "";
+  // vehicle_years has a row for every tracked year regardless of whether the model
+  // actually existed then, so "N tracked years" overstates how spread out recalls
+  // are. Scope the "recalls across N years" language to years with a verified recall.
+  const recallYearRange =
+    recallYears.length > 0
+      ? `${Math.min(...recallYears.map((y) => y.year))}–${Math.max(...recallYears.map((y) => y.year))}`
+      : "";
   const leadingSeverity = notableRecalls[0]?.severity_level ?? null;
 
   const cards = recallYears.map((y) => `
@@ -137,7 +149,7 @@ export function modelPageTemplate({
     ? totalRecalls > 0
       ? `
         <section class="rr-body" style="margin-top: var(--space-10); max-width: 720px;">
-          <p>The ${escapeHtml(make)} ${escapeHtml(model)} has <strong>${totalRecalls} known NHTSA safety recall${totalRecalls !== 1 ? "s" : ""}</strong> across ${years.length} tracked model year${years.length !== 1 ? "s" : ""} (${escapeHtml(yearRange)})${topComponents.length > 0 ? `, most commonly involving <strong>${escapeHtml(titleCase(topComponents[0].name))}</strong>` : ""}.
+          <p>The ${escapeHtml(make)} ${escapeHtml(model)} has <strong>${totalRecalls} known NHTSA safety recall${totalRecalls !== 1 ? "s" : ""}</strong> across ${recallYears.length} model year${recallYears.length !== 1 ? "s" : ""} (${escapeHtml(recallYearRange)})${topComponents.length > 0 ? `, most commonly involving <strong>${escapeHtml(titleCase(topComponents[0].name))}</strong>` : ""}.
           ${lastUpdated ? ` Data last refreshed ${escapeHtml(lastUpdated)}.` : ""}</p>
         </section>
       `
@@ -230,7 +242,7 @@ export function modelPageTemplate({
       <h1 class="rr-section-header__title">${escapeHtml(make)} ${escapeHtml(model)} Recalls${totalRecalls > 0 ? `: ${totalRecalls} Found` : ": None Found"}</h1>
       <p class="rr-section-header__subtitle">${totalRecalls > 0 ? `Affected years, leading issues, and a free VIN check for the ${escapeHtml(make)} ${escapeHtml(model)}.` : `Recall history for tracked model years and a free VIN check for the ${escapeHtml(make)} ${escapeHtml(model)}.`}</p>
       <div class="rr-meta-bar">
-        <span class="rr-meta-bar__count">${years.length} model year${years.length !== 1 ? "s" : ""} tracked (${escapeHtml(yearRange)})</span>
+        <span class="rr-meta-bar__count">${totalRecalls > 0 ? `${recallYears.length} model year${recallYears.length !== 1 ? "s" : ""} with recalls (${escapeHtml(recallYearRange)})` : `${years.length} model year${years.length !== 1 ? "s" : ""} tracked (${escapeHtml(yearRange)})`}</span>
         ${leadingSeverity ? `<span class="rr-meta-bar__notice"><span>Most severe issue:</span>${severityBadge(leadingSeverity)}</span>` : ""}
         ${lastUpdated ? `<span class="rr-meta-bar__notice">Data refreshed ${escapeHtml(lastUpdated)}</span>` : ""}
       </div>

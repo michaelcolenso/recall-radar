@@ -276,6 +276,9 @@ interface ModelOverviewFaqInput {
   totalRecalls: number;
   yearCount: number;
   yearRange: string;
+  /** Count/range of years with a verified recall — narrower than yearCount/yearRange, which include tracked years the model may never have existed in. */
+  recallYearCount: number;
+  recallYearRange: string;
   topComponent?: string;
   pageUrl: string;
   dateModified?: string;
@@ -292,6 +295,8 @@ export function modelOverviewFaqJsonLd({
   totalRecalls,
   yearCount,
   yearRange,
+  recallYearCount,
+  recallYearRange,
   topComponent,
   pageUrl,
   dateModified,
@@ -307,7 +312,7 @@ export function modelOverviewFaqJsonLd({
         "@type": "Answer",
         text:
           totalRecalls > 0
-            ? `The ${vehicle} has ${totalRecalls} known NHTSA safety recall${totalRecalls !== 1 ? "s" : ""} across ${yearCount} tracked model year${yearCount !== 1 ? "s" : ""} (${yearRange})${topComponent ? `, most commonly involving ${topComponent.toLowerCase()}` : ""}. All recalls are repaired free of charge at authorized dealerships.`
+            ? `The ${vehicle} has ${totalRecalls} known NHTSA safety recall${totalRecalls !== 1 ? "s" : ""} across ${recallYearCount} model year${recallYearCount !== 1 ? "s" : ""} (${recallYearRange})${topComponent ? `, most commonly involving ${topComponent.toLowerCase()}` : ""}. All recalls are repaired free of charge at authorized dealerships.`
             : `The ${vehicle} has no NHTSA safety recalls on record across ${yearCount} tracked model year${yearCount !== 1 ? "s" : ""} (${yearRange}).`,
       },
     },
