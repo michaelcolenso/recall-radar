@@ -6,6 +6,7 @@ import { layout } from "../templates/layout";
 import { homeTemplate } from "../templates/home";
 import { makePageTemplate } from "../templates/make-page";
 import { modelPageTemplate, modelPageMeta } from "../templates/model-page";
+import type { NotableRecall } from "../templates/model-page";
 import { yearPageTemplate } from "../templates/year-page";
 import { recallCard } from "../templates/components/recall-card";
 import { dealerLeadGen } from "../templates/components/dealer-lead-gen";
@@ -1077,7 +1078,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         };
       }
 
-      const [years, componentStatsResult, notableRecallsResult, lastUpdatedResult] = await Promise.all([
+      const [years, componentStatsResult, notableRecallsResult, lastIngestedResult] = await Promise.all([
         c.env.DB.prepare(
           `SELECT vy.year,
                 COUNT(r.id) as recall_count,
@@ -1119,33 +1120,48 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
           .all<{ name: string; count: number }>(),
 
         c.env.DB.prepare(
-          `SELECT vy.year, r.nhtsa_campaign_number, r.component, r.severity_level, r.report_received_date,
-                COALESCE(r.summary_enriched, r.summary_raw) as summary
+          `SELECT r.nhtsa_campaign_number as campaign,
+                MIN(r.component) as component,
+                MIN(r.severity_level) as severity_level,
+                MIN(r.report_received_date) as report_received_date,
+                MIN(COALESCE(r.summary_enriched, r.summary_raw)) as summary,
+                GROUP_CONCAT(DISTINCT vy.year) as years_csv
          FROM recalls r
          JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
          WHERE vy.model_id = ?
+         GROUP BY r.nhtsa_campaign_number
          ORDER BY
-           CASE r.severity_level
+           CASE severity_level
              WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 WHEN 'LOW' THEN 4 ELSE 5
            END ASC,
-           r.report_received_date DESC
+           report_received_date DESC
          LIMIT 5`,
         )
           .bind(model.id)
-          .all<{ year: number; nhtsa_campaign_number: string; component: string; severity_level: SeverityLevel; report_received_date: string | null; summary: string }>(),
+          .all<{ campaign: string; component: string; severity_level: SeverityLevel; report_received_date: string | null; summary: string; years_csv: string }>(),
 
+        // Per-model freshness, not the site-wide ingestion watermark — a run for
+        // an unrelated make/model shouldn't make this page claim fresher data.
         c.env.DB.prepare(
-          "SELECT MAX(completed_at) as last_run FROM ingestion_logs WHERE status = 'completed'",
-        ).first<{ last_run: string | null }>(),
+          "SELECT MAX(last_ingested_at) as last_ingested FROM vehicle_years WHERE model_id = ?",
+        ).bind(model.id).first<{ last_ingested: string | null }>(),
       ]);
 
       const totalRecalls = years.results.reduce((sum, y) => sum + y.recall_count, 0);
       const hasYearData = years.results.length > 0;
       const yearRange = hasYearData ? `${years.results[years.results.length - 1].year}–${years.results[0].year}` : "";
       const topComponent = componentStatsResult.results[0]?.name;
-      const lastUpdated = lastUpdatedResult?.last_run
-        ? new Date(lastUpdatedResult.last_run).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+      const lastUpdated = lastIngestedResult?.last_ingested
+        ? new Date(lastIngestedResult.last_ingested).toLocaleDateString("en-US", { month: "long", year: "numeric" })
         : undefined;
+      const notableRecalls: NotableRecall[] = notableRecallsResult.results.map((r) => ({
+        years: r.years_csv.split(",").map(Number).sort((a, b) => b - a),
+        nhtsa_campaign_number: r.campaign,
+        component: r.component,
+        severity_level: r.severity_level,
+        report_received_date: r.report_received_date,
+        summary: r.summary,
+      }));
 
       const { title, description } = modelPageMeta({
         make: make.name,
@@ -1175,7 +1191,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         years: years.results,
         totalRecalls,
         topComponents: componentStatsResult.results,
-        notableRecalls: notableRecallsResult.results,
+        notableRecalls,
         lastUpdated,
         affiliateCtaHtml: affiliateCta,
       });
@@ -1218,7 +1234,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
               yearRange,
               topComponent,
               pageUrl: modelPageUrl,
-              dateModified: lastUpdatedResult?.last_run ?? undefined,
+              dateModified: lastIngestedResult?.last_ingested ?? undefined,
             }),
         }),
         status: 200,

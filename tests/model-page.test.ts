@@ -10,7 +10,7 @@ const auditYears = [
 ];
 
 const notableRecall = {
-  year: 2022,
+  years: [2022],
   nhtsa_campaign_number: "22V123000",
   component: "AIR BAGS:FRONTAL",
   severity_level: "HIGH" as const,
@@ -56,6 +56,35 @@ test("full model page: surfaces notable recalls with year and campaign links", (
   assert.match(html, /href="\/audi\/a6\/2022"/);
   assert.match(html, /Most Common Issues/);
   assert.match(html, /href="\/audi\/air-bags-recalls"/);
+});
+
+test("full model page: a campaign spanning multiple years renders once, not once per year", () => {
+  const html = modelPageTemplate({
+    make: "Audi",
+    makeSlug: "audi",
+    model: "A6",
+    modelSlug: "a6",
+    years: auditYears,
+    totalRecalls: 4,
+    topComponents: [],
+    notableRecalls: [
+      {
+        years: [2022, 2021, 2020],
+        nhtsa_campaign_number: "23V601000",
+        component: "SERVICE BRAKES, HYDRAULIC:FLUID",
+        severity_level: "CRITICAL",
+        report_received_date: "2023-08-25",
+        summary: "The brake fluid reservoir cap may be labeled incorrectly.",
+      },
+    ],
+  });
+
+  const occurrences = html.match(/#23V601000/g) ?? [];
+  // One campaign badge + one campaign-details link = 2 total, never one card per affected year.
+  assert.equal(occurrences.length, 2);
+  assert.match(html, /href="\/audi\/a6\/2022"/);
+  assert.match(html, /href="\/audi\/a6\/2021"/);
+  assert.match(html, /href="\/audi\/a6\/2020"/);
 });
 
 test("full model page: prominent VIN-check disclaimer and action", () => {

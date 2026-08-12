@@ -16,7 +16,8 @@ export interface TopComponent {
 }
 
 export interface NotableRecall {
-  year: number;
+  /** Model years this campaign applies to, descending. One campaign can span several years. */
+  years: number[];
   nhtsa_campaign_number: string;
   component: string;
   severity_level: SeverityLevel;
@@ -160,8 +161,12 @@ export function modelPageTemplate({
         <h2 id="rr-notable-title" class="rr-label" style="margin-bottom: var(--space-6);">Recent &amp; Notable Recalls</h2>
         ${notableRecalls.map((r) => {
           const compName = r.component.split(":")[0].trim();
-          const yearPath = `/${makeSlug}/${modelSlug}/${r.year}`;
           const campaignPath = `/recall/${encodeURIComponent(r.nhtsa_campaign_number)}`;
+          const latestYear = r.years[0];
+          const latestYearPath = `/${makeSlug}/${modelSlug}/${latestYear}`;
+          const yearLinks = r.years
+            .map((y) => `<a href="/${makeSlug}/${modelSlug}/${y}">${y}</a>`)
+            .join(", ");
           return `
         <article class="rr-readout rr-readout--${r.severity_level.toLowerCase()}">
           <div class="rr-readout__header">
@@ -176,7 +181,11 @@ export function modelPageTemplate({
           <div class="rr-readout__body">
             <div class="rr-readout__field">
               <div class="rr-readout__field-label">Vehicle</div>
-              <h3 class="rr-readout__field-value"><a href="${yearPath}">${escapeHtml(String(r.year))} ${escapeHtml(make)} ${escapeHtml(model)}</a></h3>
+              <h3 class="rr-readout__field-value">${escapeHtml(make)} ${escapeHtml(model)}</h3>
+            </div>
+            <div class="rr-readout__field">
+              <div class="rr-readout__field-label">Affected Year${r.years.length !== 1 ? "s" : ""}</div>
+              <div class="rr-readout__field-value">${yearLinks}</div>
             </div>
             <div class="rr-readout__field">
               <div class="rr-readout__field-label">Component</div>
@@ -188,7 +197,7 @@ export function modelPageTemplate({
             </div>
           </div>
           <div class="rr-readout__actions">
-            <a href="${yearPath}" class="rr-readout__detail-link">View all ${escapeHtml(String(r.year))} ${escapeHtml(make)} ${escapeHtml(model)} recalls →</a>
+            <a href="${latestYearPath}" class="rr-readout__detail-link">View ${escapeHtml(String(latestYear))} ${escapeHtml(make)} ${escapeHtml(model)} recalls →</a>
             <a href="${campaignPath}" class="rr-readout__detail-link">NHTSA campaign #${escapeHtml(r.nhtsa_campaign_number)} details →</a>
           </div>
         </article>`;
