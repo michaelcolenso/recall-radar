@@ -284,12 +284,24 @@ interface ModelOverviewFaqInput {
   dateModified?: string;
 }
 
+export interface FaqEntry {
+  question: string;
+  answer: string;
+}
+
+type ModelOverviewFaqContentInput = Omit<ModelOverviewFaqInput, "pageUrl" | "dateModified">;
+
 /**
- * Model-level (all-years) FAQ schema. Distinct from faqPageJsonLd, which is
+ * Model-level (all-years) FAQ content. Distinct from faqPageJsonLd, which is
  * scoped to a single model year — this covers the aggregate make/model page
  * and always includes a VIN-eligibility disclaimer question.
+ *
+ * Shared by modelOverviewFaqJsonLd (the JSON-LD schema) and the visible FAQ
+ * section rendered in modelPageTemplate — FAQPage structured data must
+ * describe content actually present on the page, so the two stay in sync by
+ * construction rather than by convention.
  */
-export function modelOverviewFaqJsonLd({
+export function modelOverviewFaqEntries({
   make,
   model,
   totalRecalls,
@@ -298,53 +310,53 @@ export function modelOverviewFaqJsonLd({
   recallYearCount,
   recallYearRange,
   topComponent,
-  pageUrl,
-  dateModified,
-}: ModelOverviewFaqInput): string {
-  if (yearCount === 0) return "";
+}: ModelOverviewFaqContentInput): FaqEntry[] {
+  if (yearCount === 0) return [];
 
   const vehicle = `${make} ${model}`;
-  const entities: Array<Record<string, unknown>> = [
+  return [
     {
-      "@type": "Question",
-      name: `How many recalls does the ${vehicle} have?`,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text:
-          totalRecalls > 0
-            ? `The ${vehicle} has ${totalRecalls} known NHTSA safety recall${totalRecalls !== 1 ? "s" : ""} across ${recallYearCount} model year${recallYearCount !== 1 ? "s" : ""} (${recallYearRange})${topComponent ? `, most commonly involving ${topComponent.toLowerCase()}` : ""}. All recalls are repaired free of charge at authorized dealerships.`
-            : `The ${vehicle} has no NHTSA safety recalls on record across ${yearCount} tracked model year${yearCount !== 1 ? "s" : ""} (${yearRange}).`,
-      },
+      question: `How many recalls does the ${vehicle} have?`,
+      answer:
+        totalRecalls > 0
+          ? `The ${vehicle} has ${totalRecalls} known NHTSA safety recall${totalRecalls !== 1 ? "s" : ""} across ${recallYearCount} model year${recallYearCount !== 1 ? "s" : ""} (${recallYearRange})${topComponent ? `, most commonly involving ${topComponent.toLowerCase()}` : ""}. All recalls are repaired free of charge at authorized dealerships.`
+          : `The ${vehicle} has no NHTSA safety recalls on record across ${yearCount} tracked model year${yearCount !== 1 ? "s" : ""} (${yearRange}). If this model was sold before 2000 or discontinued earlier, those years aren't reflected here.`,
     },
     {
-      "@type": "Question",
-      name: `Which ${vehicle} model years have open recalls?`,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text:
-          totalRecalls > 0
-            ? `Recall history is tracked separately for each ${vehicle} model year. Select a model year above to see exactly which recalls apply to that year.`
-            : `No ${vehicle} model years currently have recalls on record. NHTSA issues new recalls regularly, so it's worth checking back or verifying with your specific VIN.`,
-      },
+      question: `Which ${vehicle} model years have open recalls?`,
+      answer:
+        totalRecalls > 0
+          ? `Recall history is tracked separately for each ${vehicle} model year. Select a model year above to see exactly which recalls apply to that year.`
+          : `No ${vehicle} model years currently have recalls on record. NHTSA issues new recalls regularly, so it's worth checking back or verifying with your specific VIN.`,
     },
     {
-      "@type": "Question",
-      name: `Is the ${vehicle} safe to drive?`,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: `Model-level recall counts describe the ${vehicle} as a whole, not any individual vehicle. Only your VIN can confirm whether a specific car is included in an open recall — use the free VIN check on this page for an authoritative answer.`,
-      },
+      question: `Is the ${vehicle} safe to drive?`,
+      answer: `Model-level recall counts describe the ${vehicle} as a whole, not any individual vehicle. Only your VIN can confirm whether a specific car is included in an open recall — use the free VIN check on this page for an authoritative answer.`,
     },
   ];
+}
+
+/**
+ * Model-level (all-years) FAQ schema. See modelOverviewFaqEntries — the
+ * template renders the same entries visibly, so this markup always
+ * describes content actually present on the page.
+ */
+export function modelOverviewFaqJsonLd(input: ModelOverviewFaqInput): string {
+  const entries = modelOverviewFaqEntries(input);
+  if (entries.length === 0) return "";
 
   const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: entities,
-    url: pageUrl,
+    mainEntity: entries.map((entry) => ({
+      "@type": "Question",
+      name: entry.question,
+      acceptedAnswer: { "@type": "Answer", text: entry.answer },
+    })),
+    url: input.pageUrl,
   };
-  if (dateModified) {
-    schema.dateModified = dateModified;
+  if (input.dateModified) {
+    schema.dateModified = input.dateModified;
   }
   return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
 }

@@ -1,5 +1,6 @@
 import { escapeHtml, makeLogoImg, slugify, titleCase } from "../lib/utils";
 import { severityBadge } from "./components/severity-badge";
+import { modelOverviewFaqEntries } from "./components/json-ld";
 import type { SeverityLevel } from "../db/schema";
 
 interface YearRow {
@@ -167,6 +168,33 @@ export function modelPageTemplate({
     `
     : "";
 
+  // Rendered visibly here (not just as JSON-LD) — FAQPage structured data must
+  // describe content actually present on the page. modelOverviewFaqEntries is
+  // the single source of truth shared with the schema built in the route.
+  const faqEntries = modelOverviewFaqEntries({
+    make,
+    model,
+    totalRecalls,
+    yearCount: years.length,
+    yearRange,
+    recallYearCount: recallYears.length,
+    recallYearRange,
+    topComponent: topComponents[0]?.name,
+  });
+  const faqHtml = faqEntries.length > 0
+    ? `
+      <section style="margin-top: var(--space-10); max-width: 720px;" aria-labelledby="rr-faq-title">
+        <h2 id="rr-faq-title" class="rr-label" style="margin-bottom: var(--space-4);">Frequently Asked Questions</h2>
+        ${faqEntries.map((entry) => `
+          <div style="margin-bottom: var(--space-6);">
+            <h3 style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: var(--text-base); margin-bottom: var(--space-2);">${escapeHtml(entry.question)}</h3>
+            <p class="rr-body">${escapeHtml(entry.answer)}</p>
+          </div>
+        `).join("")}
+      </section>
+    `
+    : "";
+
   const notableRecallsHtml = notableRecalls.length > 0
     ? `
       <section class="rr-readout-list" aria-labelledby="rr-notable-title">
@@ -278,5 +306,7 @@ export function modelPageTemplate({
         </a>
       </p>
     </section>
+
+    ${faqHtml}
   `;
 }

@@ -1122,10 +1122,17 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
           .bind(model.id)
           .all<{ name: string; count: number }>(),
 
+        // MIN(severity_level) would compare the labels lexicographically, not by
+        // actual severity (e.g. a group containing both MEDIUM and LOW rows would
+        // resolve to "LOW"). Rank numerically first, same as the per-year query.
         c.env.DB.prepare(
           `SELECT r.nhtsa_campaign_number as campaign,
                 MIN(r.component) as component,
-                MIN(r.severity_level) as severity_level,
+                CASE MIN(CASE r.severity_level
+                  WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 WHEN 'LOW' THEN 4 ELSE 5
+                END)
+                  WHEN 1 THEN 'CRITICAL' WHEN 2 THEN 'HIGH' WHEN 3 THEN 'MEDIUM' WHEN 4 THEN 'LOW' ELSE 'UNKNOWN'
+                END as severity_level,
                 MIN(r.report_received_date) as report_received_date,
                 MIN(COALESCE(r.summary_enriched, r.summary_raw)) as summary,
                 GROUP_CONCAT(DISTINCT vy.year) as years_csv
@@ -1134,9 +1141,9 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
          WHERE vy.model_id = ?
          GROUP BY r.nhtsa_campaign_number
          ORDER BY
-           CASE severity_level
+           MIN(CASE r.severity_level
              WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 WHEN 'LOW' THEN 4 ELSE 5
-           END ASC,
+           END) ASC,
            report_received_date DESC
          LIMIT 5`,
         )

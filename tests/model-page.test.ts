@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { modelPageTemplate, modelPageMeta } from "../src/templates/model-page.ts";
-import { modelOverviewFaqJsonLd } from "../src/templates/components/json-ld.ts";
+import { modelOverviewFaqJsonLd, modelOverviewFaqEntries } from "../src/templates/components/json-ld.ts";
 
 const auditYears = [
   { year: 2022, recall_count: 3, risk_grade: "C", risk_score: 55, highest_severity: "HIGH" as const },
@@ -107,6 +107,39 @@ test("full model page: prominent VIN-check disclaimer and action", () => {
   assert.match(html, /href="\/vin-lookup"/);
 });
 
+test("full model page: renders a visible FAQ section matching the FAQPage schema content", () => {
+  const html = modelPageTemplate({
+    make: "Audi",
+    makeSlug: "audi",
+    model: "A6",
+    modelSlug: "a6",
+    years: auditYears,
+    totalRecalls: 4,
+    topComponents: [{ name: "AIR BAGS", count: 3 }],
+    notableRecalls: [],
+    lastUpdated: "August 2026",
+  });
+
+  // FAQPage structured data must describe content actually present on the
+  // page, so the visible section and the JSON-LD entries must be built from
+  // the same modelOverviewFaqEntries() call — assert both independently.
+  const expectedEntries = modelOverviewFaqEntries({
+    make: "Audi",
+    model: "A6",
+    totalRecalls: 4,
+    yearCount: 3,
+    yearRange: "2020–2022",
+    recallYearCount: 2,
+    recallYearRange: "2021–2022",
+    topComponent: "AIR BAGS",
+  });
+
+  assert.match(html, /Frequently Asked Questions/);
+  for (const entry of expectedEntries) {
+    assert.match(html, new RegExp(entry.question.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});
+
 test("zero-recall model (verified): stays accurate, no false recall claim, still links VIN check", () => {
   const html = modelPageTemplate({
     make: "Infiniti",
@@ -176,6 +209,22 @@ test("modelOverviewFaqJsonLd emits valid FAQPage schema grounded in the verified
   assert.match(json, /Only your VIN can confirm/);
   assert.doesNotMatch(json, /AggregateRating/);
   assert.doesNotMatch(json, /"@type":"Review"/);
+});
+
+test("modelOverviewFaqJsonLd: zero-recall answer carries the same coverage caveat as the visible All Clear copy", () => {
+  const json = modelOverviewFaqJsonLd({
+    make: "Infiniti",
+    model: "J30",
+    totalRecalls: 0,
+    yearCount: 28,
+    yearRange: "2000–2027",
+    recallYearCount: 0,
+    recallYearRange: "",
+    pageUrl: "https://recalledrides.com/infiniti/j30",
+  });
+
+  assert.match(json, /no NHTSA safety recalls on record across 28 tracked model years/);
+  assert.match(json, /sold before 2000 or discontinued earlier, those years aren't reflected here/);
 });
 
 test("modelPageMeta: verified count drives title and description, ungrounded claims never appear", () => {
