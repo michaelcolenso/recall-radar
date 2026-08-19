@@ -39,6 +39,7 @@ import { vinReportCta } from "../templates/components/affiliate-box";
 import { alertSignup } from "../templates/components/alert-signup";
 import { adSlot } from "../templates/components/ad-slot";
 import { privacyPageTemplate, disclosurePageTemplate } from "../templates/static-pages";
+import { FRESH_CAMPAIGNS, getFreshCampaign, freshCampaignsForMakeModel, severityOf } from "../lib/fresh-campaigns";
 
 export const pageRoutes = new Hono<{ Bindings: Env }>();
 
@@ -73,6 +74,25 @@ function maybeMarkdown(c: Context, html: string, status: 200 | 404 = 200): Respo
 interface CachedPageResponse {
   html: string;
   status: 200 | 404;
+}
+
+/** Normalized campaign-page row shared by the DB path and the curated
+ *  FRESH_CAMPAIGNS fallback. */
+interface CampaignRow {
+  nhtsa_campaign_number: string;
+  component: string;
+  manufacturer: string | null;
+  summary: string;
+  consequence: string;
+  remedy: string;
+  severity_level: SeverityLevel;
+  report_received_date: string | null;
+  enriched_at: string | null;
+  make_name: string;
+  make_slug: string;
+  model_name: string;
+  model_slug: string;
+  year: number;
 }
 
 // GET /og/:makeSlug/:modelSlug/:year.svg — Dynamic OG image
@@ -122,11 +142,20 @@ pageRoutes.get("/", async (c) => {
     withPageCacheVersion("page:home"),
     86400,
     async () => {
-      const lastUpdatedResult = await c.env.DB.prepare(
-        "SELECT MAX(completed_at) as last_run FROM ingestion_logs WHERE status = 'completed'",
-      ).first<{ last_run: string | null }>();
+      // All homepage queries run in a single parallel batch — on a cache miss
+      // this cuts TTFB by one full D1 round trip (the previous code awaited
+      // the ingestion-log query before starting the rest).
+      const [
+        lastUpdatedResult,
+        makesResult,
+        statsResult,
+        popularModelsResult,
+        latestRecallsResult,
+      ] = await Promise.all([
+        c.env.DB.prepare(
+          "SELECT MAX(completed_at) as last_run FROM ingestion_logs WHERE status = 'completed'",
+        ).first<{ last_run: string | null }>(),
 
-      const [makesResult, statsResult, popularModelsResult] = await Promise.all([
         c.env.DB.prepare(
           `SELECT m.name, m.slug, COUNT(DISTINCT md.id) as model_count, COUNT(r.id) as recall_count
          FROM makes m
@@ -165,12 +194,9 @@ pageRoutes.get("/", async (c) => {
           year_count: number;
           recall_count: number;
         }>(),
-      ]);
-      const [recallCount, yearCount, makeCount] = statsResult;
 
-      // Latest recalls for "trending" section
-      const latestRecallsResult = await c.env.DB.prepare(
-        `SELECT r.nhtsa_campaign_number, r.component, r.severity_level,
+        c.env.DB.prepare(
+          `SELECT r.nhtsa_campaign_number, r.component, r.severity_level,
                 r.report_received_date,
                 mk.name as make_name, mk.slug as make_slug,
                 m.name as model_name, m.slug as model_slug,
@@ -181,17 +207,19 @@ pageRoutes.get("/", async (c) => {
          JOIN makes mk ON mk.id = m.make_id
          ORDER BY r.report_received_date DESC
          LIMIT 6`,
-      ).all<{
-        nhtsa_campaign_number: string;
-        component: string;
-        severity_level: SeverityLevel;
-        report_received_date: string | null;
-        make_name: string;
-        make_slug: string;
-        model_name: string;
-        model_slug: string;
-        year: number;
-      }>();
+        ).all<{
+          nhtsa_campaign_number: string;
+          component: string;
+          severity_level: SeverityLevel;
+          report_received_date: string | null;
+          make_name: string;
+          make_slug: string;
+          model_name: string;
+          model_slug: string;
+          year: number;
+        }>(),
+      ]);
+      const [recallCount, yearCount, makeCount] = statsResult;
 
       const popularNames = new Set(POPULAR_MAKES.map((n) => n.toUpperCase()));
       const popularMakes = makesResult.results
@@ -307,12 +335,26 @@ pageRoutes.get("/new", async (c) => {
       : undefined;
 
     const titleSuffix = severity ? ` — ${severity.charAt(0) + severity.slice(1).toLowerCase()}` : "";
+    // Campaigns with indexable pages announced before the DB-driven list
+    // includes them (dedupe against what the DB already lists).
+    const announcedCampaigns = FRESH_CAMPAIGNS
+      .filter((f) => !recallsResult.results.some((r) => r.nhtsa_campaign_number === f.campaignNumber))
+      .map((f) => ({
+        campaign: f.campaignNumber,
+        component: f.component,
+        severity_level: severityOf(f.component),
+        report_received_date: f.reportReceivedDate,
+        make_name: f.vehicles[0]?.make ?? f.manufacturer,
+        model_name: f.vehicles[0]?.model ?? "",
+      }));
+
     const body = newRecallsPageTemplate({
       recalls: recallsResult.results,
       severity,
       page: safePage,
       totalPages,
       totalCount,
+      announcedCampaigns: !severity && safePage === 1 ? announcedCampaigns : [],
     });
 
     return layout({
@@ -1108,7 +1150,24 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         { href: `/${makeSlug}`, label: make.name },
         { href: `/${makeSlug}/${modelSlug}`, label: model.name },
       ]);
-      const body = crumbs + modelPageTemplate(make.name, makeSlug, model.name, modelSlug, years.results);
+
+      // Newly announced NHTSA campaigns verified for this make/model. Only
+      // link model years that actually have pages in this DB (avoid 404s),
+      // and only show the section when there is at least one verified match.
+      const dbYearSet = new Set(years.results.filter((y) => y.recall_count > 0).map((y) => y.year));
+      const recentCampaigns = freshCampaignsForMakeModel(makeSlug, modelSlug)
+        .map((f) => ({
+          campaign: f.campaignNumber,
+          component: f.component,
+          severity: severityOf(f.component),
+          reportReceivedDate: f.reportReceivedDate,
+          years: f.vehicles
+            .filter((v) => v.makeSlug === makeSlug && v.modelSlug === modelSlug)
+            .map((v) => v.year)
+            .filter((y) => dbYearSet.has(y)),
+        }));
+
+      const body = crumbs + modelPageTemplate(make.name, makeSlug, model.name, modelSlug, years.results, recentCampaigns);
 
       return {
         html: layout({
@@ -1701,7 +1760,11 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
   return maybeMarkdown(c, value.html, value.status);
 });
 
-// GET /recall/:campaignNumber — Campaign detail page
+// GET /recall/:campaignNumber — Campaign detail page.
+// Primary source: the recalls table (DB). For the newest NHTSA campaigns that
+// the daily delta ingestion has not saved yet, falls back to the curated
+// FRESH_CAMPAIGNS source (verified NHTSA data) so the pages are indexable
+// immediately. Once a campaign is ingested, the DB row wins.
 pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
   const { campaignNumber } = c.req.param();
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
@@ -1712,8 +1775,9 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
     async () => {
       const recallsResult = await c.env.DB.prepare(
         `SELECT r.id, r.nhtsa_campaign_number, r.component, r.manufacturer,
-              r.summary_raw, r.consequence_raw, r.remedy_raw,
-              r.summary_enriched, r.consequence_enriched, r.remedy_enriched,
+              COALESCE(r.summary_enriched, r.summary_raw) as summary,
+              COALESCE(r.consequence_enriched, r.consequence_raw) as consequence,
+              COALESCE(r.remedy_enriched, r.remedy_raw) as remedy,
               r.severity_level, r.report_received_date, r.enriched_at,
               m.name as make_name, m.slug as make_slug,
               md.name as model_name, md.slug as model_slug,
@@ -1726,28 +1790,34 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
        ORDER BY vy.year DESC`,
       )
         .bind(campaignNumber)
-        .all<{
-          id: number;
-          nhtsa_campaign_number: string;
-          component: string;
-          manufacturer: string | null;
-          summary_raw: string;
-          consequence_raw: string;
-          remedy_raw: string;
-          summary_enriched: string | null;
-          consequence_enriched: string | null;
-          remedy_enriched: string | null;
-          severity_level: SeverityLevel;
-          report_received_date: string | null;
-          enriched_at: string | null;
-          make_name: string;
-          make_slug: string;
-          model_name: string;
-          model_slug: string;
-          year: number;
-        }>();
+        .all<CampaignRow>();
 
-      if (recallsResult.results.length === 0) {
+      let rows = recallsResult.results;
+
+      // Curated fallback for brand-new campaigns not yet ingested.
+      if (rows.length === 0) {
+        const fresh = getFreshCampaign(campaignNumber);
+        if (fresh) {
+          rows = fresh.vehicles.map((v) => ({
+            nhtsa_campaign_number: fresh.campaignNumber,
+            component: fresh.component,
+            manufacturer: fresh.manufacturer,
+            summary: fresh.summary,
+            consequence: fresh.consequence,
+            remedy: fresh.remedy,
+            severity_level: severityOf(fresh.component),
+            report_received_date: fresh.reportReceivedDate,
+            enriched_at: null,
+            make_name: v.make,
+            make_slug: v.makeSlug,
+            model_name: v.model,
+            model_slug: v.modelSlug,
+            year: v.year,
+          }));
+        }
+      }
+
+      if (rows.length === 0) {
         return {
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
@@ -1761,25 +1831,29 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
         };
       }
 
-      const primaryRecall = recallsResult.results[0];
-      const summary = primaryRecall.summary_enriched ?? primaryRecall.summary_raw;
-      const consequence = primaryRecall.consequence_enriched ?? primaryRecall.consequence_raw;
-      const remedy = primaryRecall.remedy_enriched ?? primaryRecall.remedy_raw;
-
-      const title = `NHTSA Campaign ${primaryRecall.nhtsa_campaign_number} Recall Details | Recalled Rides`;
+      const primaryRecall = rows[0];
+      // Curated pages name the affected vehicle in title/H1; DB pages keep
+      // their existing campaign-number title (no churn on indexed pages).
+      const isCurated = primaryRecall.enriched_at === null && recallsResult.results.length === 0;
+      const componentShort = primaryRecall.component.split(":")[0].trim();
+      const title = isCurated
+        ? `${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name} ${componentShort} Recall (NHTSA #${primaryRecall.nhtsa_campaign_number}) | Recalled Rides`
+        : `NHTSA Campaign ${primaryRecall.nhtsa_campaign_number} Recall Details | Recalled Rides`;
+      const heading = isCurated
+        ? `${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name} ${componentShort} Recall`
+        : undefined;
 
       // Build description max 160 chars — component name trimmed, summary truncated
-      const componentShort = primaryRecall.component.split(":")[0].trim();
       const descPrefix = `${componentShort} recall: ${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name}. `;
       const remaining = 158 - descPrefix.length;
-      let descBody = summary.length > remaining ? summary.slice(0, remaining - 3) + "..." : summary;
+      let descBody = primaryRecall.summary.length > remaining ? primaryRecall.summary.slice(0, remaining - 3) + "..." : primaryRecall.summary;
       let description = descPrefix + descBody;
       if (description.length > 160) {
         const trunc = description.lastIndexOf(" ", 157);
         description = description.slice(0, trunc) + ".";
       }
 
-      const affectedVehicles = recallsResult.results.map((r) => ({
+      const affectedVehicles = rows.map((r) => ({
         make: r.make_name,
         makeSlug: r.make_slug,
         model: r.model_name,
@@ -1798,13 +1872,14 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
         campaign: primaryRecall.nhtsa_campaign_number,
         component: primaryRecall.component,
         manufacturer: primaryRecall.manufacturer,
-        summary,
-        consequence,
-        remedy,
+        summary: primaryRecall.summary,
+        consequence: primaryRecall.consequence,
+        remedy: primaryRecall.remedy,
         severity: primaryRecall.severity_level,
         reportReceivedDate: primaryRecall.report_received_date,
         isEnriched: !!primaryRecall.enriched_at,
         affectedVehicles,
+        heading,
       }) + adSlot({ client: c.env.ADSENSE_CLIENT || undefined, slot: c.env.ADSENSE_SLOT || undefined });
 
       const campaignUrl = `${siteUrl}/recall/${primaryRecall.nhtsa_campaign_number}`;
@@ -1816,9 +1891,9 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
             make: primaryRecall.make_name,
             model: primaryRecall.model_name,
             year: String(primaryRecall.year),
-            summary,
-            consequence,
-            remedy,
+            summary: primaryRecall.summary,
+            consequence: primaryRecall.consequence,
+            remedy: primaryRecall.remedy,
             reportReceivedDate: primaryRecall.report_received_date,
           }],
           campaignUrl,
@@ -1832,8 +1907,8 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
           { name: `Campaign ${primaryRecall.nhtsa_campaign_number}`, item: campaignUrl },
         ]) +
         articleJsonLd({
-          headline: `NHTSA Campaign ${primaryRecall.nhtsa_campaign_number}: ${primaryRecall.component} Recall`,
-          description: summary.slice(0, 200),
+          headline: title,
+          description: primaryRecall.summary.slice(0, 200),
           url: campaignUrl,
           datePublished: primaryRecall.report_received_date ?? undefined,
           dateModified: primaryRecall.enriched_at ?? primaryRecall.report_received_date ?? undefined,

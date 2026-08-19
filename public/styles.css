@@ -941,20 +941,23 @@ a.rr-readout__campaign:hover {
    ANIMATIONS
    ═══════════════════════════════════════════════════════════════ */
 
+/* Entrance animation must NOT delay first paint (LCP): children start fully
+   visible — no opacity: 0 — and only a subtle transform is animated.
+   The hero (first child, the LCP element) animates immediately. */
 @keyframes rr-slide-up {
-  from { opacity: 0; transform: translateY(40px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { transform: translateY(12px); }
+  to { transform: translateY(0); }
 }
 
 .rr-animate-in > * {
-  animation: rr-slide-up 0.6s var(--ease-mechanical) both;
+  animation: rr-slide-up 0.35s var(--ease-mechanical) both;
 }
 
-.rr-animate-in > *:nth-child(1) { animation-delay: 0.1s; }
-.rr-animate-in > *:nth-child(2) { animation-delay: 0.15s; }
-.rr-animate-in > *:nth-child(3) { animation-delay: 0.2s; }
-.rr-animate-in > *:nth-child(4) { animation-delay: 0.25s; }
-.rr-animate-in > *:nth-child(5) { animation-delay: 0.3s; }
+.rr-animate-in > *:nth-child(1) { animation-delay: 0s; }
+.rr-animate-in > *:nth-child(2) { animation-delay: 0.03s; }
+.rr-animate-in > *:nth-child(3) { animation-delay: 0.06s; }
+.rr-animate-in > *:nth-child(4) { animation-delay: 0.09s; }
+.rr-animate-in > *:nth-child(5) { animation-delay: 0.12s; }
 
 /* ═══════════════════════════════════════════════════════════════
    BREADCRUMBS
@@ -1792,4 +1795,152 @@ a.rr-readout__campaign:hover {
 
 .rr-readout__field-value a:hover {
   color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FRESH CAMPAIGN PAGES — VIN CTA, recent recalls, announced list
+   ═══════════════════════════════════════════════════════════════ */
+
+.rr-vin-cta {
+  margin-top: var(--space-20);
+  padding: var(--space-10) var(--space-8);
+  background: var(--bg-inset);
+  border: 3px solid var(--text-primary);
+}
+
+.rr-vin-cta__title {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  font-size: var(--text-xl);
+  text-transform: uppercase;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+  margin-bottom: var(--space-4);
+}
+
+.rr-vin-cta__text {
+  font-family: "Literata", serif;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  max-width: 640px;
+  line-height: 1.5;
+  margin-bottom: var(--space-6);
+}
+
+.rr-vin-cta__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.rr-vin-cta__alt {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.rr-vin-cta__alt:hover {
+  color: var(--accent);
+}
+
+.rr-recent-campaigns {
+  margin: var(--space-8) 0 var(--space-12);
+  padding: var(--space-8);
+  border: 2px solid var(--border-strong);
+  background: var(--bg-surface);
+}
+
+.rr-recent-campaigns__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rr-recent-campaigns__item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.rr-recent-campaigns__item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.rr-recent-campaigns__link {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.rr-recent-campaigns__link:hover {
+  color: var(--accent);
+}
+
+.rr-recent-campaigns__meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.rr-recent-campaigns__meta a {
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.rr-recent-campaigns__meta a:hover {
+  color: var(--accent);
+}
+
+.rr-announced__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rr-announced__item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.rr-announced__link {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.rr-announced__link:hover {
+  color: var(--accent);
+}
+
+.rr-announced__date {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
 }

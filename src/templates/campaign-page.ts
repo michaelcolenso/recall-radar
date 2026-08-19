@@ -21,6 +21,29 @@ interface CampaignPageOptions {
   reportReceivedDate: string | null;
   isEnriched: boolean;
   affectedVehicles: AffectedVehicle[];
+  /** Optional H1 naming the affected vehicle/component (used for curated
+   *  fresh-campaign pages). Defaults to `Campaign <number>`. */
+  heading?: string;
+}
+
+// Model-level listings do NOT prove an individual vehicle is affected.
+// Always point readers to an authoritative VIN check and say so plainly.
+function vinCheckCta(campaign: string): string {
+  return `
+    <section class="rr-vin-cta">
+      <h2 class="rr-vin-cta__title">Is YOUR vehicle affected?</h2>
+      <p class="rr-vin-cta__text">
+        This page lists the models and model years named in NHTSA campaign #<span class="rr-mono">${escapeHtml(campaign)}</span>.
+        Matching a model and year on this list does <strong>not</strong> prove an individual vehicle is
+        affected — some vehicles in an affected model year are never part of the recall population.
+        The authoritative way to know is a VIN check against NHTSA's own records.
+      </p>
+      <div class="rr-vin-cta__actions">
+        <a href="/vin-lookup" class="rr-hero__cta">Check My VIN — Free</a>
+        <a href="https://www.nhtsa.gov/recalls#recall-locator" target="_blank" rel="noopener noreferrer" class="rr-vin-cta__alt">Official NHTSA recall lookup →</a>
+      </div>
+    </section>
+  `;
 }
 
 export function campaignPageTemplate({
@@ -34,6 +57,7 @@ export function campaignPageTemplate({
   reportReceivedDate,
   isEnriched,
   affectedVehicles,
+  heading,
 }: CampaignPageOptions): string {
   const indicator = isEnriched
     ? `<span class="rr-readout__indicator rr-readout__indicator--enriched">Plain English</span>`
@@ -60,7 +84,7 @@ export function campaignPageTemplate({
 
   return `
     <section class="rr-section-header">
-      <h1 class="rr-section-header__title">Campaign ${escapeHtml(campaign)}</h1>
+      <h1 class="rr-section-header__title">${escapeHtml(heading ?? `Campaign ${campaign}`)}</h1>
       <div class="rr-meta-bar">
         ${severityBadge(severity)}
         ${indicator}
@@ -98,5 +122,7 @@ export function campaignPageTemplate({
     </article>
 
     ${vehiclesHtml}
+
+    ${vinCheckCta(campaign)}
   `;
 }

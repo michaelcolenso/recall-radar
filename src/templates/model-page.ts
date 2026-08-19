@@ -10,7 +10,23 @@ interface YearRow {
   highest_severity: SeverityLevel | null;
 }
 
-export function modelPageTemplate(makeName: string, makeSlug: string, modelName: string, modelSlug: string, years: YearRow[]): string {
+export interface RecentCampaignLink {
+  campaign: string;
+  component: string;
+  severity: SeverityLevel;
+  reportReceivedDate: string | null;
+  /** Years of this make/model affected by this campaign. */
+  years: number[];
+}
+
+export function modelPageTemplate(
+  makeName: string,
+  makeSlug: string,
+  modelName: string,
+  modelSlug: string,
+  years: YearRow[],
+  recentCampaigns: RecentCampaignLink[] = [],
+): string {
   const recallYears = years.filter((y) => y.recall_count > 0);
   const cards = recallYears.map((y) => `
     <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year" aria-label="${y.year}: ${y.recall_count} recall${y.recall_count !== 1 ? 's' : ''}${y.highest_severity ? ', highest severity ' + y.highest_severity.toLowerCase() : ''}">
@@ -21,12 +37,38 @@ export function modelPageTemplate(makeName: string, makeSlug: string, modelName:
     </a>
   `).join("");
 
+  // Newly announced NHTSA campaigns verified for this make/model. Model-level
+  // listings never prove an individual VIN is affected — the campaign pages
+  // carry the authoritative-VIN disclaimer.
+  const recentHtml = recentCampaigns.length > 0
+    ? `
+    <section class="rr-recent-campaigns">
+      <h2 class="rr-label" style="margin-bottom: var(--space-4);">Recent Recalls for ${escapeHtml(makeName)} ${escapeHtml(modelName)}</h2>
+      <div class="rr-recent-campaigns__list">
+        ${recentCampaigns.map((c) => `
+          <article class="rr-recent-campaigns__item">
+            ${severityBadge(c.severity)}
+            <a href="/recall/${encodeURIComponent(c.campaign)}" class="rr-recent-campaigns__link">
+              ${escapeHtml(componentShort(c.component))} (Campaign #${escapeHtml(c.campaign)})
+            </a>
+            <span class="rr-recent-campaigns__meta">
+              Affects ${c.years.length > 0 ? c.years.sort((a, b) => b - a).map((y) => `<a href="/${makeSlug}/${modelSlug}/${y}">${y}</a>`).join(" · ") : "listed model years"}
+              ${c.reportReceivedDate ? `· Reported ${escapeHtml(c.reportReceivedDate)}` : ""}
+            </span>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+    `
+    : "";
+
   return `
     <section class="rr-section-header">
       ${makeLogoImg(makeSlug, makeName, "rr-make-logo rr-make-logo--hero")}
       <h1 class="rr-section-header__title">${escapeHtml(makeName)} ${escapeHtml(modelName)} Recalls by Year</h1>
       <p class="rr-section-header__subtitle">Select a model year to see all safety recalls and issues.</p>
     </section>
+    ${recentHtml}
     <section>
       <h2 class="rr-label" style="margin-bottom: var(--space-4);">Recall History by Year</h2>
       <div class="rr-grid rr-grid--years">
@@ -39,4 +81,8 @@ export function modelPageTemplate(makeName: string, makeSlug: string, modelName:
       </p>
     </section>
   `;
+}
+
+function componentShort(component: string): string {
+  return component.split(":")[0].trim();
 }
