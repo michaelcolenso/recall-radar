@@ -25,12 +25,24 @@ export interface NewRecallRow {
   year: number;
 }
 
+/** A campaign with an indexable /recall/:campaign page, announced before the
+ *  daily ingestion has added its vehicle rows to the DB-driven list below. */
+export interface AnnouncedCampaign {
+  campaign: string;
+  component: string;
+  severity_level: SeverityLevel;
+  report_received_date: string | null;
+  make_name: string;
+  model_name: string;
+}
+
 interface NewRecallsPageOptions {
   recalls: NewRecallRow[];
   severity: string;
   page: number;
   totalPages: number;
   totalCount: number;
+  announcedCampaigns?: AnnouncedCampaign[];
 }
 
 function filterPills(severity: string): string {
@@ -86,9 +98,28 @@ function pagination(severity: string, page: number, totalPages: number): string 
   `;
 }
 
-export function newRecallsPageTemplate({ recalls, severity, page, totalPages, totalCount }: NewRecallsPageOptions): string {
+export function newRecallsPageTemplate({ recalls, severity, page, totalPages, totalCount, announcedCampaigns = [] }: NewRecallsPageOptions): string {
   const severityLabel = SEVERITY_FILTERS.find((f) => f.value === severity)?.label ?? "All";
   const countLabel = severity ? `${totalCount} ${severityLabel.toLowerCase()} recalls` : `${totalCount} recalls`;
+
+  const announcedHtml = announcedCampaigns.length > 0
+    ? `
+    <section class="rr-announced" style="margin-bottom: var(--space-8);">
+      <h2 class="rr-label" style="margin-bottom: var(--space-4);">Just Announced — Campaign Pages</h2>
+      <div class="rr-announced__list">
+        ${announcedCampaigns.map((a) => `
+          <article class="rr-announced__item">
+            ${severityBadge(a.severity_level)}
+            <a href="/recall/${encodeURIComponent(a.campaign)}" class="rr-announced__link">
+              ${escapeHtml(a.make_name)} ${escapeHtml(a.model_name)} — ${escapeHtml(componentShort(a.component))}
+            </a>
+            ${a.report_received_date ? `<span class="rr-announced__date">Reported ${escapeHtml(a.report_received_date)}</span>` : ""}
+          </article>
+        `).join("")}
+      </div>
+    </section>
+    `
+    : "";
 
   const listHtml = recalls.length > 0
     ? `
@@ -142,6 +173,8 @@ export function newRecallsPageTemplate({ recalls, severity, page, totalPages, to
       <p class="rr-section-header__body">Most recently reported NHTSA safety recalls — ${countLabel}. Repairs are always free at authorized dealers.</p>
     </section>
 
+    ${announcedHtml}
+
     ${filterPills(severity)}
 
     <div class="rr-meta-bar" style="margin: var(--space-4) 0 var(--space-6);">
@@ -151,4 +184,8 @@ export function newRecallsPageTemplate({ recalls, severity, page, totalPages, to
     ${listHtml}
     ${pagination(severity, page, totalPages)}
   `;
+}
+
+function componentShort(component: string): string {
+  return component.split(":")[0].trim();
 }

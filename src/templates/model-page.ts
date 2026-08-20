@@ -11,6 +11,15 @@ interface YearRow {
   highest_severity: SeverityLevel | null;
 }
 
+export interface RecentCampaignLink {
+  campaign: string;
+  component: string;
+  severity: SeverityLevel;
+  reportReceivedDate: string | null;
+  /** Years of this make/model affected by this campaign. */
+  years: number[];
+}
+
 export interface TopComponent {
   name: string;
   count: number;
@@ -35,6 +44,8 @@ export interface ModelPageOptions {
   totalRecalls: number;
   topComponents: TopComponent[];
   notableRecalls: NotableRecall[];
+  /** Newly announced verified campaigns to link from this model page. */
+  recentCampaigns?: RecentCampaignLink[];
   /** Human-readable "last refreshed" date, e.g. "August 2026". */
   lastUpdated?: string;
   /** Optional paid vehicle-history-report CTA, rendered below the free VIN check. */
@@ -104,18 +115,50 @@ function truncate(text: string, max: number): string {
   return `${lastSpace > 40 ? cut.slice(0, lastSpace) : cut}…`;
 }
 
-export function modelPageTemplate({
-  make,
-  makeSlug,
-  model,
-  modelSlug,
-  years,
-  totalRecalls,
-  topComponents,
-  notableRecalls,
-  lastUpdated,
-  affiliateCtaHtml,
-}: ModelPageOptions): string {
+export function modelPageTemplate(options: ModelPageOptions): string;
+export function modelPageTemplate(
+  make: string,
+  makeSlug: string,
+  model: string,
+  modelSlug: string,
+  years: YearRow[],
+  recentCampaigns?: RecentCampaignLink[],
+): string;
+export function modelPageTemplate(
+  optionsOrMake: ModelPageOptions | string,
+  makeSlugArg?: string,
+  modelArg?: string,
+  modelSlugArg?: string,
+  yearsArg?: YearRow[],
+  recentCampaignsArg: RecentCampaignLink[] = [],
+): string {
+  const options: ModelPageOptions = typeof optionsOrMake === "string"
+    ? {
+      make: optionsOrMake,
+      makeSlug: makeSlugArg ?? "",
+      model: modelArg ?? "",
+      modelSlug: modelSlugArg ?? "",
+      years: yearsArg ?? [],
+      totalRecalls: (yearsArg ?? []).reduce((sum, year) => sum + year.recall_count, 0),
+      topComponents: [],
+      notableRecalls: [],
+      recentCampaigns: recentCampaignsArg,
+    }
+    : optionsOrMake;
+
+  const {
+    make,
+    makeSlug,
+    model,
+    modelSlug,
+    years,
+    totalRecalls,
+    topComponents,
+    notableRecalls,
+    recentCampaigns = [],
+    lastUpdated,
+    affiliateCtaHtml,
+  } = options;
   const hasYearData = years.length > 0;
   const recallYears = years.filter((y) => y.recall_count > 0);
   const yearRange = hasYearData ? `${years[years.length - 1].year}–${years[0].year}` : "";
@@ -137,7 +180,33 @@ export function modelPageTemplate({
     </a>
   `).join("");
 
+  // Newly announced NHTSA campaigns verified for this make/model. Model-level
+  // listings never prove an individual VIN is affected — the campaign pages
+  // carry the authoritative-VIN disclaimer.
+  const recentHtml = recentCampaigns.length > 0
+    ? `
+    <section class="rr-recent-campaigns">
+      <h2 class="rr-label" style="margin-bottom: var(--space-4);">Recent Recalls for ${escapeHtml(make)} ${escapeHtml(model)}</h2>
+      <div class="rr-recent-campaigns__list">
+        ${recentCampaigns.map((c) => `
+          <article class="rr-recent-campaigns__item">
+            ${severityBadge(c.severity)}
+            <a href="/recall/${encodeURIComponent(c.campaign)}" class="rr-recent-campaigns__link">
+              ${escapeHtml(componentShort(c.component))} (Campaign #${escapeHtml(c.campaign)})
+            </a>
+            <span class="rr-recent-campaigns__meta">
+              Affects ${c.years.length > 0 ? c.years.sort((a, b) => b - a).map((y) => `<a href="/${makeSlug}/${modelSlug}/${y}">${y}</a>`).join(" · ") : "listed model years"}
+              ${c.reportReceivedDate ? `· Reported ${escapeHtml(c.reportReceivedDate)}` : ""}
+            </span>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+    `
+    : "";
+
   const vinCheckHtml = `
+
     <section class="rr-aff" aria-labelledby="rr-vincheck-title">
       <div class="rr-aff__title" id="rr-vincheck-title">Not Every ${escapeHtml(model)} Is Affected — Check Your VIN</div>
       <p class="rr-aff__text">This page tracks recalls reported for the ${escapeHtml(make)} ${escapeHtml(model)} across every model year we cover. Model and year alone can't confirm whether your specific car is included — only your 17-character Vehicle Identification Number (VIN) is authoritative.</p>
@@ -276,6 +345,8 @@ export function modelPageTemplate({
       </div>
     </section>
 
+    ${recentHtml}
+
     ${summaryHtml}
 
     ${totalRecalls === 0 ? `
@@ -309,4 +380,8 @@ export function modelPageTemplate({
 
     ${faqHtml}
   `;
+}
+
+function componentShort(component: string): string {
+  return component.split(":")[0].trim();
 }
