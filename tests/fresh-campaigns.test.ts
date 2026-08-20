@@ -10,6 +10,7 @@ import {
   severityOf,
 } from "../src/lib/fresh-campaigns.ts";
 import { getCampaignRows } from "../src/routes/seo.ts";
+import { renderSparseFreshCampaignPage } from "../src/routes/pages.ts";
 import { faqPageJsonLd, articleJsonLd, breadcrumbListJsonLd } from "../src/templates/components/json-ld.ts";
 
 // ── Campaign page generation ─────────────────────────────────────
@@ -75,6 +76,22 @@ test("campaign page handles zero affected vehicles (sparse data) without breakin
   assert.doesNotMatch(html, /Affected Vehicles/);
   assert.match(html, /Check My VIN/);
   assert.match(html, /Marker lights may fail to illuminate/);
+});
+
+test("sparse curated campaign renders an indexable page instead of a 404", () => {
+  const fresh = getFreshCampaign("26V513000");
+  assert.ok(fresh);
+  assert.equal(fresh.vehicles.length, 0);
+
+  const page = renderSparseFreshCampaignPage(fresh, "https://recalledrides.com");
+
+  assert.equal(page.status, 200);
+  assert.match(page.html, /26V513000/);
+  assert.match(page.html, /Volvo Trucks North America EXTERIOR LIGHTING Recall/);
+  assert.match(page.html, /rel="canonical" href="https:\/\/recalledrides\.com\/recall\/26V513000"/);
+  assert.match(page.html, /Check My VIN/);
+  assert.doesNotMatch(page.html, /href="\/volvo\/vnl/);
+  assert.doesNotMatch(page.html, /Page Not Found/);
 });
 
 test("default H1 remains campaign number when no heading is supplied", () => {
