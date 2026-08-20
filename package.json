@@ -17,6 +17,7 @@
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "agents": "^0.7.6",
     "drizzle-orm": "^0.44.6",
     "hono": "^4.10.6",
