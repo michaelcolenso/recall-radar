@@ -42,12 +42,13 @@ import { alertSignup } from "../templates/components/alert-signup";
 import { adSlot } from "../templates/components/ad-slot";
 import { privacyPageTemplate, disclosurePageTemplate } from "../templates/static-pages";
 import { FRESH_CAMPAIGNS, getFreshCampaign, freshCampaignsForMakeModel, severityOf } from "../lib/fresh-campaigns";
+import type { FreshCampaign } from "../lib/fresh-campaigns";
 
 export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v12";
+const PAGE_CACHE_VERSION = "v13";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -76,6 +77,83 @@ function maybeMarkdown(c: Context, html: string, status: 200 | 404 = 200): Respo
 interface CachedPageResponse {
   html: string;
   status: 200 | 404;
+}
+
+/**
+ * Render a curated campaign whose affected vehicles do not have corresponding
+ * model pages on this site. This keeps the campaign indexable without creating
+ * fake or 404ing vehicle links.
+ */
+export function renderSparseFreshCampaignPage(
+  fresh: FreshCampaign,
+  siteUrl: string,
+  options: {
+    googleVerification?: string;
+    analyticsToken?: string;
+    adsenseClient?: string;
+    adsenseSlot?: string;
+  } = {},
+): CachedPageResponse {
+  const componentShort = fresh.component.split(":")[0].trim();
+  const title = `${fresh.manufacturer} ${componentShort} Recall (NHTSA #${fresh.campaignNumber}) | Recalled Rides`;
+  const heading = `${fresh.manufacturer} ${componentShort} Recall`;
+  const campaignUrl = `${siteUrl}/recall/${fresh.campaignNumber}`;
+  const descPrefix = `${componentShort} recall from ${fresh.manufacturer}. `;
+  const remaining = Math.max(20, 158 - descPrefix.length);
+  const descBody = fresh.summary.length > remaining
+    ? `${fresh.summary.slice(0, remaining - 3)}...`
+    : fresh.summary;
+  const description = `${descPrefix}${descBody}`.slice(0, 160);
+
+  const body =
+    breadcrumbs([
+      { href: "/", label: "Home" },
+      { href: `/recall/${fresh.campaignNumber}`, label: `Campaign ${fresh.campaignNumber}` },
+    ]) +
+    campaignPageTemplate({
+      campaign: fresh.campaignNumber,
+      component: fresh.component,
+      manufacturer: fresh.manufacturer,
+      summary: fresh.summary,
+      consequence: fresh.consequence,
+      remedy: fresh.remedy,
+      severity: severityOf(fresh.component),
+      reportReceivedDate: fresh.reportReceivedDate,
+      isEnriched: false,
+      affectedVehicles: [],
+      heading,
+    }) +
+    adSlot({ client: options.adsenseClient, slot: options.adsenseSlot });
+
+  const jsonLd =
+    breadcrumbListJsonLd(siteUrl, [
+      { name: "Home", item: siteUrl },
+      { name: `Campaign ${fresh.campaignNumber}`, item: campaignUrl },
+    ]) +
+    articleJsonLd({
+      headline: title,
+      description: fresh.summary.slice(0, 200),
+      url: campaignUrl,
+      datePublished: fresh.reportReceivedDate,
+      dateModified: fresh.reportReceivedDate,
+      author: "Recalled Rides",
+    });
+
+  return {
+    html: layout({
+      googleVerification: options.googleVerification,
+      analyticsToken: options.analyticsToken,
+      title,
+      description,
+      canonical: campaignUrl,
+      ogType: "website",
+      ogImage: "/og-image-detail.svg",
+      body,
+      jsonLd,
+      adsenseClient: options.adsenseClient,
+    }),
+    status: 200,
+  };
 }
 
 /** Normalized campaign-page row shared by the DB path and the curated
@@ -1924,10 +2002,12 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
         .all<CampaignRow>();
 
       let rows = recallsResult.results;
+      let freshCampaign: FreshCampaign | undefined;
 
       // Curated fallback for brand-new campaigns not yet ingested.
       if (rows.length === 0) {
         const fresh = getFreshCampaign(campaignNumber);
+        freshCampaign = fresh;
         if (fresh) {
           rows = fresh.vehicles.map((v) => ({
             nhtsa_campaign_number: fresh.campaignNumber,
@@ -1946,6 +2026,18 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
             year: v.year,
           }));
         }
+      }
+
+      // A curated campaign can be valid even when this site has no matching
+      // model pages (for example Volvo Trucks VNL/VNR). Render it without
+      // affected-vehicle links rather than falling through to the generic 404.
+      if (rows.length === 0 && freshCampaign) {
+        return renderSparseFreshCampaignPage(freshCampaign, siteUrl, {
+          googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
+          analyticsToken: c.env.CF_ANALYTICS_TOKEN,
+          adsenseClient: c.env.ADSENSE_CLIENT || undefined,
+          adsenseSlot: c.env.ADSENSE_SLOT || undefined,
+        });
       }
 
       if (rows.length === 0) {
