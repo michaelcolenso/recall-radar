@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { modelPageTemplate, modelPageMeta } from "../src/templates/model-page.ts";
 import { modelOverviewFaqJsonLd, modelOverviewFaqEntries } from "../src/templates/components/json-ld.ts";
+import { layout } from "../src/templates/layout.ts";
+import { normalizeNhtsaCampaignNumber } from "../src/lib/utils.ts";
 
 const auditYears = [
   { year: 2022, recall_count: 3, risk_grade: "C", risk_score: 55, highest_severity: "HIGH" as const },
@@ -105,6 +107,94 @@ test("full model page: prominent VIN-check disclaimer and action", () => {
   assert.match(html, /Not Every A6 Is Affected — Check Your VIN/);
   assert.match(html, /only your 17-character Vehicle Identification Number \(VIN\) is authoritative/);
   assert.match(html, /href="\/vin-lookup"/);
+});
+
+test("full model page: provenance note names NHTSA and model-level limits", () => {
+  const html = modelPageTemplate({
+    make: "Audi",
+    makeSlug: "audi",
+    model: "A6",
+    modelSlug: "a6",
+    years: auditYears,
+    totalRecalls: 4,
+    topComponents: [],
+    notableRecalls: [],
+  });
+
+  assert.match(html, /Source: <a[^>]*>National Highway Traffic Safety Administration \(NHTSA\)/);
+  assert.match(html, /model-level recall records/);
+});
+
+test("sparse model: a campaign without affected years never creates an undefined URL", () => {
+  const html = modelPageTemplate({
+    make: "Rare",
+    makeSlug: "rare",
+    model: "Concept",
+    modelSlug: "concept",
+    years: [{ year: 2024, recall_count: 1, risk_grade: null, risk_score: null, highest_severity: "LOW" }],
+    totalRecalls: 1,
+    topComponents: [],
+    notableRecalls: [{
+      years: [],
+      nhtsa_campaign_number: "24V123456",
+      component: "LABEL",
+      severity_level: "LOW",
+      report_received_date: null,
+      summary: "A label may be missing.",
+    }],
+  });
+
+  assert.match(html, /NHTSA campaign #24V123456 details/);
+  assert.doesNotMatch(html, /undefined/);
+  assert.match(html, /href="\/rare\/concept\/2024"/);
+});
+
+test("model metadata stays concise enough for SERP snippets while preserving intent", () => {
+  const meta = modelPageMeta({
+    make: "Audi",
+    model: "A6",
+    totalRecalls: 4,
+    yearCount: 28,
+    yearRange: "2000–2027",
+    recallYearCount: 2,
+    recallYearRange: "2021–2022",
+    topComponent: "AIR BAGS",
+    lastUpdated: "August 2026",
+  });
+
+  assert.equal(meta.title, "Audi A6 Recalls: 4 Found | Recalled Rides");
+  assert.ok(meta.title.length <= 60);
+  assert.ok(meta.description.length <= 160);
+  assert.match(meta.description, /4 NHTSA safety recalls/);
+  assert.match(meta.description, /2021–2022/);
+  assert.match(meta.description, /VIN/);
+});
+
+test("model page shell emits one canonical URL for the aggregate route", () => {
+  const html = layout({
+    title: "Audi A6 Recalls: 4 Found | Recalled Rides",
+    description: "Audi A6 recall summary",
+    canonical: "https://recalledrides.com/audi/a6",
+    body: modelPageTemplate({
+      make: "Audi",
+      makeSlug: "audi",
+      model: "A6",
+      modelSlug: "a6",
+      years: auditYears,
+      totalRecalls: 4,
+      topComponents: [],
+      notableRecalls: [],
+    }),
+  });
+
+  assert.equal((html.match(/rel="canonical"/g) ?? []).length, 1);
+  assert.match(html, /rel="canonical" href="https:\/\/recalledrides\.com\/audi\/a6"/);
+});
+
+test("NHTSA campaign normalization accepts source variants and rejects arbitrary IDs", () => {
+  assert.equal(normalizeNhtsaCampaignNumber(" 25v-040000 "), "25V040000");
+  assert.equal(normalizeNhtsaCampaignNumber("25V040000"), "25V040000");
+  assert.equal(normalizeNhtsaCampaignNumber("not-a-campaign"), null);
 });
 
 test("full model page: renders a visible FAQ section matching the FAQPage schema content", () => {
@@ -263,10 +353,10 @@ test("modelPageMeta: verified count drives title and description, ungrounded cla
     lastUpdated: "August 2026",
   });
 
-  assert.equal(meta.title, "Audi A6 Recalls: 42 Found, Affected Years & VIN Check | Recalled Rides");
-  assert.match(meta.description, /42 known NHTSA safety recalls across 27 model years \(2000–2027\)/);
-  assert.match(meta.description, /most often involving air bags/);
-  assert.match(meta.description, /data refreshed August 2026/);
+  assert.equal(meta.title, "Audi A6 Recalls: 42 Found | Recalled Rides");
+  assert.match(meta.description, /42 NHTSA safety recalls across 27 model years \(2000–2027\)/);
+  assert.match(meta.description, /common issue: air bags/);
+  assert.match(meta.description, /Updated August 2026/);
 });
 
 test("modelPageMeta: recall-year range is scoped to years with a verified recall, not every tracked year", () => {
@@ -285,7 +375,7 @@ test("modelPageMeta: recall-year range is scoped to years with a verified recall
     lastUpdated: "August 2026",
   });
 
-  assert.match(meta.description, /7 known NHTSA safety recalls across 6 model years \(2008–2013\)/);
+  assert.match(meta.description, /7 NHTSA safety recalls across 6 model years \(2008–2013\)/);
   assert.doesNotMatch(meta.description, /28 model years/);
   assert.doesNotMatch(meta.description, /2000–2027/);
 });
@@ -301,9 +391,9 @@ test("modelPageMeta: verified zero recalls never implies an unverified recall ex
     recallYearRange: "",
   });
 
-  assert.equal(meta.title, "Infiniti J30 Recalls: None Found — Affected Years & VIN Check | Recalled Rides");
-  assert.match(meta.description, /no NHTSA safety recalls on record for tracked model years 2000–2027/);
-  assert.match(meta.description, /Verify your specific VIN for a definitive check/);
+  assert.equal(meta.title, "Infiniti J30 Recalls: None Found | Recalled Rides");
+  assert.match(meta.description, /No NHTSA safety recalls are listed for the Infiniti J30 in tracked years 2000–2027/);
+  assert.match(meta.description, /Check your VIN for a definitive result/);
   assert.doesNotMatch(meta.description, /has \d+ known/);
   assert.doesNotMatch(meta.description, /Good news/);
 });
@@ -319,8 +409,8 @@ test("modelPageMeta: no year data falls back to a safety-information title inste
     recallYearRange: "",
   });
 
-  assert.equal(meta.title, "Rare Concept Recalls & Safety Information | Recalled Rides");
-  assert.match(meta.description, /don't have model-year recall data/);
+  assert.equal(meta.title, "Rare Concept Recalls & Safety Info | Recalled Rides");
+  assert.match(meta.description, /No model-year recall data is available/);
 });
 
 test("modelOverviewFaqJsonLd returns empty string when there is no year data", () => {

@@ -12,6 +12,17 @@ export function parseNhtsaDate(dateStr: string): string | null {
   return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
 }
 
+/**
+ * Canonicalize the campaign identifier used by NHTSA's recalls dataset.
+ * NHTSA emits values such as 25V040000; accepting harmless whitespace and
+ * separators keeps source variants linkable without treating arbitrary IDs as
+ * campaign pages.
+ */
+export function normalizeNhtsaCampaignNumber(value: string): string | null {
+  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, "");
+  return /^\d{2}[A-Z]\d{6}$/.test(normalized) ? normalized : null;
+}
+
 export function titleCase(str: string): string {
   return str
     .toLowerCase()

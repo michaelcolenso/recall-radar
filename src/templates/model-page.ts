@@ -1,4 +1,4 @@
-import { escapeHtml, makeLogoImg, slugify, titleCase } from "../lib/utils";
+import { escapeHtml, makeLogoImg, normalizeNhtsaCampaignNumber, slugify, titleCase } from "../lib/utils";
 import { severityBadge } from "./components/severity-badge";
 import { modelOverviewFaqEntries } from "./components/json-ld";
 import type { SeverityLevel } from "../db/schema";
@@ -70,6 +70,13 @@ export interface ModelPageMeta {
   description: string;
 }
 
+function truncateMetaDescription(text: string, maxLength = 160): string {
+  if (text.length <= maxLength) return text;
+  const cut = text.slice(0, maxLength - 1);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > 40 ? cut.slice(0, lastSpace) : cut)}…`;
+}
+
 /**
  * Intent-matched <title>/description for the make/model overview page.
  * Pulled out of the route handler so metadata generation — including the
@@ -90,21 +97,27 @@ export function modelPageMeta({
 
   if (!hasYearData) {
     return {
-      title: `${make} ${model} Recalls & Safety Information | Recalled Rides`,
-      description: `We don't have model-year recall data for the ${make} ${model} yet. Check back soon, or verify a specific vehicle with a free VIN check.`,
+      title: `${make} ${model} Recalls & Safety Info | Recalled Rides`,
+      description: truncateMetaDescription(
+        `No model-year recall data is available for the ${make} ${model} yet. Check your VIN directly with NHTSA.`,
+      ),
     };
   }
 
   if (totalRecalls === 0) {
     return {
-      title: `${make} ${model} Recalls: None Found — Affected Years & VIN Check | Recalled Rides`,
-      description: `The ${make} ${model} has no NHTSA safety recalls on record for tracked model years ${yearRange}. Verify your specific VIN for a definitive check.`,
+      title: `${make} ${model} Recalls: None Found | Recalled Rides`,
+      description: truncateMetaDescription(
+        `No NHTSA safety recalls are listed for the ${make} ${model} in tracked years ${yearRange}. Check your VIN for a definitive result.`,
+      ),
     };
   }
 
   return {
-    title: `${make} ${model} Recalls: ${totalRecalls} Found, Affected Years & VIN Check | Recalled Rides`,
-    description: `The ${make} ${model} has ${totalRecalls} known NHTSA safety recall${totalRecalls !== 1 ? "s" : ""} across ${recallYearCount} model year${recallYearCount !== 1 ? "s" : ""} (${recallYearRange})${topComponent ? `, most often involving ${topComponent.toLowerCase()}` : ""}. See affected years and verify your VIN — data refreshed ${lastUpdated ?? "recently"}.`,
+    title: `${make} ${model} Recalls: ${totalRecalls} Found | Recalled Rides`,
+    description: truncateMetaDescription(
+      `${make} ${model} has ${totalRecalls} NHTSA safety recall${totalRecalls !== 1 ? "s" : ""} across ${recallYearCount} model year${recallYearCount !== 1 ? "s" : ""} (${recallYearRange})${topComponent ? `; common issue: ${topComponent.toLowerCase()}` : ""}. Check your VIN. Updated ${lastUpdated ?? "recently"}.`,
+    ),
   };
 }
 
@@ -169,7 +182,11 @@ export function modelPageTemplate(
     recallYears.length > 0
       ? `${Math.min(...recallYears.map((y) => y.year))}–${Math.max(...recallYears.map((y) => y.year))}`
       : "";
-  const leadingSeverity = notableRecalls[0]?.severity_level ?? null;
+  const safeNotableRecalls = notableRecalls.flatMap((recall) => {
+    const campaign = normalizeNhtsaCampaignNumber(recall.nhtsa_campaign_number);
+    return campaign ? [{ ...recall, nhtsa_campaign_number: campaign }] : [];
+  });
+  const leadingSeverity = safeNotableRecalls[0]?.severity_level ?? null;
 
   const cards = recallYears.map((y) => `
     <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year" aria-label="${y.year}: ${y.recall_count} recall${y.recall_count !== 1 ? 's' : ''}${y.highest_severity ? ', highest severity ' + y.highest_severity.toLowerCase() : ''}">
@@ -226,6 +243,12 @@ export function modelPageTemplate(
       : ""
     : "";
 
+  const provenanceHtml = `
+    <aside class="rr-source-note" aria-label="Recall data source" style="margin-top: var(--space-8); max-width: 720px;">
+      <p>Source: <a href="https://www.nhtsa.gov/recalls" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration (NHTSA)</a>. This page summarizes model-level recall records; only a VIN check can confirm whether a specific vehicle is affected.</p>
+    </aside>
+  `;
+
   const topComponentsHtml = topComponents.length > 0
     ? `
       <section style="margin-top: var(--space-10);">
@@ -264,15 +287,17 @@ export function modelPageTemplate(
     `
     : "";
 
-  const notableRecallsHtml = notableRecalls.length > 0
+  const notableRecallsHtml = safeNotableRecalls.length > 0
     ? `
       <section class="rr-readout-list" aria-labelledby="rr-notable-title">
         <h2 id="rr-notable-title" class="rr-label" style="margin-bottom: var(--space-6);">Recent &amp; Notable Recalls</h2>
-        ${notableRecalls.map((r) => {
+        ${safeNotableRecalls.map((r) => {
           const compName = r.component.split(":")[0].trim();
           const campaignPath = `/recall/${encodeURIComponent(r.nhtsa_campaign_number)}`;
           const latestYear = r.years[0];
-          const latestYearPath = `/${makeSlug}/${modelSlug}/${latestYear}`;
+          const latestYearAction = latestYear !== undefined
+            ? `<a href="/${makeSlug}/${modelSlug}/${latestYear}" class="rr-readout__detail-link">View ${escapeHtml(String(latestYear))} ${escapeHtml(make)} ${escapeHtml(model)} recalls →</a>`
+            : "";
           const yearLinks = r.years
             .map((y) => `<a href="/${makeSlug}/${modelSlug}/${y}">${y}</a>`)
             .join(", ");
@@ -306,7 +331,7 @@ export function modelPageTemplate(
             </div>
           </div>
           <div class="rr-readout__actions">
-            <a href="${latestYearPath}" class="rr-readout__detail-link">View ${escapeHtml(String(latestYear))} ${escapeHtml(make)} ${escapeHtml(model)} recalls →</a>
+            ${latestYearAction}
             <a href="${campaignPath}" class="rr-readout__detail-link">NHTSA campaign #${escapeHtml(r.nhtsa_campaign_number)} details →</a>
           </div>
         </article>`;
@@ -327,6 +352,7 @@ export function modelPageTemplate(
         <p class="rr-empty__text">We haven't ingested model-year data for this vehicle. Check back soon, or verify a specific vehicle with a free VIN check — it queries NHTSA directly and doesn't depend on our database.</p>
         <a href="/vin-lookup" class="rr-empty__action">Check Your VIN Instead</a>
       </div>
+      ${provenanceHtml}
       <p style="margin-top: var(--space-8);">
         <a href="/${makeSlug}" class="rr-back-link">Browse other ${escapeHtml(make)} models →</a>
       </p>
@@ -348,6 +374,8 @@ export function modelPageTemplate(
     ${recentHtml}
 
     ${summaryHtml}
+
+    ${provenanceHtml}
 
     ${totalRecalls === 0 ? `
     <section class="rr-good-news" aria-labelledby="good-news-title">

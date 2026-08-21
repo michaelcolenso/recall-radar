@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { getCachedOrRender } from "../lib/cache";
-import { escapeHtml, slugify, titleCase } from "../lib/utils";
+import { escapeHtml, normalizeNhtsaCampaignNumber, slugify, titleCase } from "../lib/utils";
 import { layout } from "../templates/layout";
 import { homeTemplate } from "../templates/home";
 import { makePageTemplate } from "../templates/make-page";
@@ -48,7 +48,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v13";
+const PAGE_CACHE_VERSION = "v14";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -1307,14 +1307,26 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
       const lastUpdated = lastIngestedResult?.last_ingested
         ? new Date(lastIngestedResult.last_ingested).toLocaleDateString("en-US", { month: "long", year: "numeric" })
         : undefined;
-      const notableRecalls: NotableRecall[] = notableRecallsResult.results.map((r) => ({
-        years: r.years_csv.split(",").map(Number).sort((a, b) => b - a),
-        nhtsa_campaign_number: r.campaign,
-        component: r.component,
-        severity_level: r.severity_level,
-        report_received_date: r.report_received_date,
-        summary: r.summary,
-      }));
+      const notableRecalls: NotableRecall[] = notableRecallsResult.results.flatMap((r) => {
+        // Campaign detail links are reserved for identifiers that normalize to
+        // the NHTSA source format; malformed source rows remain excluded from
+        // the editorial list instead of becoming dead internal links.
+        const campaign = normalizeNhtsaCampaignNumber(r.campaign);
+        if (!campaign) return [];
+        const years = r.years_csv
+          .split(",")
+          .map(Number)
+          .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 2100)
+          .sort((a, b) => b - a);
+        return [{
+          years,
+          nhtsa_campaign_number: campaign,
+          component: r.component,
+          severity_level: r.severity_level,
+          report_received_date: r.report_received_date,
+          summary: r.summary,
+        }];
+      });
 
       const { title, description } = modelPageMeta({
         make: make.name,
