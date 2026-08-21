@@ -9,7 +9,7 @@ import {
   freshCampaignsForMakeModel,
   severityOf,
 } from "../src/lib/fresh-campaigns.ts";
-import { getCampaignRows } from "../src/routes/seo.ts";
+import { getCampaignRows, getCampaignUrlCount } from "../src/routes/seo.ts";
 import { renderSparseFreshCampaignPage } from "../src/routes/pages.ts";
 import { faqPageJsonLd, articleJsonLd, breadcrumbListJsonLd } from "../src/templates/components/json-ld.ts";
 
@@ -256,6 +256,11 @@ test("campaign sitemap rows include curated fresh campaigns", async () => {
   const numbers = rows.results.map((r) => r.campaign_number);
   for (const c of FRESH_CAMPAIGNS) {
     assert.ok(numbers.includes(c.campaignNumber), `${c.campaignNumber} present in sitemap rows`);
+    assert.equal(
+      rows.results.find((r: { campaign_number: string; lastmod: string }) => r.campaign_number === c.campaignNumber)?.lastmod,
+      c.reportReceivedDate,
+      `${c.campaignNumber} carries its verified report date as lastmod`,
+    );
   }
 });
 
@@ -274,6 +279,53 @@ test("campaign sitemap rows dedupe curated campaigns already in the DB", async (
   const numbers = rows.results.map((r) => r.campaign_number);
   assert.equal(numbers.filter((n) => n === "26V511000").length, 1);
   assert.equal(numbers.length, FRESH_CAMPAIGNS.length);
+});
+
+test("campaign sitemap pagination unions fresh pages once and canonicalizes IDs", async () => {
+  type Row = { campaign_number: string; lastmod: string };
+  const dbRows: Row[] = [
+    { campaign_number: "26V510000", lastmod: "2026-08-01" },
+    // A source-format variant must collapse to the canonical nine-character ID.
+    { campaign_number: "26v-511000", lastmod: "2026-08-06" },
+    { campaign_number: "26V526000", lastmod: "2026-08-13" },
+  ];
+  const fakeDb = {
+    prepare: () => ({
+      bind: (limit: number, offset: number) => ({
+        all: async () => ({ results: dbRows.slice(offset, offset + limit) }),
+      }),
+      all: async () => ({ results: dbRows }),
+    }),
+  } as unknown as Parameters<typeof getCampaignRows>[0];
+
+  const pages = await Promise.all([
+    getCampaignRows(fakeDb, 3, 0),
+    getCampaignRows(fakeDb, 3, 3),
+    getCampaignRows(fakeDb, 3, 6),
+  ]);
+  const pagedNumbers = pages.flatMap((page) => page.results.map((row) => row.campaign_number));
+  const expected = [
+    "26V510000", "26V511000", "26V512000", "26V513000",
+    "26V514000", "26V524000", "26V525000", "26V526000",
+  ];
+  assert.deepEqual(pagedNumbers, expected);
+  assert.equal(pagedNumbers.filter((number) => number === "26V511000").length, 1);
+});
+
+test("campaign sitemap count is the exact normalized DB-plus-curated union", async () => {
+  type Row = { campaign_number: string; lastmod: string };
+  const dbRows: Row[] = [
+    { campaign_number: "26v-511000", lastmod: "2026-08-06" },
+    { campaign_number: "26V526000", lastmod: "2026-08-13" },
+  ];
+  const fakeDb = {
+    prepare: () => ({
+      all: async () => ({ results: dbRows }),
+    }),
+  } as unknown as Parameters<typeof getCampaignUrlCount>[0];
+
+  const count = await getCampaignUrlCount(fakeDb);
+  assert.deepEqual(count, { count: FRESH_CAMPAIGNS.length + 1 });
 });
 
 // ── Structured data validity ─────────────────────────────────────
