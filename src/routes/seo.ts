@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { getCachedOrRender } from "../lib/cache";
-import { slugify } from "../lib/utils";
+import { slugify, normalizeNhtsaCampaignNumber } from "../lib/utils";
 import { FRESH_CAMPAIGNS } from "../lib/fresh-campaigns";
 
 export const seoRoutes = new Hono<{ Bindings: Env }>();
@@ -542,37 +542,55 @@ function getComponentUrlCount(db: D1Database): Promise<CountRow | null> {
 }
 
 export function getCampaignRows(db: D1Database, limit?: number, offset?: number): Promise<D1Result<CampaignSitemapRow>> {
-  const query = db.prepare(
+  // Fetch the complete campaign set before merging curated pages. Applying
+  // LIMIT/OFFSET in SQL first would append the same fresh campaigns to every
+  // sitemap shard and could omit them from the correct global position.
+  const result = db.prepare(
     `SELECT r.nhtsa_campaign_number as campaign_number,
             COALESCE(date(r.report_received_date), date(r.updated_at)) as lastmod
      FROM recalls r
      GROUP BY r.nhtsa_campaign_number
-     ORDER BY r.nhtsa_campaign_number
-     ${typeof limit === "number" ? "LIMIT ? OFFSET ?" : ""}`,
-  );
-
-  const result = typeof limit === "number"
-    ? query.bind(limit, offset ?? 0).all<CampaignSitemapRow>()
-    : query.all<CampaignSitemapRow>();
+     ORDER BY r.nhtsa_campaign_number`,
+  ).all<CampaignSitemapRow>();
 
   return result.then((res) => {
-    // Union in curated fresh-campaign pages (brand-new NHTSA campaigns whose
-    // /recall/:campaignNumber pages are indexable before the daily delta
-    // ingestion saves their rows). Dedupe against whatever the DB already
-    // emitted in this window; the campaign set is well under the 45000-per-file
-    // chunk size, so appending at the end keeps them in the first chunk.
-    const seen = new Set(res.results.map((r) => r.campaign_number));
-    const fresh = FRESH_CAMPAIGNS.filter((f) => !seen.has(f.campaignNumber))
-      .map((f) => ({ campaign_number: f.campaignNumber, lastmod: f.reportReceivedDate }));
-    return { ...res, results: [...res.results, ...fresh] };
+    const merged = mergeCampaignRows(res.results);
+    const start = Math.max(0, offset ?? 0);
+    const end = typeof limit === "number" ? start + Math.max(0, limit) : undefined;
+    return { ...res, results: merged.slice(start, end) };
   });
 }
 
-function getCampaignUrlCount(db: D1Database): Promise<CountRow | null> {
-  // +FRESH_CAMPAIGNS.length covers curated pages; slight overcount is fine —
-  // this value only decides single-sitemap vs sitemap-index mode.
-  return db.prepare("SELECT COUNT(DISTINCT nhtsa_campaign_number) as count FROM recalls").first<CountRow>()
-    .then((row) => (row ? { ...row, count: row.count + FRESH_CAMPAIGNS.length } : row));
+function mergeCampaignRows(rows: CampaignSitemapRow[]): CampaignSitemapRow[] {
+  const byCampaign = new Map<string, CampaignSitemapRow>();
+
+  for (const row of rows) {
+    const campaignNumber = normalizeNhtsaCampaignNumber(row.campaign_number);
+    if (!campaignNumber) continue;
+    const canonicalRow = { campaign_number: campaignNumber, lastmod: row.lastmod };
+    const existing = byCampaign.get(campaignNumber);
+    // If legacy source formatting produced duplicate IDs, keep the freshest
+    // date while exposing only the canonical nine-character URL.
+    if (!existing || canonicalRow.lastmod > existing.lastmod) {
+      byCampaign.set(campaignNumber, canonicalRow);
+    }
+  }
+
+  for (const fresh of FRESH_CAMPAIGNS) {
+    const existing = byCampaign.get(fresh.campaignNumber);
+    if (!existing || fresh.reportReceivedDate > existing.lastmod) {
+      byCampaign.set(fresh.campaignNumber, {
+        campaign_number: fresh.campaignNumber,
+        lastmod: fresh.reportReceivedDate,
+      });
+    }
+  }
+
+  return [...byCampaign.values()].sort((a, b) => a.campaign_number.localeCompare(b.campaign_number));
+}
+
+export function getCampaignUrlCount(db: D1Database): Promise<CountRow | null> {
+  return getCampaignRows(db).then((rows) => ({ count: rows.results.length }));
 }
 
 interface StatsSitemapRow {
