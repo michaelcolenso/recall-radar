@@ -211,6 +211,7 @@ test("six fresh campaigns are present and carry verified relationships", () => {
 test("getFreshCampaign resolves by campaign number (case-insensitive)", () => {
   assert.ok(getFreshCampaign("26V525000"));
   assert.ok(getFreshCampaign("26v525000"));
+  assert.ok(getFreshCampaign("26v-525000"));
   assert.equal(getFreshCampaign("00V000000"), undefined);
 });
 

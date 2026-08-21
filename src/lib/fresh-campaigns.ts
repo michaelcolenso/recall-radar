@@ -1,4 +1,4 @@
-import { slugify, parseNhtsaDate } from "./utils";
+import { slugify, normalizeNhtsaCampaignNumber, parseNhtsaDate } from "./utils";
 import { classifySeverity } from "./severity";
 import type { SeverityLevel } from "../db/schema";
 
@@ -151,7 +151,8 @@ export const FRESH_CAMPAIGNS: FreshCampaign[] = [
 const FRESH_BY_NUMBER = new Map(FRESH_CAMPAIGNS.map((c) => [c.campaignNumber, c]));
 
 export function getFreshCampaign(campaignNumber: string): FreshCampaign | undefined {
-  return FRESH_BY_NUMBER.get(campaignNumber.toUpperCase());
+  const normalized = normalizeNhtsaCampaignNumber(campaignNumber);
+  return normalized ? FRESH_BY_NUMBER.get(normalized) : undefined;
 }
 
 /** Campaigns whose verified affected-vehicle list includes this make/model. */
