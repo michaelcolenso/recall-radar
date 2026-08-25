@@ -318,7 +318,7 @@ pageRoutes.get("/", async (c) => {
         analyticsToken: c.env.CF_ANALYTICS_TOKEN,
         title: "Vehicle Recall Search — Check Your Car Free | Recalled Rides",
         description:
-          "Check if your car has open safety recalls. Free NHTSA-sourced lookup covering 16K+ recalls across 30 makes. Find safety issues and get repairs — always free at your dealer.",
+          "Check if your car has open safety recalls. Free NHTSA-sourced lookup covering 16K+ recalls across 30 makes — find safety issues and get repairs, always free.",
         canonical: siteUrl,
         ogType: "website",
         ogImage: "/og-image-home.svg",
@@ -1122,8 +1122,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
         html: layout({
           googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
           analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-          title: `${make.name} Vehicle Recalls & Safety Issues — Browse by Model | Recalled Rides`,
-          description: `Check ${make.name} vehicle recalls by model — ${models.results.filter(m => m.recall_count > 0).length} models with active safety issues. Find your ${make.name}, see the risks, and learn how to get free repairs at your dealer.`,
+          title: `${make.name} Recalls & Safety Issues by Model | Recalled Rides`,
+          description: `Check ${make.name} vehicle recalls by model — ${models.results.filter(m => m.recall_count > 0).length} models with active safety issues. Find your ${make.name}, see the risks, and get free repairs at your dealer.`,
           canonical: `${siteUrl}/${makeSlug}`,
           ogType: "website",
           ogImage: "/og-image-home.svg",
@@ -1550,7 +1550,15 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
       const topSeverity = filteredRecalls[0]?.severity_level ?? "UNKNOWN";
 
       const title = `${year} ${make.name} ${model.name} ${titleCase(componentName)} Recalls | Recalled Rides`;
-      const description = `Check ${filteredRecalls.length} ${componentName} recalls for the ${year} ${make.name} ${model.name}. Get plain-English explanations and find out how to get free repairs.`;
+      const severityPhrase =
+        topSeverity && topSeverity !== "UNKNOWN"
+          ? `${topSeverity.charAt(0)}${topSeverity.slice(1).toLowerCase()} severity. `
+          : "";
+      let description = `Check ${filteredRecalls.length} ${componentName} recalls for the ${year} ${make.name} ${model.name}. ${severityPhrase}Get plain-English explanations of the risk and how to get free repairs at your local dealer.`;
+      if (description.length > 160) {
+        const trunc = description.lastIndexOf(" ", 157);
+        description = description.slice(0, trunc) + ".";
+      }
 
       const cards = filteredRecalls.map(recallCard).join("");
 
@@ -1830,18 +1838,20 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
       }
       const components = Array.from(componentMap.values()).sort((a, b) => b.count - a.count);
 
+      const issueLabel = `${recalls.length} Issue${recalls.length !== 1 ? "s" : ""}`;
+      const gradedTitle = `${year} ${make.name} ${model.name} Recalls: ${issueLabel}, Grade ${riskGrade} | Recalled Rides`;
       const title =
         recalls.length > 0 && topComponent && riskGrade
-          ? `${year} ${make.name} ${model.name} Recalls: ${recalls.length} Safety Issues, Risk Grade ${riskGrade} | Recalled Rides`
+          ? (gradedTitle.length <= 66 ? gradedTitle : `${year} ${make.name} ${model.name} Recalls | Recalled Rides`)
           : recalls.length > 0 && topComponent
-            ? `${year} ${make.name} ${model.name} Recalls: ${topComponent} Issues Explained | Recalled Rides`
-            : `${year} ${make.name} ${model.name} Recall & Safety Information | Recalled Rides`;
+            ? `${year} ${make.name} ${model.name} Recalls & Safety Issues | Recalled Rides`
+            : `${year} ${make.name} ${model.name} — Recall & Safety Info | Recalled Rides`;
 
       const description =
         recalls.length > 0 && riskGrade
-          ? `Check ${recalls.length} open recalls, NHTSA investigations, and owner complaints for the ${year} ${make.name} ${model.name}. Risk Grade: ${riskGrade}. ${topComponent ?? "Safety"} issues explained in plain English.`
+          ? `See the complete recall history for the ${year} ${make.name} ${model.name}: ${recalls.length} NHTSA recalls, investigation and complaint history, and plain-English fixes — free at your dealer.`
           : recalls.length > 0 && topComponent
-            ? `Check ${recalls.length} known recalls for the ${year} ${make.name} ${model.name}. Get plain-English explanations of ${topComponent.toLowerCase()} issues and find out how to get free repairs at your local dealer.`
+            ? `See what's on file for the ${year} ${make.name} ${model.name}: ${recalls.length} NHTSA recalls, plain-English explanations of the risks, and how to get free repairs at your local dealer.`
             : `Good news: the ${year} ${make.name} ${model.name} has no open safety recalls. Check back anytime — we update weekly from NHTSA data.`;
 
       const cards =
@@ -2079,7 +2089,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
         : undefined;
 
       // Build description max 160 chars — component name trimmed, summary truncated
-      const descPrefix = `${componentShort} recall: ${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name}. `;
+      const descPrefix = `${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name} ${componentShort} recall: `;
       const remaining = 158 - descPrefix.length;
       let descBody = primaryRecall.summary.length > remaining ? primaryRecall.summary.slice(0, remaining - 3) + "..." : primaryRecall.summary;
       let description = descPrefix + descBody;
