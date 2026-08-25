@@ -113,8 +113,12 @@ export function modelPageMeta({
     };
   }
 
+  const countTitle = `${make} ${model} Recalls: ${totalRecalls} Safety Issue${totalRecalls !== 1 ? "s" : ""}, ${recallYearCount} Year${recallYearCount !== 1 ? "s" : ""} | Recalled Rides`;
   return {
-    title: `${make} ${model} Recalls: ${totalRecalls} Found | Recalled Rides`,
+    // Front-load the verified recall count and spread instead of the generic
+    // "N Found" label, which wastes SERP real estate below 50 chars. Fall back
+    // to a short title when a long make/model name would push past 62 chars.
+    title: countTitle.length <= 62 ? countTitle : `${make} ${model} Recalls | Recalled Rides`,
     description: truncateMetaDescription(
       `${make} ${model} has ${totalRecalls} NHTSA safety recall${totalRecalls !== 1 ? "s" : ""} across ${recallYearCount} model year${recallYearCount !== 1 ? "s" : ""} (${recallYearRange})${topComponent ? `; common issue: ${topComponent.toLowerCase()}` : ""}. Check your VIN. Updated ${lastUpdated ?? "recently"}.`,
     ),

@@ -162,7 +162,7 @@ test("model metadata stays concise enough for SERP snippets while preserving int
     lastUpdated: "August 2026",
   });
 
-  assert.equal(meta.title, "Audi A6 Recalls: 4 Found | Recalled Rides");
+  assert.equal(meta.title, "Audi A6 Recalls: 4 Safety Issues, 2 Years | Recalled Rides");
   assert.ok(meta.title.length <= 60);
   assert.ok(meta.description.length <= 160);
   assert.match(meta.description, /4 NHTSA safety recalls/);
@@ -172,7 +172,7 @@ test("model metadata stays concise enough for SERP snippets while preserving int
 
 test("model page shell emits one canonical URL for the aggregate route", () => {
   const html = layout({
-    title: "Audi A6 Recalls: 4 Found | Recalled Rides",
+    title: "Audi A6 Recalls: 4 Safety Issues, 2 Years | Recalled Rides",
     description: "Audi A6 recall summary",
     canonical: "https://recalledrides.com/audi/a6",
     body: modelPageTemplate({
@@ -353,7 +353,7 @@ test("modelPageMeta: verified count drives title and description, ungrounded cla
     lastUpdated: "August 2026",
   });
 
-  assert.equal(meta.title, "Audi A6 Recalls: 42 Found | Recalled Rides");
+  assert.equal(meta.title, "Audi A6 Recalls: 42 Safety Issues, 27 Years | Recalled Rides");
   assert.match(meta.description, /42 NHTSA safety recalls across 27 model years \(2000–2027\)/);
   assert.match(meta.description, /common issue: air bags/);
   assert.match(meta.description, /Updated August 2026/);
@@ -396,6 +396,26 @@ test("modelPageMeta: verified zero recalls never implies an unverified recall ex
   assert.match(meta.description, /Check your VIN for a definitive result/);
   assert.doesNotMatch(meta.description, /has \d+ known/);
   assert.doesNotMatch(meta.description, /Good news/);
+});
+
+test("modelPageMeta: long make/model names fall back to a short title that still fits the SERP", () => {
+  // "Mitsubishi Lancer Sportback" + full count label would exceed 62 chars;
+  // the title must degrade gracefully instead of getting truncated by Google.
+  const meta = modelPageMeta({
+    make: "Mitsubishi",
+    model: "Lancer Sportback",
+    totalRecalls: 42,
+    yearCount: 28,
+    yearRange: "2000–2027",
+    recallYearCount: 28,
+    recallYearRange: "2000–2027",
+    topComponent: "SERVICE BRAKES, HYDRAULIC",
+    lastUpdated: "August 2026",
+  });
+
+  assert.equal(meta.title, "Mitsubishi Lancer Sportback Recalls | Recalled Rides");
+  assert.ok(meta.title.length <= 62);
+  assert.ok(meta.description.length <= 160);
 });
 
 test("modelPageMeta: no year data falls back to a safety-information title instead of a fabricated count", () => {
