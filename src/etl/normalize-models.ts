@@ -27,8 +27,8 @@ export function normalizeModel(make: string, model: string): { make: string; mod
     const series=compact.match(/^M?([1-8])\d{2}[A-Z]*$/)?.[1] ?? compact.match(/^ACTIVEHYBRID([357])$/)?.[1];
     if(series) model = `${series} Series`;
   }
-  if ((make === 'HONDA' && /^(CB\d|CBR|CRF|CMX|NC\d|VFR|VT\d|VTX|GL\d|GOLDWING|SILVERWING|REBEL|SHADOW|AFRICA|PCX|GROM|TRX|FOURTRAX|PIONEER|TALON|RANCHER|FOREMAN|XR\d|CR\d|NSS|NPS|CHF|SH\d|RUCKUS|METROPOLITAN|SXS|CTX\d|ST\d|NT\d|VF\d|VTR\d)/.test(compact)) ||
-      (make === 'BMW' && /^(?:RNINET[A-Z]*|[RFKGS]\d{2,4}(?:GS(?:ADVENTURE)?|GSA|GT|GTL|RT|RS|RR|XR|ST|R|S|B|C|X|TRANSCONTINENTAL|CLASSIC|SPORT)?|C(?:400(?:X|GT)|600SPORT|650(?:GT|SPORT)|EVOLUTION)|M1000(?:R|RR|XR)|CE0[24]|HP[24])$/.test(compact))) vehicleType = 'motorcycle';
+  if ((make === 'HONDA' && /^(CB\d|CBR|CRF|CMX|NC\d|VFR|VT\d|VTX|GL\d|GOLDWING|SILVERWING|REBEL|SHADOW|AFRICA|PCX|GROM|TRX|FOURTRAX|PIONEER|TALON|RANCHER|FOREMAN|XR\d|CR\d|NSS|NPS|CHF|SH\d|RUCKUS|METROPOLITAN|SXS|CTX\d|ST\d|NT\d|VF\d|VTR\d|CBF|CBX|CM\d|CX\d|CG\d|RC\d|NS\d|NSR|NX\d|SA\d|SB\d|SE\d|XL\d|Z\d|EZ\d|NQ\d|NB\d|NH\d|NN\d|NU\d|TG\d|TLR\d|ATC\d|ADV\d|SCL\d|RVT\d|PC800|WW150|ELITE|HELIX|PACIFICCOAST|TRAIL|HAWKGT|TOURISTTROPHY|TRANSALP|SPORTRAX|BIGRED|COTA|INTERSTATE|DN01|VARADERO|VALKYRIE|BIGRUCKUS|SPORTTOURER|NIGHTHAWK|TWINSTAR|FIREBLADE|MONKEY|NAVI|DAX|FURY|GIORNO|RUBICON|RECON|RINCON|SUPERCUB|599$|919$)/.test(compact)) ||
+      (make === 'BMW' && /^(?:RNINET[A-Z]*|[RFKGS]\d{2,4}(?:GS(?:ADVENTURE)?|GSA|GT|GTL|RT|RS|RR|XR|ST|R|S|B|C|X|TRANSCONTINENTAL|CLASSIC|SPORT)?|C(?:400(?:X|GT)|600SPORT|650(?:GT|SPORT)|EVOLUTION)|M1000(?:R|RR|RS|XR)|CE0[24]|HP[24]|[RFKGS]\d{2,4}[A-Z0-9]*)$/.test(compact))) vehicleType = 'motorcycle';
   return { make, model, slug: slugify(model), vehicleType, sourceModel };
 }
 export function canonicalModelGroups(make: string, models: { Model_Name: string }[]): { name: string; slug: string; sources: string[] }[] {

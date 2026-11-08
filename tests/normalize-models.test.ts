@@ -60,3 +60,10 @@ test('BMW coupe and long-wheelbase trims resolve to their series without merging
  for(const name of ['740Li','745Le','750Li','750Lxi','760Li','M760Li'])assert.equal(normalizeModel('BMW',name).model,'7 Series',name);
  assert.equal(normalizeModel('BMW','M3').model,'M3');assert.equal(normalizeModel('BMW','i3').model,'i3');assert.equal(normalizeModel('BMW','2002').model,'2002');
 });
+
+
+test('named Honda powersports and legacy BMW motorcycles are excluded',()=>{
+ for(const name of ['Elite 150','Helix','Pacific Coast','RC30','NX500','Valkyrie','Nighthawk 750','599','919','Cota 310RR','Recon','Navi','Trail125','Super Cub C125','WW150/PCX150','RVT1000R (RC51)']) assert.equal(normalizeModel('HONDA',name).vehicleType,'motorcycle',name);
+ for(const name of ['R 100 GSPD','M 1000 RS']) assert.equal(normalizeModel('BMW',name).vehicleType,'motorcycle',name);
+ for(const name of ['Prologue','Civic Type R','EV Plus','Jazz','del Sol']) assert.equal(normalizeModel('HONDA',name).vehicleType,'passenger',name);
+});
