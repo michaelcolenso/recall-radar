@@ -1,3 +1,4 @@
+import { fetchRecallsByVin, parseRecallResults, type NhtsaRecall, type DecodedVin } from "../lib/nhtsa-client";
 import { printChecklist } from "../templates/components/print-checklist";
 import { repairTemporalSummaries } from "../etl/temporal-summaries";
 import { Hono } from "hono";
@@ -402,39 +403,25 @@ apiRoutes.get("/vin-lookup", async (c) => {
     return c.json({ error: "Invalid VIN format. VINs do not contain the letters I, O, or Q." }, 400);
   }
 
+  const officialVinUrl="https://www.nhtsa.gov/recalls";
+  let scope:"vin"|"model-year"="vin", rows:NhtsaRecall[], vehicle:DecodedVin|undefined;
   try {
-    const res = await fetch(
-      `https://api.nhtsa.gov/recalls/recallsByVin?vin=${encodeURIComponent(vin)}`,
-      { cf: { cacheTtl: 3600 } },
-    );
-    if (!res.ok) {
-      return c.json({ error: "NHTSA lookup failed. Please try again later." }, 502);
-    }
-    const data = await res.json() as {
-      Count?: number;
-      results?: Array<{
-        NHTSACampaignNumber: string;
-        Component: string;
-        Summary: string;
-        Consequence: string;
-        Remedy: string;
-        ReportReceivedDate: string;
-      }>;
-    };
-
-    const recalls = (data.results || []).map((r) => ({
-      campaign: r.NHTSACampaignNumber,
-      component: r.Component,
-      summary: r.Summary,
-      consequence: r.Consequence,
-      remedy: r.Remedy,
-      date: r.ReportReceivedDate,
-    }));
-
-    return c.json({ vin, recalls, count: recalls.length, checklistHtml: printChecklist(`VIN ${vin}`,recalls.map(r=>({campaign:r.campaign,component:r.component || "Unspecified",remedy:r.remedy || ""}))) });
+    const response=await fetch(`https://api.nhtsa.gov/recalls/recallsByVin?vin=${encodeURIComponent(vin)}`,{cf:{cacheTtl:3600}});
+    if(!response.ok) {await response.body?.cancel();throw new Error('VIN-specific service unavailable');}
+    rows=parseRecallResults(await response.json());
   } catch {
-    return c.json({ error: "Unable to reach NHTSA. Please try again later." }, 502);
+    scope="model-year";
+    try {
+      const decoded=await fetchRecallsByVin(vin);
+      vehicle=decoded.vehicle;rows=decoded.recalls;
+    } catch {
+      return c.json({error:"We couldn't retrieve recall records. You can still check open recalls directly with NHTSA.",officialVinUrl},502);
+    }
   }
+  const recalls=rows.map(r=>({campaign:r.NHTSACampaignNumber,component:r.Component,summary:r.Summary,consequence:r.Consequence,remedy:r.Remedy,date:r.ReportReceivedDate}));
+  const label=vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model} — VIN ${vin}` : `VIN ${vin}`;
+  return c.json({vin,scope,vehicle,officialVinUrl,recalls,count:recalls.length,checklistHtml:printChecklist(label,recalls.map(r=>({campaign:r.campaign,component:r.component||"Unspecified",remedy:r.remedy||""})))});
+
 });
 
 // Apply all migrations before repair; then ingest makes to discover missing aliases/years.

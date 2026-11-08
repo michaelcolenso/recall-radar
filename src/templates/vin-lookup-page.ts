@@ -82,8 +82,11 @@ export function vinLookupPageTemplate(siteUrl: string, affiliateCtaHtml?: string
           fetch('/api/vin-lookup?vin='+encodeURIComponent(vin))
             .then(function(r){return r.json()})
             .then(function(data){
+              var official='<p><a class="rr-btn rr-btn--primary" href="https://www.nhtsa.gov/recalls" target="_blank" rel="noopener noreferrer">Check VIN-specific Open Recalls at NHTSA (Free) →</a></p>';
+              var modelYear=data.scope!=='vin';
+              var notice=modelYear?'<p class="rr-body"><strong>Model-year records.</strong> These records do not show which recalls are still open for your VIN. Confirm your VIN with NHTSA or the manufacturer.</p>':'';
               if(data.error){
-                results.innerHTML='<p class="rr-body rr-body--error">'+escHtml(data.error)+'</p>';
+                results.innerHTML='<p class="rr-body rr-body--error">'+escHtml(data.error)+'</p>'+official;
                 return;
               }
               // Reveal the affiliate CTA after a successful lookup, deep-linking the typed VIN
@@ -98,18 +101,19 @@ export function vinLookupPageTemplate(siteUrl: string, affiliateCtaHtml?: string
                 aff.hidden=false;
               }
               if(!data.recalls||data.recalls.length===0){
-                results.innerHTML='<div class="rr-empty"><h2 class="rr-empty__title">No Open Recalls</h2><p class="rr-empty__text">Good news — NHTSA shows no open recalls for this VIN.</p></div>'+(data.checklistHtml||'');
+                results.innerHTML=notice+official+'<div class="rr-empty"><h2 class="rr-empty__title">'+(modelYear?'No Model-Year Filings Found':'No Open Recalls')+'</h2><p class="rr-empty__text">'+(modelYear?'No model-year recall records were returned. This does not confirm your VIN has no open recalls.':'NHTSA returned no open recalls for this VIN.')+'</p></div>'+(data.checklistHtml||'');
                 return;
               }
-              var html='<div class="rr-readout-list"><h2 class="rr-label" style="margin-bottom:var(--space-6)">'+data.recalls.length+' Open Recall'+((data.recalls.length!==1)?'s':'')+'</h2>';
+              var html='<div class="rr-readout-list"><h2 class="rr-label" style="margin-bottom:var(--space-6)">'+data.recalls.length+(modelYear?' Model-Year Recall':' Open Recall')+((data.recalls.length!==1)?'s':'')+'</h2>';
               data.recalls.forEach(function(r){
                 html+='<article class="rr-readout"><div class="rr-readout__header"><div class="rr-readout__meta"><span class="rr-readout__title-link">'+escHtml(r.component)+'</span><span class="rr-readout__date">Campaign '+escHtml(r.campaign)+'</span></div></div><div class="rr-readout__body"><p>'+escHtml(r.summary)+'</p></div></article>';
               });
               html+='</div>';
-              results.innerHTML=(data.checklistHtml||'')+html;
+              results.innerHTML=notice+official+(data.checklistHtml||'')+html;
             })
             .catch(function(){
-              results.innerHTML='<p class="rr-body rr-body--error">Unable to check VIN. Please try again later.</p>';
+              results.innerHTML='<p class="rr-body rr-body--error">Unable to check VIN. Please try again later.</p>'+
+                '<p><a href="https://www.nhtsa.gov/recalls">Check open recalls directly with NHTSA →</a></p>';
             });
         });
         function escHtml(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
