@@ -1956,3 +1956,15 @@ a.rr-readout__campaign:hover {
 .rr-vehicle-selector [hidden] { display:none; }
 .rr-vehicle-selector #vehicle-status { flex-basis:100%; }
 /* @critical:end */
+
+/* @critical:start */
+@media (max-width:600px) {
+ .rr-hero { padding-top:2.5rem; padding-bottom:2rem; gap:1.25rem; }
+ .rr-hero__title { font-size:2.65rem; line-height:.98; max-width:15ch; }
+ .rr-hero__subtitle { font-size:1rem; }
+ .rr-hero__marker { display:none; }
+ .rr-vehicle-selector select { width:100%; min-width:0; }
+ .rr-vehicle-selector [role="tabpanel"] { gap:.5rem; }
+ .rr-nav__links a:nth-child(n+4):not(:last-child) { display:none; }
+}
+/* @critical:end */

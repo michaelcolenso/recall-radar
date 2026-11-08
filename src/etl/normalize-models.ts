@@ -4,7 +4,7 @@ export function normalizeModel(make: string, model: string): { make: string; mod
   const sourceModel = model;
   make = make.trim().toUpperCase().replace(/^MERCEDES BENZ$/, 'MERCEDES-BENZ');
   model = model.trim().replace(/\s+/g, ' ');
-  const compact = model.toUpperCase().replace(/[\s-]/g, '');
+  const compact = model.toUpperCase().replace(/[\s-]/g, '').replace(/^AMG/, '');
   let vehicleType: VehicleType = 'passenger';
   if (make === 'DODGE' && /^RAM(1500|2500|3500)$/.test(compact)) {
     make = 'RAM'; model = compact.slice(3);
@@ -13,20 +13,20 @@ export function normalizeModel(make: string, model: string): { make: string; mod
   if (make === 'MERCEDES-BENZ') {
     if (/^(L\d{4}|LP\d{4}|TOURRIDER|UNIMOG|ACTROS|ATEGO|ECONIC)/.test(compact)) vehicleType = 'commercial';
     for (const family of ['GLA','GLB','GLC','GLE','GLS','CLA','CLS','SL','C','E','S','G','M']) {
-      if (new RegExp(`^${family}(?:CLASS|\\d{2,3}(?:AMG|[A-Z].*)?|AMG\\d{2,3})$`).test(compact)) {
+      if (new RegExp(`^${family}(?:CLASS|\\d{2,3}(?:AMG|4MATIC|[A-Z].*)?|AMG\\d{2,3})$`).test(compact)) {
         model = `${family}-Class`; break;
       }
     }
     if (/SPRINTER/.test(compact)) model = 'Sprinter';
     if (/METRIS/.test(compact)) model = 'Metris';
   }
-  if ((make === 'HONDA' && /^(CB\d|CBR|CRF|CMX|NC\d|VFR|VT\d|VTX|GL\d|GOLDWING|REBEL|SHADOW|AFRICA|PCX|GROM|TRX|FOURTRAX|PIONEER|TALON|RANCHER|FOREMAN)/.test(compact)) ||
-      (make === 'BMW' && /^(?:[RFKGS]\d{2,4}(?:GS|GT|GTL|RT|RS|RR|XR|R|S|B|C|X)?|CE0[24]|HP[24])$/.test(compact))) vehicleType = 'motorcycle';
+  if ((make === 'HONDA' && /^(CB\d|CBR|CRF|CMX|NC\d|VFR|VT\d|VTX|GL\d|GOLDWING|REBEL|SHADOW|AFRICA|PCX|GROM|TRX|FOURTRAX|PIONEER|TALON|RANCHER|FOREMAN|XR\d|CR\d|NSS|NPS|CHF|SH\d|RUCKUS|METROPOLITAN|SXS)/.test(compact)) ||
+      (make === 'BMW' && /^(?:RNINET|[RFKGS]\d{2,4}(?:GS|GT|GTL|RT|RS|RR|XR|R|S|B|C|X)?|CE0[24]|HP[24])$/.test(compact))) vehicleType = 'motorcycle';
   return { make, model, slug: slugify(model), vehicleType, sourceModel };
 }
 export function canonicalModelGroups(make: string, models: { Model_Name: string }[]): { name: string; slug: string; sources: string[] }[] {
   const groups = new Map<string, { name: string; slug: string; sources: string[] }>();
-  const names = models.map(m => m.Model_Name);
+  const names = models.flatMap(m => filingAliases(make,m.Model_Name));
   if (make.toUpperCase() === 'RAM') names.push('1500', '2500', '3500');
   for (const source of names) {
     const n = normalizeModel(make, source);
@@ -38,10 +38,27 @@ export function canonicalModelGroups(make: string, models: { Model_Name: string 
   return [...groups.values()];
 }
 export function recallSources(make: string, model: string, year: number, sources: string[] = [model]): { make: string; model: string }[] {
-  const result = sources.map(model => ({make, model}));
+  const result = [...new Set(sources.flatMap(source => filingAliases(make,source)))].map(model => ({make, model}));
   if (make.toUpperCase() === 'RAM' && /^(1500|2500|3500)$/.test(model)) {
     result.push({make:'RAM', model:`RAM ${model}`});
     if (year <= 2010) result.push({make:'DODGE', model:`RAM ${model}`});
   }
   return result;
+}
+
+const MERCEDES_TRIMS: Record<string,string[]> = {
+ 'C-Class':['C230','C240','C250','C280','C300','C320','C350','C400','C450','C43 AMG','C63 AMG'],
+ 'E-Class':['E250','E300','E320','E350','E400','E450','E500','E550','E55 AMG','E63 AMG'],
+ 'S-Class':['S350','S400','S430','S450','S500','S550','S560','S580','S600','S63 AMG','S65 AMG'],
+ 'GLA-Class':['GLA250','GLA35 AMG','GLA45 AMG'], 'GLB-Class':['GLB250','GLB35 AMG'],
+ 'GLC-Class':['GLC300','GLC350','GLC43 AMG','GLC63 AMG'],
+ 'GLE-Class':['GLE350','GLE400','GLE450','GLE550','GLE580','GLE43 AMG','GLE53 AMG','GLE63 AMG'],
+ 'GLS-Class':['GLS450','GLS550','GLS580','GLS63 AMG'],
+ 'G-Class':['G500','G550','G55 AMG','G63 AMG','G65 AMG'],
+ 'CLA-Class':['CLA250','CLA35 AMG','CLA45 AMG'], 'CLS-Class':['CLS400','CLS450','CLS500','CLS550','CLS53 AMG','CLS63 AMG'],
+ 'SL-Class':['SL400','SL450','SL500','SL550','SL55 AMG','SL63 AMG','SL65 AMG'],
+ Sprinter:['SPRINTER 2500','SPRINTER 3500'], Metris:['METRIS'],
+};
+export function filingAliases(make:string,model:string):string[] {
+ return [...new Set([model,...(make.toUpperCase()==='MERCEDES-BENZ' ? MERCEDES_TRIMS[model] ?? [] : [])])];
 }

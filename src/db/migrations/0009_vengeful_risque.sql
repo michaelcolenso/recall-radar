@@ -1,0 +1,1 @@
+ALTER TABLE `models` ADD `vehicle_type` text DEFAULT 'passenger' NOT NULL;

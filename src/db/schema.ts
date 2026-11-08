@@ -16,6 +16,7 @@ export const makes = sqliteTable("makes", {
 export const models = sqliteTable("models", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   makeId: integer("make_id").notNull().references(() => makes.id, { onDelete: "cascade" }),
+  vehicleType: text("vehicle_type", {enum:["passenger", "motorcycle", "commercial"]}).notNull().default("passenger"),
   name: text("name").notNull(),
   slug: text("slug").notNull(),
   createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
@@ -209,3 +210,11 @@ export const ingestionLogs = sqliteTable("ingestion_logs", {
 }, (table) => [
   index("idx_logs_type_status").on(table.runType, table.status),
 ]);
+
+// Negative lookup cache: empty API responses are checks, not production years.
+export const vehicleLookupChecks = sqliteTable("vehicle_lookup_checks", {
+ id: integer("id").primaryKey({ autoIncrement: true }),
+ modelId: integer("model_id").notNull().references(() => models.id, { onDelete: "cascade" }),
+ year: integer("year").notNull(),
+ checkedAt: text("checked_at").notNull(),
+}, table => [uniqueIndex("idx_lookup_model_year").on(table.modelId,table.year)]);

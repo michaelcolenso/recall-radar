@@ -1,4 +1,4 @@
-import { canonicalModelGroups } from "../etl/normalize-models";
+import { normalizeModel, canonicalModelGroups } from "../etl/normalize-models";
 import { z } from "zod";
 import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 import { POPULAR_MAKES, DEFAULT_YEAR_START, YEAR_MAX } from "../lib/constants";
@@ -28,6 +28,7 @@ interface StaleRow {
   model_id: number;
   year: number;
   model_name: string;
+  model_slug: string;
   make_name: string;
 }
 
@@ -97,6 +98,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
     if (mode === "delta") {
       const thresholdIso = new Date(Date.now() - (deltaThresholdHours ?? 144) * 3_600_000).toISOString();
 
+      const sourceGroups = new Map<string, ReturnType<typeof canonicalModelGroups>>();
       // Ensure models are up to date before searching for stale/missing combos.
       // Without this, a fresh DB (or newly added models) can never be ingested in delta mode.
       for (const make of filteredMakes) {
@@ -107,6 +109,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
           timeout: "60 seconds",
         }, () => fetchModelsForMake(make.Make_ID));
 
+        sourceGroups.set(make.Make_Name, canonicalModelGroups(make.Make_Name,models));
         await step.do(`delta-upsert-models-${makeSlug}`, async () => {
           const makeRecord = await this.env.DB.prepare("SELECT id FROM makes WHERE slug = ?")
             .bind(makeSlug).first<{ id: number }>();
@@ -138,17 +141,18 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
         const result = await this.env.DB.prepare(
           `WITH RECURSIVE years(year) AS (SELECT ? UNION ALL SELECT year+1 FROM years WHERE year < ?)
            SELECT m.id AS model_id, years.year,
-                  m.name AS model_name, mk.name AS make_name
+                  m.name AS model_name, m.slug AS model_slug, mk.name AS make_name
            FROM models m JOIN makes mk ON mk.id=m.make_id
            CROSS JOIN years LEFT JOIN vehicle_years vy ON vy.model_id=m.id AND vy.year=years.year
-           WHERE mk.name IN (${placeholders})
-             AND (vy.last_ingested_at IS NULL OR vy.last_ingested_at < ?)
+           LEFT JOIN vehicle_lookup_checks checks ON checks.model_id=m.id AND checks.year=years.year
+           WHERE m.vehicle_type='passenger' AND mk.name IN (${placeholders})
+             AND (COALESCE(checks.checked_at,vy.last_ingested_at) IS NULL OR COALESCE(checks.checked_at,vy.last_ingested_at) < ?)
            ORDER BY years.year DESC, m.id
            LIMIT 5000`
         )
           .bind(startYear, endYear, ...makeNames, thresholdIso)
           .all<StaleRow>();
-        return result.results;
+        return result.results.filter(row => normalizeModel(row.make_name,row.model_name).slug === row.model_slug);
       });
 
       // Batch stale rows using same recall-upsert logic
@@ -165,8 +169,9 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
           for (const row of batch) {
             try {
               await new Promise((r) => setTimeout(r, NHTSA_RATE_LIMIT_MS));
-              const recalls = await fetchCanonicalRecalls(row.make_name, row.model_name, row.year, canonicalModelGroups(row.make_name, await fetchModelsForMake(filteredMakes.find(m => m.Make_Name === row.make_name)!.Make_ID)).find(m => m.name === row.model_name)?.sources);
+              const recalls = await fetchCanonicalRecalls(row.make_name, row.model_name, row.year, sourceGroups.get(row.make_name)?.find(m => m.name === row.model_name)?.sources);
               const now = new Date().toISOString();
+              await this.env.DB.prepare(`INSERT INTO vehicle_lookup_checks(model_id,year,checked_at) VALUES(?,?,?) ON CONFLICT(model_id,year) DO UPDATE SET checked_at=excluded.checked_at`).bind(row.model_id,row.year,now).run();
               if (recalls.length === 0) continue;
 
               await this.env.DB.prepare(
@@ -329,6 +334,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
               // fetchRecallsForVehicle already includes a 300ms delay
               const recalls = await fetchCanonicalRecalls(make.Make_Name, model.modelName, year, model.sources);
 
+              await this.env.DB.prepare(`INSERT INTO vehicle_lookup_checks(model_id,year,checked_at) VALUES(?,?,?) ON CONFLICT(model_id,year) DO UPDATE SET checked_at=excluded.checked_at`).bind(model.modelId,year,now).run();
               if (recalls.length === 0) return { count: 0, errors: [] };
 
               // Upsert only years supported by actual NHTSA filings

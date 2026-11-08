@@ -53,7 +53,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v26";
+const PAGE_CACHE_VERSION = "v27";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -247,9 +247,9 @@ pageRoutes.get("/", async (c) => {
         ).first<{ last_run: string | null }>(),
 
         c.env.DB.prepare(
-          `SELECT m.name, m.slug, COUNT(DISTINCT md.id) as model_count, COUNT(r.id) as recall_count
+          `SELECT m.name, m.slug, COUNT(DISTINCT CASE WHEN r.id IS NOT NULL AND md.vehicle_type='passenger' THEN md.id END) as model_count, COUNT(DISTINCT r.nhtsa_campaign_number) as recall_count
          FROM makes m
-         LEFT JOIN models md ON md.make_id = m.id
+         LEFT JOIN models md ON md.make_id = m.id AND md.vehicle_type='passenger'
          LEFT JOIN vehicle_years vy ON vy.model_id = md.id
          LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
          GROUP BY m.id
@@ -1123,7 +1123,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
          FROM models m
          LEFT JOIN vehicle_years vy ON vy.model_id = m.id
          LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
-         WHERE m.make_id = ?
+         WHERE m.make_id = ? AND m.vehicle_type='passenger'
          GROUP BY m.id
          ORDER BY m.name`,
         )
@@ -1427,6 +1427,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
           description,
           noIndex: years.results.length === 0,
           canonical: modelPageUrl,
+          dateModified: verifiedTimestamp(lastIngestedResult?.last_ingested),
           ogType: "website",
           ogImage: "/og-image-home.svg",
           lastUpdated,

@@ -55,7 +55,7 @@ export function calculateRawScore(recalls: RecallForScoring[], referenceDate = n
       const reportYear = reportDate.getFullYear();
       const reportMonth = reportDate.getMonth();
       yearsSince = referenceYear - reportYear + (referenceMonth - reportMonth) / 12;
-      if (yearsSince < 0) yearsSince = 0;
+      if (!Number.isFinite(yearsSince) || yearsSince < 0) yearsSince = 0;
     }
 
     const decay = Math.pow(TEMPORAL_DECAY_BASE, yearsSince);

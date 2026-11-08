@@ -6,6 +6,7 @@ export async function repairCanonicalModels(db: D1Database): Promise<{ merged: n
  let merged = 0;
  for (const row of rows.results) {
   const n = normalizeModel(row.make_name,row.name);
+  await db.prepare('UPDATE models SET vehicle_type=? WHERE id=?').bind(n.vehicleType,row.id).run();
   if (n.vehicleType !== 'passenger' || (n.make === row.make_name && n.slug === row.slug)) continue;
   const make = await db.prepare('SELECT id FROM makes WHERE UPPER(name)=?').bind(n.make).first<{id:number}>();
   if (!make) continue;
