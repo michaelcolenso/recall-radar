@@ -9,6 +9,9 @@ export function normalizeModel(make: string, model: string): { make: string; mod
   if (make === 'DODGE' && /^RAM(1500|2500|3500)$/.test(compact)) {
     make = 'RAM'; model = compact.slice(3);
   }
+  if (['DODGE','FREIGHTLINER'].includes(make) && /^SPRINTER(?:2500|3500)?$/.test(compact)) {
+    make = 'MERCEDES-BENZ'; model = 'Sprinter';
+  }
   if (make === 'RAM') model = model.replace(/^RAM\s*/i, '').replace(/[\s-]+(CLASSIC|PICKUP).*$/i, '');
   if (make === 'MERCEDES-BENZ') {
     if (/^(L\d{4}|LP\d{4}|TOURRIDER|UNIMOG|ACTROS|ATEGO|ECONIC)/.test(compact)) vehicleType = 'commercial';
@@ -44,7 +47,14 @@ export function recallSources(make: string, model: string, year: number, sources
     result.push({make:'RAM', model:`RAM ${model}`});
     if (year <= 2010) result.push({make:'DODGE', model:`RAM ${model}`});
   }
-  return result;
+  if (make.toUpperCase() === 'MERCEDES-BENZ' && normalizeModel(make,model).model === 'Sprinter') {
+    // NHTSA filings include both brands: 17V-025 and 20V-180.
+    for(const sourceModel of ['SPRINTER','SPRINTER 2500','SPRINTER 3500']) {
+      result.push({make:'FREIGHTLINER',model:sourceModel});
+      if(year <= 2009) result.push({make:'DODGE',model:sourceModel});
+    }
+  }
+  return [...new Map(result.map(source=>[`${source.make.toUpperCase()}|${source.model.toUpperCase()}`,source])).values()];
 }
 
 const MERCEDES_TRIMS: Record<string,string[]> = {
@@ -61,5 +71,6 @@ const MERCEDES_TRIMS: Record<string,string[]> = {
  Sprinter:['SPRINTER 2500','SPRINTER 3500'], Metris:['METRIS'],
 };
 export function filingAliases(make:string,model:string):string[] {
- return [...new Set([model,...(make.toUpperCase()==='MERCEDES-BENZ' ? MERCEDES_TRIMS[model] ?? [] : [])])];
+ const canonical = normalizeModel(make,model);
+ return [...new Set([model,...(canonical.make==='MERCEDES-BENZ' ? MERCEDES_TRIMS[canonical.model] ?? [] : [])])];
 }

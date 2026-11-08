@@ -30,3 +30,21 @@ test('plain Mercedes families and BMW trim designations normalize consistently',
  assert.equal(normalizeModel('BMW','330i xDrive').model,'3 Series');
  assert.equal(normalizeModel('BMW','i3').model,'i3');
 });
+
+test('Mercedes source aliases expand regardless of vPIC family casing', () => {
+ const groups=canonicalModelGroups('MERCEDES-BENZ',[{Model_Name:'C-CLASS'}]);
+ assert.equal(groups[0].name,'C-Class');
+ assert.ok(groups[0].sources.includes('C300'));
+});
+
+test('historical Sprinter brand records join the Mercedes family', () => {
+ for(const make of ['DODGE','FREIGHTLINER']) {
+  const normalized=normalizeModel(make,'SPRINTER 2500');
+  assert.equal(normalized.make,'MERCEDES-BENZ');
+  assert.equal(normalized.model,'Sprinter');
+ }
+ const historical=recallSources('MERCEDES-BENZ','Sprinter',2008);
+ assert.ok(historical.some(s=>s.make==='DODGE'&&s.model==='SPRINTER 2500'));
+ assert.ok(historical.some(s=>s.make==='FREIGHTLINER'&&s.model==='SPRINTER 3500'));
+ assert.ok(!recallSources('MERCEDES-BENZ','Sprinter',2024).some(s=>s.make==='DODGE'));
+});
