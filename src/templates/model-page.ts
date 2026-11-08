@@ -370,7 +370,7 @@ export function modelPageTemplate(
       <p class="rr-section-header__subtitle">${totalRecalls > 0 ? `Affected years, leading issues, and a free VIN check for the ${escapeHtml(make)} ${escapeHtml(model)}.` : `Recall history for tracked model years and a free VIN check for the ${escapeHtml(make)} ${escapeHtml(model)}.`}</p>
       <div class="rr-meta-bar">
         <span class="rr-meta-bar__count">${totalRecalls > 0 ? `${recallYears.length} model year${recallYears.length !== 1 ? "s" : ""} with recalls (${escapeHtml(recallYearRange)})` : `${years.length} model year${years.length !== 1 ? "s" : ""} tracked (${escapeHtml(yearRange)})`}</span>
-        ${leadingSeverity ? `<span class="rr-meta-bar__notice"><span>Most severe issue:</span>${severityBadge(leadingSeverity)}</span>` : ""}
+        ${leadingSeverity && leadingSeverity !== "UNKNOWN" ? `<span class="rr-meta-bar__notice"><span>Most severe issue:</span>${severityBadge(leadingSeverity)}</span>` : ""}
         ${lastUpdated ? `<span class="rr-meta-bar__notice">Data refreshed ${escapeHtml(lastUpdated)}</span>` : ""}
       </div>
     </section>
