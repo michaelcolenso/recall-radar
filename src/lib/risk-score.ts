@@ -89,9 +89,8 @@ export function calculateRawScore(recalls: RecallForScoring[], referenceDate = n
   if (totalCount >= 10) penalty += 5;
 
   // Age cannot erase a recorded defect: repair completion is VIN specific.
-  const floor = criticalCount >= 2 ? 70 : criticalCount === 1 ? 35
-    : totalCount >= 10 ? 70 : totalCount >= 6 ? 35
-    : totalCount >= 3 ? 13 : totalCount >= 2 || highCount ? 4 : 0;
+  const gradeFloor: Record<string,number> = {"A+":0,A:1,B:4,C:13,D:35,F:70};
+  const floor = gradeFloor[gradeForCounts(totalCount,criticalCount,highCount)];
   return Math.min(100, Math.max(floor, Math.round(weightedSum + penalty)));
 }
 
@@ -100,7 +99,7 @@ export function calculateRawScore(recalls: RecallForScoring[], referenceDate = n
  */
 export function scoreToGrade(rawScore: number, percentile: number): string {
   // Risk is absolute: a higher score always means a worse recall history.
-  if (rawScore <= 1) return "A+";
+  if (rawScore === 0) return "A+";
   if (rawScore <= 3) return "A";
   if (rawScore <= 12) return "B";
   if (rawScore <= 34) return "C";

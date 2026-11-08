@@ -1,6 +1,6 @@
 import { escapeHtml, makeLogoImg } from "../lib/utils";
 import { severityBadge } from "./components/severity-badge";
-import { recallGradeTooltip, gradeDescription } from "../lib/risk-score";
+import { recallGradeTooltip } from "../lib/risk-score";
 import type { SeverityLevel } from "../db/schema";
 
 interface YearStat {
@@ -113,7 +113,7 @@ export function modelStatsPageTemplate({
       <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year">
         <div class="rr-card__title">${y.year}</div>
         <div class="rr-card__meta">${y.recall_count} recall${y.recall_count !== 1 ? "s" : ""}</div>
-        ${y.risk_grade ? `<span class="rr-risk-badge rr-risk-badge--${y.risk_grade.charAt(0).toLowerCase()}">${y.risk_grade}</span>` : ""}
+        ${y.risk_grade ? `<span title="${escapeHtml(recallGradeTooltip(y.recall_count,y.critical_count,y.high_count))}" class="rr-risk-badge rr-risk-badge--${y.risk_grade.charAt(0).toLowerCase()}">${y.risk_grade}</span>` : ""}
       </a>
     `)
     .join("");
@@ -123,7 +123,7 @@ export function modelStatsPageTemplate({
       <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year">
         <div class="rr-card__title">${y.year}</div>
         <div class="rr-card__meta">${y.recall_count} recall${y.recall_count !== 1 ? "s" : ""}</div>
-        ${y.risk_grade ? `<span class="rr-risk-badge rr-risk-badge--${y.risk_grade.charAt(0).toLowerCase()}">${y.risk_grade}</span>` : ""}
+        ${y.risk_grade ? `<span title="${escapeHtml(recallGradeTooltip(y.recall_count,y.critical_count,y.high_count))}" class="rr-risk-badge rr-risk-badge--${y.risk_grade.charAt(0).toLowerCase()}">${y.risk_grade}</span>` : ""}
       </a>
     `)
     .join("");
