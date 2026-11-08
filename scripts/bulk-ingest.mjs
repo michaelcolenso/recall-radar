@@ -3,7 +3,8 @@
 // Usage: node scripts/bulk-ingest.mjs [yearStart=2000]
 
 const WORKER_URL = "https://recall-radar.aged-morning-c8e4.workers.dev";
-const ADMIN_TOKEN = "gobi-boots-newman";
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+if (!ADMIN_TOKEN) throw new Error("Set ADMIN_TOKEN before running ingestion");
 const YEAR_START = parseInt(process.argv[2] ?? "2000", 10);
 
 const MAKES = [

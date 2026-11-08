@@ -1,3 +1,4 @@
+import { repairCanonicalModels } from "../etl/repair-models";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
@@ -432,4 +433,11 @@ apiRoutes.get("/vin-lookup", async (c) => {
   } catch {
     return c.json({ error: "Unable to reach NHTSA. Please try again later." }, 502);
   }
+});
+
+// Run after migration 0008, then ingest all makes to discover missing aliases/years.
+apiRoutes.post("/admin/repair-models", async (c) => {
+  const denied = requireAuth(c);
+  if (denied) return denied;
+  return c.json(await repairCanonicalModels(c.env.DB));
 });

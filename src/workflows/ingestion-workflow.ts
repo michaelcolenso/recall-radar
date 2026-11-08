@@ -1,7 +1,8 @@
+import { canonicalModelGroups } from "../etl/normalize-models";
 import { z } from "zod";
 import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 import { POPULAR_MAKES, DEFAULT_YEAR_START, YEAR_MAX } from "../lib/constants";
-import { fetchAllMakes, fetchModelsForMake, fetchRecallsForVehicle } from "../lib/nhtsa-client";
+import { fetchAllMakes, fetchModelsForMake, fetchCanonicalRecalls } from "../lib/nhtsa-client";
 import { classifySeverity } from "../lib/severity";
 import { scoreVehicleYear } from "../lib/risk-score";
 import { slugify, parseNhtsaDate } from "../lib/utils";
@@ -112,13 +113,13 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
           if (!makeRecord) return;
 
           const now = new Date().toISOString();
-          for (const model of models) {
-            const modelSlug = slugify(model.Model_Name);
+          for (const model of canonicalModelGroups(make.Make_Name, models)) {
+            const modelSlug = model.slug;
             await this.env.DB.prepare(
               `INSERT INTO models (make_id, name, slug, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?)
                ON CONFLICT (make_id, slug) DO UPDATE SET updated_at = excluded.updated_at`
-            ).bind(makeRecord.id, model.Model_Name, modelSlug, now, now).run();
+            ).bind(makeRecord.id, model.name, modelSlug, now, now).run();
           }
         });
       }
@@ -165,7 +166,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
           for (const row of batch) {
             try {
               await new Promise((r) => setTimeout(r, NHTSA_RATE_LIMIT_MS));
-              const recalls = await fetchRecallsForVehicle(row.make_name, row.model_name, row.year);
+              const recalls = await fetchCanonicalRecalls(row.make_name, row.model_name, row.year, canonicalModelGroups(row.make_name, await fetchModelsForMake(filteredMakes.find(m => m.Make_Name === row.make_name)!.Make_ID)).find(m => m.name === row.model_name)?.sources);
               const now = new Date().toISOString();
 
               await this.env.DB.prepare(
@@ -189,13 +190,14 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                 await this.env.DB.prepare(
                   `INSERT INTO recalls (
                      vehicle_year_id, nhtsa_campaign_number, report_received_date,
-                     component, manufacturer, summary_raw, consequence_raw, remedy_raw,
+                     component, manufacturer, source_models, summary_raw, consequence_raw, remedy_raw,
                      severity_level, created_at, updated_at
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT (nhtsa_campaign_number, vehicle_year_id) DO UPDATE SET
                      updated_at = excluded.updated_at,
                      component = excluded.component,
-                     manufacturer = excluded.manufacturer`,
+                     manufacturer = excluded.manufacturer,
+                     source_models = excluded.source_models`,
                 )
                   .bind(
                     vyRecord.id,
@@ -203,6 +205,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                     parseNhtsaDate(recall.ReportReceivedDate),
                     recall.Component,
                     recall.Manufacturer || null,
+                    JSON.stringify(recall.SourceModels ?? []),
                     recall.Summary,
                     recall.Consequence,
                     recall.Remedy,
@@ -268,18 +271,18 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
 
         const now = new Date().toISOString();
         const batch: D1PreparedStatement[] = [];
-        const modelData: Array<{ name: string; slug: string }> = [];
+        const modelData: Array<{ name: string; slug: string; sources: string[] }> = [];
 
-        for (const model of models) {
-          const modelSlug = slugify(model.Model_Name);
+        for (const model of canonicalModelGroups(make.Make_Name, models)) {
+          const modelSlug = model.slug;
           batch.push(
             this.env.DB.prepare(
               `INSERT INTO models (make_id, name, slug, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?)
                ON CONFLICT (make_id, slug) DO UPDATE SET updated_at = excluded.updated_at`,
-            ).bind(makeRecord.id, model.Model_Name, modelSlug, now, now),
+            ).bind(makeRecord.id, model.name, modelSlug, now, now),
           );
-          modelData.push({ name: model.Model_Name, slug: modelSlug });
+          modelData.push({ name: model.name, slug: modelSlug, sources: model.sources });
         }
 
         if (batch.length > 0) {
@@ -297,6 +300,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
           .map((m, idx) => ({
             modelId: idResults[idx].results[0]?.id || 0,
             modelName: m.name,
+            sources: m.sources,
             modelSlug: m.slug,
             makeDbId: makeRecord.id,
           }))
@@ -323,7 +327,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
 
             try {
               // fetchRecallsForVehicle already includes a 300ms delay
-              const recalls = await fetchRecallsForVehicle(make.Make_Name, model.modelName, year);
+              const recalls = await fetchCanonicalRecalls(make.Make_Name, model.modelName, year, model.sources);
 
               // Upsert vehicle_year and get its ID back in one query
               const vy = await this.env.DB.prepare(
@@ -342,19 +346,21 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                   this.env.DB.prepare(
                     `INSERT INTO recalls (
                        vehicle_year_id, nhtsa_campaign_number, report_received_date,
-                       component, manufacturer, summary_raw, consequence_raw, remedy_raw,
+                       component, manufacturer, source_models, summary_raw, consequence_raw, remedy_raw,
                        severity_level, created_at, updated_at
-                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                      ON CONFLICT (nhtsa_campaign_number, vehicle_year_id) DO UPDATE SET
                        updated_at = excluded.updated_at,
                        component = excluded.component,
-                       manufacturer = excluded.manufacturer`,
+                       manufacturer = excluded.manufacturer,
+                     source_models = excluded.source_models`,
                   ).bind(
                     vy.id,
                     recall.NHTSACampaignNumber,
                     parseNhtsaDate(recall.ReportReceivedDate),
                     recall.Component,
                     recall.Manufacturer || null,
+                    JSON.stringify(recall.SourceModels ?? []),
                     recall.Summary,
                     recall.Consequence,
                     recall.Remedy,

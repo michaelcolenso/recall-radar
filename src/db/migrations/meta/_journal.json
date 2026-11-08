@@ -57,6 +57,13 @@
       "when": 1784521054872,
       "tag": "0007_alert_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794154366946,
+      "tag": "0008_charming_raza",
+      "breakpoints": true
     }
   ]
 }

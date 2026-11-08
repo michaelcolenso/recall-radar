@@ -65,6 +65,7 @@ export const recalls = sqliteTable("recalls", {
   reportReceivedDate: text("report_received_date"),
   component: text("component").notNull(),
   manufacturer: text("manufacturer"),
+  sourceModels: text("source_models"),
 
   // Raw NHTSA text (verbatim government language — NEVER overwrite)
   summaryRaw: text("summary_raw").notNull(),
