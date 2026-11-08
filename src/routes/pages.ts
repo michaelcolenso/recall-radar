@@ -65,7 +65,7 @@ pageRoutes.use('*', async (c,next) => {
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v31";
+const PAGE_CACHE_VERSION = "v32";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -2137,6 +2137,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
       }
 
       const primaryRecall = rows[0];
+      const campaignModified = rows.map(row=>verifiedTimestamp(row.last_ingested_at)).filter((date): date is string => Boolean(date)).sort().at(-1);
       const componentShort = primaryRecall.component.split(":")[0].trim();
       const primaryYears = rows.filter(r => r.make_slug === primaryRecall.make_slug && r.model_slug === primaryRecall.model_slug).map(r => r.year);
       const minYear = Math.min(...primaryYears), maxYear = Math.max(...primaryYears);
@@ -2226,7 +2227,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
           title,
           description,
           canonical: campaignUrl,
-          dateModified: verifiedTimestamp(primaryRecall.last_ingested_at),
+          dateModified: campaignModified,
           ogType: "website",
           ogImage: "/og-image-detail.svg",
           body,

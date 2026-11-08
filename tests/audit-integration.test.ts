@@ -62,3 +62,22 @@ test('model freshness includes valid same-day ISO timestamps', async () => {
  const schemas=[...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(m=>JSON.parse(m[1]));
  assert.equal(schemas.find(s=>s['@type']==='WebPage').dateModified,timestamp);
 });
+
+test('every audited page emits matching breadcrumbs and campaign freshness uses all affected years', async () => {
+ const {db,sqlite,ramModel,year,recall}=fixtureDatabase();
+ const older=year(ramModel,2018);recall(older,'24V653000');
+ sqlite.prepare("UPDATE vehicle_years SET last_ingested_at='2026-11-03T12:00:00.000Z' WHERE id=?").run(older);
+ const app=new Hono().route('/',pageRoutes), env={DB:db,SITE_URL:'https://example.com'};
+ for(const path of ['/ram','/ram/1500','/ram/1500/2019','/recall/24V653000']) {
+  const res=await app.request(path,{},env);assert.equal(res.status,200);
+  const html=await res.text();
+  const schemas=[...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(m=>JSON.parse(m[1]));
+  const crumbs=schemas.find(s=>s['@type']==='BreadcrumbList');
+  const nav=html.match(/<nav class="rr-breadcrumb"[^>]*>([\s\S]*?)<\/nav>/)![1];
+  const labels=[...nav.matchAll(/<a[^>]*>(.*?)<\/a>|<span class="rr-breadcrumb__current">(.*?)<\/span>/g)].map(m=>m[1]??m[2]);
+  assert.deepEqual(crumbs.itemListElement.map((item:any)=>item.name),labels,path);
+  const web=schemas.find(s=>s['@type']==='WebPage');assert.ok(web.dateModified,path);
+  if(path==='/recall/24V653000') assert.equal(web.dateModified,'2026-11-03T12:00:00.000Z');
+  if(path==='/ram/1500'||path==='/ram/1500/2019') assert.ok(schemas.some(s=>s['@type']==='FAQPage'));
+ }
+});
