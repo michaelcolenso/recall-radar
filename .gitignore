@@ -49,3 +49,6 @@ scripts/out/
 
 # Generated browser verification output
 artifacts/audit/
+
+# Generated production browser and Lighthouse evidence
+artifacts/production/

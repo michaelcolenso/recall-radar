@@ -5,16 +5,16 @@ Implemented on `fix/recalledrides-audit`. The checkout is `recall-radar-work`; t
 ## Validation
 
 - `npm run typecheck`
-- `npm test` (Node 22.13+), 101 passing tests: exercises scoring, normalization, temporal wording, SQL component aggregation, real migrations and audited Hono page routes against SQLite.
+- `npm test` (Node 22.13+), 113 passing tests: exercises scoring, normalization, temporal wording, SQL component aggregation, real migrations and audited Hono page routes against SQLite.
 - `npm run build`: rebuilds critical CSS and bundles the Worker with Wrangler's deployment dry run.
 - `npm run test:browser`: Playwright checks mobile vehicle selection, VIN navigation and prefill, keyword results, symptom results, unclassified severity and print export. Run `npx playwright install chromium` first, or set `CHROME_PATH` to an installed Chromium executable.
 - Browser screenshots and the 30-campaign, one-page Letter PDF are generated in `artifacts/audit/` (ignored by Git).
 
-The latest local fixture Lighthouse mobile run scored 100 for performance, with 0.8 s Speed Index, 0.8 s LCP and CLS 0. This tests a local fixture, not production traffic or the live data set. The production Speed Index target remains a post-deployment check.
+The latest local fixture Lighthouse mobile run scored 100 for performance, with 0.8 s Speed Index, 0.8 s LCP and CLS 0. This tests a local fixture, not production traffic or the live data set. Production mobile Lighthouse measured 1.76 s Speed Index on the homepage and 1.74 s on the RAM year page; see PRODUCTION_ROLLOUT.md.
 
 ## Production rollout
 
-The code is not deployed and production D1 has not been changed. Back up D1 before running canonical merges. The new migrations are additive:
+The code is deployed through the authenticated Cloudflare API MCP. Production D1 was backed up before applying all four migrations and running canonical repairs. The following commands document the repeatable procedure; they are not outstanding deployment steps. The new migrations are additive:
 
 - `0008_charming_raza.sql`: original NHTSA source model metadata on recall rows.
 - `0009_vengeful_risque.sql`: passenger, motorcycle and commercial model types.
@@ -29,7 +29,7 @@ npm run db:migrate:remote
 npm run deploy
 ```
 
-Use the deployed site's existing admin authentication. Keep the token in the environment and avoid command tracing. No new AI-provider credential is needed; enrichment continues to use Workers AI.
+The current production Worker has no ADMIN_TOKEN binding. This rollout used authenticated Cloudflare MCP workflow and D1 APIs. The HTTP commands below require configuring admin authentication first. Use the deployed site's admin authentication for future HTTP-driven operations. Keep the token in the environment and avoid command tracing. No new AI-provider credential is needed; enrichment continues to use Workers AI.
 
 ```sh
 export WORKER_URL=https://recalledrides.com
@@ -40,7 +40,7 @@ curl --fail-with-body -X POST "$WORKER_URL/api/admin/repair-models" \
 
 This returns HTTP 202 and one repair workflow ID per make. Each workflow consolidates existing aliases, preserves original model metadata, classifies vehicle types, then recomputes all per-year scores in durable batches. Raw government text is retained. Retry is safe for canonical merges; keep the backup for rollback.
 
-Check each returned ID with `GET /api/admin/ingest/ID`. Wait for `complete` before starting ingestion. A repair can be limited to one make with `{"makeSlug":"mercedes-benz"}`.
+Check each returned ID with `GET /api/admin/ingest/ID`. Wait for `complete` before starting ingestion. The initial 30-make production repair, all 30 make refreshes, and final BMW/Honda cleanup completed successfully. See [PRODUCTION_ROLLOUT.md](PRODUCTION_ROLLOUT.md) for measured production evidence. A repair can be limited to one make with `{"makeSlug":"mercedes-benz"}`.
 
 ```sh
 # Re-fetch raw aliases and missing model years for all 30 supported makes.
@@ -55,7 +55,7 @@ node scripts/repair-summaries.mjs
 
 `scripts/bulk-ingest.mjs` reads `ADMIN_TOKEN` from the environment and prints workflow IDs. Its worker URL defaults to the historical worker host; set `WORKER_URL` to the deployed canonical host. Ingestion computes grades as it saves each model-year. Make/model/component aggregates are SQL-backed rather than separate stored totals, so they reflect the normalized joins immediately. New render-cache and asset versions invalidate old pages on deployment; after data repair, use a fresh cache version or allow existing page TTLs to expire before the live audit.
 
-## Live checks still required
+## Repeatable live checks
 
 1. RAM 1500: verify the NHTSA results populate 2000–2010 historical aliases and 2020–2026 current years. Years are only shown as recall links when a filing actually exists; the implementation does not fabricate coverage from campaign descriptions.
 2. Mercedes-Benz: check C/E/S, GLC/GLE and Sprinter against freshly ingested filings, including the original trim metadata on campaign pages.
