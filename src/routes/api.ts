@@ -1,3 +1,4 @@
+import { repairTemporalSummaries } from "../etl/temporal-summaries";
 import { repairCanonicalModels } from "../etl/repair-models";
 import { Hono } from "hono";
 import type { Context } from "hono";
@@ -440,4 +441,9 @@ apiRoutes.post("/admin/repair-models", async (c) => {
   const denied = requireAuth(c);
   if (denied) return denied;
   return c.json(await repairCanonicalModels(c.env.DB));
+});
+
+apiRoutes.post("/admin/repair-summaries", async (c) => {
+ const denied = requireAuth(c); if (denied) return denied;
+ return c.json({patched: await repairTemporalSummaries(c.env.DB)});
 });

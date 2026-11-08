@@ -28,7 +28,7 @@ export class EnrichmentWorkflow extends WorkflowEntrypoint<Env, EnrichmentParams
         let params: unknown[];
 
         if (targetMake) {
-          query = `SELECT r.id, r.summary_raw, r.consequence_raw, r.remedy_raw, r.component
+          query = `SELECT r.id, r.summary_raw, r.consequence_raw, r.remedy_raw, r.component, r.report_received_date
                    FROM recalls r
                    JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
                    JOIN models m ON m.id = vy.model_id
@@ -45,7 +45,7 @@ export class EnrichmentWorkflow extends WorkflowEntrypoint<Env, EnrichmentParams
                    LIMIT ?`;
           params = [targetMake, MAX_ATTEMPTS, batchSize];
         } else {
-          query = `SELECT r.id, r.summary_raw, r.consequence_raw, r.remedy_raw, r.component
+          query = `SELECT r.id, r.summary_raw, r.consequence_raw, r.remedy_raw, r.component, r.report_received_date
                    FROM recalls r
                    WHERE r.enriched_at IS NULL
                      AND r.id NOT IN (
@@ -60,7 +60,7 @@ export class EnrichmentWorkflow extends WorkflowEntrypoint<Env, EnrichmentParams
         }
 
         const result = await this.env.DB.prepare(query).bind(...params)
-          .all<{ id: number; summary_raw: string; consequence_raw: string; remedy_raw: string; component: string }>();
+          .all<{ id: number; summary_raw: string; consequence_raw: string; remedy_raw: string; component: string; report_received_date: string | null }>();
         return result.results;
       });
 
@@ -77,7 +77,8 @@ export class EnrichmentWorkflow extends WorkflowEntrypoint<Env, EnrichmentParams
               row.summary_raw,
               row.consequence_raw,
               row.remedy_raw,
-              row.component
+              row.component,
+              row.report_received_date
             );
             const now = new Date().toISOString();
 

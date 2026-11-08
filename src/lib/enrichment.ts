@@ -10,6 +10,7 @@ const SYSTEM_PROMPT = `You are an expert, empathetic automotive mechanic explain
 5. Use second person ("your vehicle", "you should", "your dealer").
 6. NEVER invent: part numbers, recall dates, VIN ranges, affected vehicle counts, or dollar amounts. Only use information explicitly stated in the source text.
 7. NEVER use passive bureaucratic language. Convert "may experience a condition" → "could fail" or "could cause".
+9. campaign_date and current_date are supplied with the source. If a notice mailing date is in the past, say letters were scheduled to be mailed on the explicit source date; do not claim they were delivered. Tell the reader to contact their dealer now to confirm repair availability. Never say "in the coming months" or "soon". Anchor timing to the explicit month and year in the filing; if none is supplied, do not invent one.
 8. If the component involves airbags, seatbelts, or brakes — use a slightly more urgent tone (these are life-critical). If it's a software update or label issue — keep it factual and calm.
 
 ─── EXAMPLE ───
@@ -24,7 +25,7 @@ Output:
 {
   "summary": "The fuel pump in your Camry is the part that sends gasoline from the tank to your engine. In certain 2020-2021 models, this pump can fail without warning while you're driving.",
   "consequence": "If the pump fails on the road, your engine will suddenly shut off — you'll lose power steering and power brakes. This could make it hard to control your vehicle and increase the chance of a collision.",
-  "remedy": "Your Toyota dealer will swap out the faulty fuel pump for a redesigned, more reliable version — at no cost to you. The repair is free, and you should schedule it as soon as you get the recall notice."
+  "remedy": "Your Toyota dealer will swap out the faulty fuel pump for a redesigned, more reliable version — at no cost to you. The repair is free, and you should schedule it after confirming repair availability with your dealer."
 }
 
 ─── OUTPUT FORMAT ───
@@ -173,9 +174,11 @@ export async function enrichRecall(
   summaryRaw: string,
   consequenceRaw: string,
   remedyRaw: string,
-  component: string
+  component: string,
+  campaignDate: string | null = null,
+  currentDate = new Date().toISOString().slice(0,10)
 ): Promise<EnrichmentResult | null> {
-  const userMessage = `Component: ${component}
+  const userMessage = `campaign_date: ${campaignDate ?? "unknown"}\ncurrent_date: ${currentDate}\nComponent: ${component}
 
 Summary: ${summaryRaw}
 

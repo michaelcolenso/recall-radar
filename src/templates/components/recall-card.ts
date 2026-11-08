@@ -1,3 +1,4 @@
+import { anchorHistoricalRemedy } from "../../etl/temporal-summaries";
 import { escapeHtml } from "../../lib/utils";
 import { severityBadge } from "./severity-badge";
 import type { SeverityLevel } from "../../db/schema";
@@ -21,7 +22,7 @@ export function recallCard(recall: RecallView): string {
   const isEnriched = !!recall.enriched_at;
   const summary = recall.summary_enriched ?? recall.summary_raw;
   const consequence = recall.consequence_enriched ?? recall.consequence_raw;
-  const remedy = recall.remedy_enriched ?? recall.remedy_raw;
+  const remedy = recall.remedy_enriched ? anchorHistoricalRemedy(recall.remedy_enriched, recall.report_received_date) : recall.remedy_raw;
 
   const indicator = isEnriched
     ? `<span class="rr-readout__indicator rr-readout__indicator--enriched">Plain English</span>`
