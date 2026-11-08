@@ -71,6 +71,8 @@ export function vinLookupPageTemplate(siteUrl: string, affiliateCtaHtml?: string
         var form=document.getElementById('vin-form');
         var results=document.getElementById('vin-results');
         if(!form||!results)return;
+        var initial=new URLSearchParams(location.search).get('vin');
+        if(initial){form.vin.value=initial.toUpperCase();setTimeout(function(){form.requestSubmit()},0);}
         form.addEventListener('submit',function(e){
           e.preventDefault();
           var vin=form.vin.value.toUpperCase().trim();

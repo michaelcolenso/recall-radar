@@ -447,3 +447,15 @@ apiRoutes.post("/admin/repair-summaries", async (c) => {
  const denied = requireAuth(c); if (denied) return denied;
  return c.json({patched: await repairTemporalSummaries(c.env.DB)});
 });
+
+// Cascading selector returns only years backed by actual recall filings.
+apiRoutes.get("/vehicles", async (c) => {
+ const make=c.req.query("make") || "", model=c.req.query("model");
+ if (!/^[a-z0-9-]+$/.test(make) || (model && !/^[a-z0-9-]+$/.test(model))) return c.json({options:[]},400);
+ const sql = model
+  ? `SELECT DISTINCT CAST(vy.year AS TEXT) as name,CAST(vy.year AS TEXT) as slug FROM vehicle_years vy JOIN models m ON m.id=vy.model_id JOIN makes mk ON mk.id=m.make_id JOIN recalls r ON r.vehicle_year_id=vy.id WHERE mk.slug=? AND m.slug=? ORDER BY vy.year DESC`
+  : `SELECT DISTINCT m.name,m.slug FROM models m JOIN makes mk ON mk.id=m.make_id JOIN vehicle_years vy ON vy.model_id=m.id JOIN recalls r ON r.vehicle_year_id=vy.id WHERE mk.slug=? ORDER BY m.name`;
+ const data=await c.env.DB.prepare(sql).bind(...(model ? [make,model] : [make])).all<{name:string;slug:string}>();
+ c.header("Cache-Control","public, max-age=3600");
+ return c.json({options:data.results});
+});
