@@ -1,3 +1,4 @@
+import { segmentCompetitors } from "../lib/vehicle-segments";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { getCachedOrRender } from "../lib/cache";
@@ -48,7 +49,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v21";
+const PAGE_CACHE_VERSION = "v22";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -1896,6 +1897,12 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
       const yearAdSlot =
         recalls.length > 0 ? adSlot({ client: c.env.ADSENSE_CLIENT || undefined, slot: c.env.ADSENSE_SLOT || undefined }) : "";
 
+      const candidates = segmentCompetitors(makeSlug,modelSlug);
+      const available = await Promise.all(candidates.map(async candidate => {
+        const match = await c.env.DB.prepare(`SELECT 1 as found FROM vehicle_years vy JOIN models m ON m.id=vy.model_id JOIN makes mk ON mk.id=m.make_id JOIN recalls r ON r.vehicle_year_id=vy.id WHERE mk.slug=? AND m.slug=? AND vy.year=? LIMIT 1`).bind(candidate.makeSlug,candidate.modelSlug,yearNum).first();
+        return match ? candidate : null;
+      }));
+      const competitors = available.filter((v): v is NonNullable<typeof v> => v !== null).slice(0,3);
       const body =
         crumbs +
         yearPageTemplate({
@@ -1924,7 +1931,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           relatedYears,
           components,
         }) +
-        relatedLinks({ make: make.name, makeSlug, model: model.name, modelSlug, year });
+        relatedLinks({ make: make.name, makeSlug, model: model.name, modelSlug, year, competitors });
 
       const yearPageUrl = `${siteUrl}/${makeSlug}/${modelSlug}/${year}`;
       const mostRecentDate = recalls[0]?.report_received_date ?? undefined;
