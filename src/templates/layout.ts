@@ -50,7 +50,7 @@ export function layout({
   <meta name="theme-color" content="#f8f8f7" media="(prefers-color-scheme: light)"/>
   <meta name="theme-color" content="#0a0a0c" media="(prefers-color-scheme: dark)"/>
   ${escapedDesc ? `<meta name="description" content="${escapedDesc}"/>` : ""}
-  ${noIndex ? `<meta name="robots" content="noindex, nofollow"/>` : ""}
+  ${noIndex ? `<meta name="robots" content="noindex, follow"/>` : ""}
   ${googleVerification ? `<meta name="google-site-verification" content="${googleVerification}"/>` : ""}
   ${canonical ? `<link rel="canonical" href="${canonical}"/>` : ""}
   ${canonical ? `<meta property="og:url" content="${canonical}"/>` : ""}

@@ -48,7 +48,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v16";
+const PAGE_CACHE_VERSION = "v17";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -1085,7 +1085,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
       const [models, components] = await Promise.all([
         c.env.DB.prepare(
           `SELECT m.name, m.slug,
-                MIN(vy.year) as min_year, MAX(vy.year) as max_year,
+                MIN(CASE WHEN r.id IS NOT NULL THEN vy.year END) as min_year, MAX(CASE WHEN r.id IS NOT NULL THEN vy.year END) as max_year,
                 COUNT(DISTINCT r.id) as recall_count
          FROM models m
          LEFT JOIN vehicle_years vy ON vy.model_id = m.id

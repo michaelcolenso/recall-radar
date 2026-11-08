@@ -64,7 +64,7 @@ export function modelStatsPageTemplate({
       const pct = Math.round((y.recall_count / maxCount) * 100);
       return `
         <div class="rr-year-bar" style="--year-bar-pct: ${pct}%">
-          <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-year-bar__label">${y.year}</a>
+          ${y.recall_count > 0 ? `<a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-year-bar__label">${y.year}</a>` : `<span class="rr-year-bar__label">${y.year}</span>`}
           <div class="rr-year-bar__track"><div class="rr-year-bar__fill"></div></div>
           <span class="rr-year-bar__count">${y.recall_count}</span>
           ${y.risk_grade ? `<span class="rr-year-bar__grade" title="${escapeHtml(recallGradeTooltip(y.recall_count, y.critical_count, y.high_count))}">${y.risk_grade}</span>` : ""}
@@ -116,7 +116,7 @@ export function modelStatsPageTemplate({
     `)
     .join("");
 
-  const worstYearCards = worstYears
+  const worstYearCards = worstYears.filter(y => y.recall_count > 0)
     .map((y) => `
       <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year">
         <div class="rr-card__title">${y.year}</div>
@@ -192,7 +192,7 @@ export function modelStatsPageTemplate({
     <section style="margin-top: var(--space-20);">
       <h2 class="rr-label" style="margin-bottom: var(--space-6);">Browse All ${escapeHtml(make)} ${escapeHtml(model)} Years</h2>
       <div class="rr-grid rr-grid--years">
-        ${yearStats.map((y) => `
+        ${yearStats.filter(y => y.recall_count > 0).map((y) => `
           <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year">
             <div class="rr-card__title">${y.year}</div>
             <div class="rr-card__meta">${y.recall_count} recall${y.recall_count !== 1 ? "s" : ""}</div>

@@ -136,18 +136,17 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
 
       const staleRows = await step.do("fetch-stale-combos", async () => {
         const result = await this.env.DB.prepare(
-          `SELECT vy.model_id, vy.year,
-                  m.name AS model_name, m.slug AS model_slug,
-                  mk.name AS make_name, mk.id AS make_id
-           FROM vehicle_years vy
-           JOIN models m ON m.id = vy.model_id
-           JOIN makes mk ON mk.id = m.make_id
+          `WITH RECURSIVE years(year) AS (SELECT ? UNION ALL SELECT year+1 FROM years WHERE year < ?)
+           SELECT m.id AS model_id, years.year,
+                  m.name AS model_name, mk.name AS make_name
+           FROM models m JOIN makes mk ON mk.id=m.make_id
+           CROSS JOIN years LEFT JOIN vehicle_years vy ON vy.model_id=m.id AND vy.year=years.year
            WHERE mk.name IN (${placeholders})
              AND (vy.last_ingested_at IS NULL OR vy.last_ingested_at < ?)
-           ORDER BY vy.last_ingested_at ASC
+           ORDER BY years.year DESC, m.id
            LIMIT 5000`
         )
-          .bind(...makeNames, thresholdIso)
+          .bind(startYear, endYear, ...makeNames, thresholdIso)
           .all<StaleRow>();
         return result.results;
       });
@@ -168,6 +167,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
               await new Promise((r) => setTimeout(r, NHTSA_RATE_LIMIT_MS));
               const recalls = await fetchCanonicalRecalls(row.make_name, row.model_name, row.year, canonicalModelGroups(row.make_name, await fetchModelsForMake(filteredMakes.find(m => m.Make_Name === row.make_name)!.Make_ID)).find(m => m.name === row.model_name)?.sources);
               const now = new Date().toISOString();
+              if (recalls.length === 0) continue;
 
               await this.env.DB.prepare(
                 `INSERT INTO vehicle_years (model_id, year, created_at, updated_at, last_ingested_at)
@@ -329,7 +329,9 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
               // fetchRecallsForVehicle already includes a 300ms delay
               const recalls = await fetchCanonicalRecalls(make.Make_Name, model.modelName, year, model.sources);
 
-              // Upsert vehicle_year and get its ID back in one query
+              if (recalls.length === 0) return { count: 0, errors: [] };
+
+              // Upsert only years supported by actual NHTSA filings
               const vy = await this.env.DB.prepare(
                 `INSERT INTO vehicle_years (model_id, year, created_at, updated_at, last_ingested_at)
                  VALUES (?, ?, ?, ?, ?)
