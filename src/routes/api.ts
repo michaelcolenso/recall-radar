@@ -1,6 +1,5 @@
 import { printChecklist } from "../templates/components/print-checklist";
 import { repairTemporalSummaries } from "../etl/temporal-summaries";
-import { repairCanonicalModels } from "../etl/repair-models";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
@@ -439,9 +438,15 @@ apiRoutes.get("/vin-lookup", async (c) => {
 
 // Run after migration 0008, then ingest all makes to discover missing aliases/years.
 apiRoutes.post("/admin/repair-models", async (c) => {
-  const denied = requireAuth(c);
-  if (denied) return denied;
-  return c.json(await repairCanonicalModels(c.env.DB));
+  const denied = requireAuth(c); if (denied) return denied;
+  const body=await c.req.json<{makeSlug?:string}>().catch(()=>({makeSlug:undefined}));
+  const makes=body.makeSlug ? [{slug:body.makeSlug}] : (await c.env.DB.prepare('SELECT slug FROM makes').all<{slug:string}>()).results;
+  const workflows=[];
+  for(const make of makes) {
+    const instance=await c.env.INGESTION_WORKFLOW.create({params:{mode:'repair',targetMake:make.slug}});
+    workflows.push({make:make.slug,id:instance.id});
+  }
+  return c.json({workflows},202);
 });
 
 apiRoutes.post("/admin/repair-summaries", async (c) => {

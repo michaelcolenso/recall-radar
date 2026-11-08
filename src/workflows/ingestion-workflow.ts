@@ -1,3 +1,4 @@
+import { repairCanonicalModels } from "../etl/repair-models";
 import { normalizeModel, canonicalModelGroups } from "../etl/normalize-models";
 import { z } from "zod";
 import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:workers";
@@ -9,7 +10,7 @@ import { slugify, parseNhtsaDate } from "../lib/utils";
 
 const IngestionParamsSchema = z
   .object({
-    mode: z.enum(["full", "makes-only", "single-make", "delta", "backfill"]),
+    mode: z.enum(["full", "makes-only", "single-make", "delta", "backfill", "repair"]),
     targetMake: z.string().optional(),
     yearStart: z.number().int().min(1966).max(YEAR_MAX).optional(),
     yearEnd: z.number().int().min(1966).max(YEAR_MAX).optional(),
@@ -46,6 +47,38 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
     }
 
     const { mode, targetMake, yearStart, yearEnd, deltaThresholdHours, chainEnrichment } = parseResult.data;
+
+    if (mode === "repair") {
+      if (!targetMake) throw new Error("Repair workflows require a target make");
+      const sourceModels = await step.do("repair-model-list", async () => (await this.env.DB.prepare(`SELECT m.id,m.name,m.slug,mk.name as make_name FROM models m JOIN makes mk ON mk.id=m.make_id WHERE mk.slug=?`).bind(slugify(targetMake)).all<{id:number;name:string;slug:string;make_name:string}>()).results);
+      // One bounded unit per source model-year; source rows remain as audit shells.
+      const work: {modelId:number;year?:number}[] = [];
+      for (const row of sourceModels) {
+        const canonical=normalizeModel(row.make_name,row.name);
+        if(canonical.vehicleType !== 'passenger' || canonical.slug === row.slug && canonical.make === row.make_name) continue;
+        const years=await step.do(`repair-years-${row.id}`,async()=> (await this.env.DB.prepare('SELECT year FROM vehicle_years WHERE model_id=?').bind(row.id).all<{year:number}>()).results);
+        if(!years.length) work.push({modelId:row.id});
+        else for(const rowYear of years) work.push({modelId:row.id,year:rowYear.year});
+      }
+      let merged=0,scored=0;
+      for(let i=0;i<work.length;i+=3) {
+        merged+=await step.do(`repair-batch-${i}`,async()=>{
+          let count=0;
+          for(const item of work.slice(i,i+3)) count+=(await repairCanonicalModels(this.env.DB,{sourceModelId:item.modelId,sourceYear:item.year,rescore:false})).merged;
+          return count;
+        });
+      }
+      await step.do('classify-existing-vehicle-types',async()=>{
+        const statements=sourceModels.map(row=>this.env.DB.prepare('UPDATE models SET vehicle_type=? WHERE id=?').bind(normalizeModel(row.make_name,row.name).vehicleType,row.id));
+        for(let i=0;i<statements.length;i+=100) await this.env.DB.batch(statements.slice(i,i+100));
+      });
+      const vehicleYears=await step.do('repair-score-list',async()=> (await this.env.DB.prepare(`SELECT vy.id FROM vehicle_years vy JOIN models m ON m.id=vy.model_id JOIN makes mk ON mk.id=m.make_id WHERE mk.slug=?`).bind(slugify(targetMake)).all<{id:number}>()).results);
+      for(let i=0;i<vehicleYears.length;i+=100) {
+        scored+=await step.do(`repair-score-${i}`,async()=>{for(const row of vehicleYears.slice(i,i+100)) await scoreVehicleYear(this.env.DB,row.id);return vehicleYears.slice(i,i+100).length;});
+      }
+      await step.do('log-repair',()=>this._logRun(startedAt,'repair',targetMake,'completed',merged,scored));
+      return {ok:true,merged,scored};
+    }
 
     const startYear = yearStart ?? DEFAULT_YEAR_START;
     // new Date() is safe here — run() executes in a live request context, not at module init time
