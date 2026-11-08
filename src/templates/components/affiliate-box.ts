@@ -59,3 +59,8 @@ export function vinReportEmailCta(partner: AffiliatePartner, siteUrl: string): s
     </table>
   `;
 }
+
+export function buyingUsedCard({ partner, make, model, year, recallCount, placement = "year" }: {partner?: AffiliatePartner;make:string;model:string;year?:string;recallCount:number;placement?:AffiliatePlacement}): string {
+ const vehicle=[year,make,model].filter(Boolean).map(v=>escapeHtml(v!)).join(' ');
+ return `<aside class="rr-aff rr-buying-used"><h2 class="rr-aff__title">Buying a Used ${vehicle}?</h2><p class="rr-aff__text">NHTSA recall lists don't show whether the previous owner completed these ${recallCount} recall repairs, or whether the car has hidden accident or title damage. Check open recalls by VIN and review its title, accident and odometer history before buying.</p><a href="/vin-lookup" class="rr-btn rr-btn--primary">Check Open Recalls by VIN (Free)</a>${partner ? `<a href="${escapeHtml(goPath(partner.id,placement))}" class="rr-aff__cta" rel="sponsored nofollow noopener" target="_blank">Get Full Vehicle History &amp; Title Report →</a><p class="rr-aff__disclosure">${DISCLOSURE_MICROCOPY}</p>` : ''}</aside>`;
+}

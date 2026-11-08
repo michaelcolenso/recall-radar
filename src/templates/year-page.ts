@@ -1,5 +1,6 @@
 import { escapeHtml, makeLogoImg } from "../lib/utils";
 import { severityBadge } from "./components/severity-badge";
+import { recallGradeTooltip } from "../lib/risk-score";
 import type { SeverityLevel } from "../db/schema";
 
 interface RelatedYear {
@@ -22,9 +23,13 @@ interface YearPageOptions {
   year: string;
   recallCount: number;
   topSeverity: SeverityLevel;
+  criticalCount?: number;
+  highCount?: number;
   riskGrade: string | null;
   riskScore: number | null;
   cards: string;
+  buyerCardHtml?: string;
+  checklistHtml?: string;
   leadGen: string;
   /** Recall-alert email signup card — rendered on every year page. */
   alertSignupHtml?: string;
@@ -32,7 +37,7 @@ interface YearPageOptions {
   components?: ComponentLink[];
 }
 
-export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recallCount, topSeverity, riskGrade, riskScore, cards, leadGen, alertSignupHtml, relatedYears, components }: YearPageOptions): string {
+export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recallCount, topSeverity, criticalCount = 0, highCount = 0, riskGrade, riskScore, cards, buyerCardHtml, checklistHtml, leadGen, alertSignupHtml, relatedYears, components }: YearPageOptions): string {
   const componentHtml = components && components.length > 0
     ? `
       <section style="margin-top: var(--space-20);">
@@ -66,7 +71,7 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
     : "";
 
   const riskBadgeHtml = riskGrade
-    ? `<span class="rr-risk-badge rr-risk-badge--${riskGrade.charAt(0).toLowerCase()}" title="Risk Score: ${riskScore ?? '—'}/100">Risk Grade: ${escapeHtml(riskGrade)}</span>`
+    ? `<span class="rr-risk-badge rr-risk-badge--${riskGrade.charAt(0).toLowerCase()}" title="${escapeHtml(recallGradeTooltip(recallCount, criticalCount, highCount))} Risk Score: ${riskScore ?? '—'}/100 (higher means more risk)">Risk Grade: ${escapeHtml(riskGrade)}</span>`
     : "";
 
   return `
@@ -76,7 +81,7 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
       <div class="rr-meta-bar">
         <span class="rr-meta-bar__count">${recallCount} recall${recallCount !== 1 ? "s" : ""}</span>
         ${riskBadgeHtml}
-        ${recallCount > 0 ? `
+        ${recallCount > 0 && topSeverity !== "UNKNOWN" ? `
           <span class="rr-meta-bar__notice">
             <span>Most severe issue:</span>
             ${severityBadge(topSeverity)}
@@ -88,6 +93,8 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
       ` : ""}
     </section>
 
+    ${checklistHtml ?? ""}
+    ${buyerCardHtml ?? ""}
     ${recallCount === 0 ? `
     <section class="rr-good-news" aria-labelledby="good-news-title">
       <svg class="rr-good-news__icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">

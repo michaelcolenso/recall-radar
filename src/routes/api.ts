@@ -1,3 +1,6 @@
+import { fetchRecallsByVin, parseRecallResults, type NhtsaRecall, type DecodedVin } from "../lib/nhtsa-client";
+import { printChecklist } from "../templates/components/print-checklist";
+import { repairTemporalSummaries } from "../etl/temporal-summaries";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
@@ -58,7 +61,7 @@ apiRoutes.get("/search", async (c) => {
     `SELECT m.name, m.slug, 'model' as type, mk.name as make_name, mk.slug as make_slug, NULL as year
      FROM models m
      JOIN makes mk ON mk.id = m.make_id
-     WHERE m.name LIKE ? AND EXISTS (
+     WHERE m.vehicle_type='passenger' AND m.name LIKE ? AND EXISTS (
        SELECT 1 FROM vehicle_years vy
        JOIN recalls r ON r.vehicle_year_id = vy.id
        WHERE vy.model_id = m.id
@@ -67,16 +70,17 @@ apiRoutes.get("/search", async (c) => {
   ).bind(searchTerm).all<{ name: string; slug: string; type: string; make_name: string | null; make_slug: string | null; year: number | null }>();
 
   // Search years for specific make+model combos
+  const yearTerms = q.split(/\s+/).filter(Boolean).slice(0,6).map(term => `%${term}%`);
   const yearsResult = await c.env.DB.prepare(
-    `SELECT CAST(vy.year AS TEXT) as name, CAST(vy.year AS TEXT) as slug, 'year' as type,
+    `SELECT m.name as name, m.slug as slug, 'year' as type,
             mk.name as make_name, mk.slug as make_slug, vy.year
      FROM vehicle_years vy
      JOIN models m ON m.id = vy.model_id
      JOIN makes mk ON mk.id = m.make_id
      WHERE EXISTS (SELECT 1 FROM recalls r WHERE r.vehicle_year_id = vy.id)
-       AND (mk.name || ' ' || m.name || ' ' || CAST(vy.year AS TEXT)) LIKE ?
+       AND ${yearTerms.map(() => "(mk.name || ' ' || m.name || ' ' || CAST(vy.year AS TEXT)) LIKE ?").join(' AND ')}
      ORDER BY mk.name, m.name, vy.year DESC LIMIT 5`,
-  ).bind(searchTerm).all<{ name: string; slug: string; type: string; make_name: string | null; make_slug: string | null; year: number | null }>();
+  ).bind(...yearTerms).all<{ name: string; slug: string; type: string; make_name: string | null; make_slug: string | null; year: number | null }>();
 
   const results = [...makesResult.results, ...modelsResult.results, ...yearsResult.results].slice(0, 8).map((r) => {
     if (r.type === "make") {
@@ -399,37 +403,56 @@ apiRoutes.get("/vin-lookup", async (c) => {
     return c.json({ error: "Invalid VIN format. VINs do not contain the letters I, O, or Q." }, 400);
   }
 
+  const officialVinUrl="https://www.nhtsa.gov/recalls";
+  let scope:"vin"|"model-year"="vin", rows:NhtsaRecall[], vehicle:DecodedVin|undefined;
   try {
-    const res = await fetch(
-      `https://api.nhtsa.gov/recalls/recallsByVin?vin=${encodeURIComponent(vin)}`,
-      { cf: { cacheTtl: 3600 } },
-    );
-    if (!res.ok) {
-      return c.json({ error: "NHTSA lookup failed. Please try again later." }, 502);
-    }
-    const data = await res.json() as {
-      Count?: number;
-      results?: Array<{
-        NHTSACampaignNumber: string;
-        Component: string;
-        Summary: string;
-        Consequence: string;
-        Remedy: string;
-        ReportReceivedDate: string;
-      }>;
-    };
-
-    const recalls = (data.results || []).map((r) => ({
-      campaign: r.NHTSACampaignNumber,
-      component: r.Component,
-      summary: r.Summary,
-      consequence: r.Consequence,
-      remedy: r.Remedy,
-      date: r.ReportReceivedDate,
-    }));
-
-    return c.json({ vin, recalls, count: recalls.length });
+    const response=await fetch(`https://api.nhtsa.gov/recalls/recallsByVin?vin=${encodeURIComponent(vin)}`,{cf:{cacheTtl:3600}});
+    if(!response.ok) {await response.body?.cancel();throw new Error('VIN-specific service unavailable');}
+    rows=parseRecallResults(await response.json());
   } catch {
-    return c.json({ error: "Unable to reach NHTSA. Please try again later." }, 502);
+    scope="model-year";
+    try {
+      const decoded=await fetchRecallsByVin(vin);
+      vehicle=decoded.vehicle;rows=decoded.recalls;
+    } catch {
+      return c.json({error:"We couldn't retrieve recall records. You can still check open recalls directly with NHTSA.",officialVinUrl},502);
+    }
   }
+  const recalls=rows.map(r=>({campaign:r.NHTSACampaignNumber,component:r.Component,summary:r.Summary,consequence:r.Consequence,remedy:r.Remedy,date:r.ReportReceivedDate}));
+  const label=vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model} — VIN ${vin}` : `VIN ${vin}`;
+  return c.json({vin,scope,vehicle,officialVinUrl,recalls,count:recalls.length,checklistHtml:printChecklist(label,recalls.map(r=>({campaign:r.campaign,component:r.component||"Unspecified",remedy:r.remedy||""})))});
+
+});
+
+// Apply all migrations before repair; then ingest makes to discover missing aliases/years.
+apiRoutes.post("/admin/repair-models", async (c) => {
+  const denied = requireAuth(c); if (denied) return denied;
+  const body=await c.req.json<{makeSlug?:string}>().catch(()=>({makeSlug:undefined}));
+  const makes=body.makeSlug ? [{slug:body.makeSlug}] : (await c.env.DB.prepare('SELECT slug FROM makes').all<{slug:string}>()).results;
+  const workflows=[];
+  for(const make of makes) {
+    const instance=await c.env.INGESTION_WORKFLOW.create({params:{mode:'repair',targetMake:make.slug}});
+    workflows.push({make:make.slug,id:instance.id});
+  }
+  return c.json({workflows},202);
+});
+
+apiRoutes.post("/admin/repair-summaries", async (c) => {
+ const denied = requireAuth(c); if (denied) return denied;
+ const body=await c.req.json().catch(()=>({}));
+ const parsed=z.object({afterId:z.number().int().min(0).default(0)}).safeParse(body);
+ if(!parsed.success) return c.json({error:parsed.error.flatten()},400);
+ return c.json(await repairTemporalSummaries(c.env.DB,parsed.data.afterId));
+});
+
+// Cascading selector returns only years backed by actual recall filings.
+apiRoutes.get("/vehicles", async (c) => {
+ const make=c.req.query("make") || "", model=c.req.query("model");
+ if (!/^[a-z0-9-]+$/.test(make) || (model && !/^[a-z0-9-]+$/.test(model))) return c.json({options:[]},400);
+ const sql = model
+  ? `SELECT DISTINCT CAST(vy.year AS TEXT) as name,CAST(vy.year AS TEXT) as slug FROM vehicle_years vy JOIN models m ON m.id=vy.model_id JOIN makes mk ON mk.id=m.make_id JOIN recalls r ON r.vehicle_year_id=vy.id WHERE m.vehicle_type='passenger' AND mk.slug=? AND m.slug=? ORDER BY vy.year DESC`
+  : `SELECT DISTINCT m.name,m.slug FROM models m JOIN makes mk ON mk.id=m.make_id JOIN vehicle_years vy ON vy.model_id=m.id JOIN recalls r ON r.vehicle_year_id=vy.id WHERE m.vehicle_type='passenger' AND mk.slug=? ORDER BY m.name`;
+ const data=await c.env.DB.prepare(sql).bind(...(model ? [make,model] : [make])).all<{name:string;slug:string}>();
+ c.header("Cache-Control","public, max-age=3600");
+ return c.json({options:data.results});
 });

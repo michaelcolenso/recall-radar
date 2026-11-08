@@ -1,3 +1,4 @@
+import { vehicleSelector } from "./components/vehicle-selector";
 import { escapeHtml, makeLogoImg } from "../lib/utils";
 
 interface MakeSummary {
@@ -103,17 +104,7 @@ export function homeTemplate(
       <h1 class="rr-hero__title">Is your car under a safety recall?</h1>
       <p class="rr-hero__subtitle">Check instantly — enter a make, model, or year. All data sourced from NHTSA. Repairs are always free.</p>
       <div class="rr-hero__actions">
-        <div class="rr-hero__search-wrap">
-          <input
-            type="text"
-            id="rr-global-search"
-            class="rr-hero__search"
-            placeholder="e.g. 2020 Toyota Camry"
-            autocomplete="off"
-            aria-label="Search for a vehicle"
-          />
-          <div id="rr-global-search-results" class="rr-hero__search-results" hidden></div>
-        </div>
+        ${vehicleSelector(makes)}
         <a href="#makes" class="rr-hero__cta">Browse All Makes ↓</a>
       </div>
     </section>

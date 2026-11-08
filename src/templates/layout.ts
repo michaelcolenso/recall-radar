@@ -1,3 +1,4 @@
+import { webPageJsonLd, visibleFaq } from "./components/json-ld";
 import { escapeHtml } from "../lib/utils";
 import { ASSET_VERSION } from "../lib/constants";
 import { CRITICAL_CSS } from "./critical-css";
@@ -14,6 +15,7 @@ interface LayoutOptions {
   googleVerification?: string;
   analyticsToken?: string;
   lastUpdated?: string;
+  dateModified?: string;
   /** AdSense publisher id — when set, the adsbygoogle loader is emitted. */
   adsenseClient?: string;
 }
@@ -30,6 +32,7 @@ export function layout({
   googleVerification,
   analyticsToken,
   lastUpdated,
+  dateModified,
   adsenseClient,
 }: LayoutOptions): string {
   const escapedTitle = escapeHtml(title);
@@ -50,7 +53,7 @@ export function layout({
   <meta name="theme-color" content="#f8f8f7" media="(prefers-color-scheme: light)"/>
   <meta name="theme-color" content="#0a0a0c" media="(prefers-color-scheme: dark)"/>
   ${escapedDesc ? `<meta name="description" content="${escapedDesc}"/>` : ""}
-  ${noIndex ? `<meta name="robots" content="noindex, nofollow"/>` : ""}
+  ${noIndex ? `<meta name="robots" content="noindex, follow"/>` : ""}
   ${googleVerification ? `<meta name="google-site-verification" content="${googleVerification}"/>` : ""}
   ${canonical ? `<link rel="canonical" href="${canonical}"/>` : ""}
   ${canonical ? `<meta property="og:url" content="${canonical}"/>` : ""}
@@ -69,10 +72,13 @@ export function layout({
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin/>
   <link rel="preload" href="/fonts/literata.woff2" as="font" type="font/woff2" crossorigin/>
   <style>${CRITICAL_CSS}</style>
+  <link rel="stylesheet" href="/print.css?v=${ASSET_VERSION}" media="print"/>
+  <script src="/checklist.js" defer></script>
   <link rel="preload" href="/styles.css?v=${ASSET_VERSION}" as="style"/>
   <link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}" media="print" onload="this.media='all'"/>
   <noscript><link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}"/></noscript>
   ${jsonLd}
+  ${canonical ? webPageJsonLd(canonical, title, dateModified) : ""}
   ${analyticsToken ? `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon="{&quot;token&quot;: &quot;${analyticsToken}&quot;}"></script>` : ""}
   ${adsenseClient ? `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${escapeHtml(adsenseClient)}" crossorigin="anonymous"></script>` : ""}
 </head>
@@ -90,6 +96,7 @@ export function layout({
       <div class="rr-nav__links">
         <a href="/#makes">Browse</a>
         <a href="/vin-lookup">VIN Lookup</a>
+        <a href="/symptoms">Symptom Search</a>
         <a href="/toyota">Toyota</a>
         <a href="/honda">Honda</a>
         <a href="/ford">Ford</a>
@@ -97,16 +104,17 @@ export function layout({
       </div>
     </div>
   </nav>
-  <main id="main" class="rr-main rr-animate-in" tabindex="-1">
+  <main id="main" class="rr-main" tabindex="-1">
     ${body}
+    ${body.includes('id="rr-faq-title"') ? "" : visibleFaq(jsonLd)}
   </main>
   <footer class="rr-footer">
     <div class="rr-footer__inner">
-      <p>Source: <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration</a>. Updated <span id="rr-footer-date">${escapeHtml(lastUpdated || "recently")}</span>.</p>
+      <p>Source: <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration</a>. Updated <span id="rr-footer-date">${escapeHtml(lastUpdated || "date not recorded")}</span>.</p>
       <p>Independent site. Not affiliated with NHTSA or vehicle manufacturers. &middot; <a href="/about">Learn More</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/disclosure">Disclosure</a></p>
     </div>
   </footer>
-  ${!lastUpdated ? `<script>document.getElementById("rr-footer-date").textContent=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})</script>` : ""}
+
   <script>
     // Prefill search from ?q= param
     (function(){
@@ -134,6 +142,7 @@ export function layout({
           fetch("/api/search?q="+encodeURIComponent(q))
             .then(function(r){return r.json()})
             .then(function(d){
+              if(q!==input.value.trim())return;
               if(!d.results||!d.results.length){results.hidden=true;results.innerHTML="";return}
               results.innerHTML=d.results.map(function(r,i){
                 return '<a href="'+r.href+'" data-index="'+i+'"><strong>'+escHtml(r.label)+'</strong> <span class="rr-search-result__sublabel">'+escHtml(r.sublabel)+'</span></a>'
@@ -150,7 +159,7 @@ export function layout({
         if(!items.length||results.hidden)return;
         if(e.key==="ArrowDown"){e.preventDefault();activeIndex=(activeIndex+1)%items.length;updateActive(items)}
         else if(e.key==="ArrowUp"){e.preventDefault();activeIndex=(activeIndex-1+items.length)%items.length;updateActive(items)}
-        else if(e.key==="Enter"){e.preventDefault();if(activeIndex>=0&&items[activeIndex]){location.href=items[activeIndex].href}}
+        else if(e.key==="Enter"&&activeIndex>=0&&items[activeIndex]){e.preventDefault();location.href=items[activeIndex].href}
       });
       function updateActive(items){items.forEach(function(item,i){item.classList.toggle("rr-search-result--active",i===activeIndex)})}
       function escHtml(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
@@ -209,18 +218,7 @@ export function layout({
     })();
   </script>
   <div id="rr-toast" class="rr-toast" role="status" aria-live="polite"></div>
-  <script>
-    // Scroll-triggered reveal animation
-    (function(){
-      if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;
-      var groups=document.querySelectorAll(".rr-grid, .rr-readout-list");
-      groups.forEach(function(g){Array.from(g.children).forEach(function(c){c.classList.add("rr-reveal")})});
-      var observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting){var children=Array.from(entry.target.children).filter(function(c){return c.classList.contains("rr-reveal")&&c.classList.contains("is-visible")===false});
-      children.forEach(function(c,i){setTimeout(function(){c.classList.add("is-visible")},Math.min(i*60,400))});
-      if(entry.target.children.length===0||children.length===0)observer.unobserve(entry.target)}})},{threshold:0.05,rootMargin:"0px 0px -40px 0px"});
-      groups.forEach(function(g){observer.observe(g)});
-    })();
-  </script>
+
 </body>
 </html>`;
 }

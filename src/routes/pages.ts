@@ -1,3 +1,9 @@
+import { normalizeModel } from "../etl/normalize-models";
+import { symptomQuery } from "../lib/symptom-search";
+import { printChecklist } from "../templates/components/print-checklist";
+import { dealerPageTemplate } from "../templates/dealer-page";
+import { verifiedTimestamp } from "../lib/freshness";
+import { segmentCompetitors } from "../lib/vehicle-segments";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { getCachedOrRender } from "../lib/cache";
@@ -33,11 +39,11 @@ import { newRecallsPageTemplate, NEW_RECALLS_PAGE_SIZE } from "../templates/new-
 import { vinPageTemplate } from "../templates/vin-page";
 import { fetchRecallsByVin, validateVin } from "../lib/nhtsa-client";
 import { relatedLinks } from "../templates/components/related-links";
-import { gradeDescription } from "../lib/risk-score";
+import { calculateRawScore, scoreToGrade, gradeForCounts, gradeDescription } from "../lib/risk-score";
 import { POPULAR_MAKES } from "../lib/constants";
 import { acceptsMarkdown, htmlToMarkdown } from "../lib/utils";
 import { primaryPartner } from "../lib/affiliates";
-import { vinReportCta } from "../templates/components/affiliate-box";
+import { buyingUsedCard, vinReportCta } from "../templates/components/affiliate-box";
 import { alertSignup } from "../templates/components/alert-signup";
 import { adSlot } from "../templates/components/ad-slot";
 import { privacyPageTemplate, disclosurePageTemplate } from "../templates/static-pages";
@@ -45,10 +51,23 @@ import { FRESH_CAMPAIGNS, getFreshCampaign, freshCampaignsForMakeModel, severity
 import type { FreshCampaign } from "../lib/fresh-campaigns";
 
 export const pageRoutes = new Hono<{ Bindings: Env }>();
+// Keep historical trim URLs useful after their rows merge into canonical families.
+pageRoutes.use('*', async (c,next) => {
+ const prefix=c.req.path.startsWith('/stats/')?'/stats':'';
+ const vehiclePath=prefix?c.req.path.slice(prefix.length):c.req.path;
+ const match = /^\/(dodge|ram|mercedes-benz|bmw)\/([a-z0-9-]+)((?:\/\d{4}(?:\/[a-z0-9-]+)?)?)$/.exec(vehiclePath);
+ if(match) {
+  const n=normalizeModel(match[1],match[2]);
+  const path=`${prefix}/${slugify(n.make)}/${n.slug}${match[3]}`;
+  if(path !== c.req.path) return c.redirect(path+new URL(c.req.url).search,301);
+ }
+ await next();
+});
+
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v14";
+const PAGE_CACHE_VERSION = "v37";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -165,6 +184,11 @@ interface CampaignRow {
   summary: string;
   consequence: string;
   remedy: string;
+  summary_raw?: string;
+  consequence_raw?: string;
+  remedy_raw?: string;
+  source_models?: string | null;
+  last_ingested_at?: string | null;
   severity_level: SeverityLevel;
   report_received_date: string | null;
   enriched_at: string | null;
@@ -237,9 +261,9 @@ pageRoutes.get("/", async (c) => {
         ).first<{ last_run: string | null }>(),
 
         c.env.DB.prepare(
-          `SELECT m.name, m.slug, COUNT(DISTINCT md.id) as model_count, COUNT(r.id) as recall_count
+          `SELECT m.name, m.slug, COUNT(DISTINCT CASE WHEN r.id IS NOT NULL AND md.vehicle_type='passenger' THEN md.id END) as model_count, COUNT(DISTINCT r.nhtsa_campaign_number) as recall_count
          FROM makes m
-         LEFT JOIN models md ON md.make_id = m.id
+         LEFT JOIN models md ON md.make_id = m.id AND md.vehicle_type='passenger'
          LEFT JOIN vehicle_years vy ON vy.model_id = md.id
          LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
          GROUP BY m.id
@@ -374,7 +398,7 @@ pageRoutes.get("/new", async (c) => {
               r.report_received_date,
               mk.name as make_name, mk.slug as make_slug,
               m.name as model_name, m.slug as model_slug,
-              vy.year
+              vy.year, vy.last_ingested_at
        FROM recalls r
        JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
        JOIN models m ON m.id = vy.model_id
@@ -580,6 +604,26 @@ pageRoutes.get("/vin-lookup", async (c) => {
   return maybeMarkdown(c, html);
 });
 
+// Service helpers are intentionally noindex; canonical recall pages carry the filing.
+pageRoutes.get("/dealers/:makeSlug{[a-z0-9-]+}", async c => {
+ const {makeSlug}=c.req.param();
+ const make=await c.env.DB.prepare('SELECT name FROM makes WHERE slug=?').bind(makeSlug).first<{name:string}>();
+ if(!make) return c.notFound();
+ const campaign=c.req.query('campaign');
+ const recall=campaign ? await c.env.DB.prepare(`SELECT r.remedy_raw FROM recalls r JOIN vehicle_years vy ON vy.id=r.vehicle_year_id JOIN models m ON m.id=vy.model_id JOIN makes mk ON mk.id=m.make_id WHERE mk.slug=? AND r.nhtsa_campaign_number=? LIMIT 1`).bind(makeSlug,campaign).first<{remedy_raw:string}>() : null;
+ const siteUrl=c.env.SITE_URL || 'https://recalledrides.com';
+ return c.html(layout({title:`${make.name} Recall Service & Dealer Help | Recalled Rides`,canonical:`${siteUrl}/dealers/${makeSlug}`,noIndex:true,body:`<div id="service">${dealerPageTemplate(make.name,makeSlug,recall ? campaign : undefined,recall?.remedy_raw)}</div>`}));
+});
+
+pageRoutes.get("/symptoms", async c => {
+ const q=(c.req.query('q') || '').trim().slice(0,160);
+ const query=symptomQuery(q);
+ const rows=q.length>=3 ? (await c.env.DB.prepare(query.sql).bind(...query.params).all<{campaign:string;component:string;summary:string;vehicles:number}>()).results : [];
+ const siteUrl=c.env.SITE_URL || 'https://recalledrides.com';
+ const body=`<section class="rr-section-header"><h1>Search Recalls by Symptom</h1><p>Try “steering wheel shakes”, “backup camera blank”, or “engine stalls at stop”. A symptom match is a research lead; confirm your vehicle's recall status by VIN.</p><form action="/symptoms" method="get"><label>What is your vehicle doing? <input name="q" value="${escapeHtml(q)}" minlength="3" maxlength="160" required></label><button class="rr-btn rr-btn--primary">Search Symptoms</button></form></section>${q ? `<p>${rows.length} matching campaigns${rows.length===30 ? ' (showing the newest 30)' : ''}.</p>` : ''}<div class="rr-readout-list">${rows.map(r=>`<article class="rr-readout"><h2><a href="/recall/${encodeURIComponent(r.campaign)}">#${escapeHtml(r.campaign)} — ${escapeHtml(r.component)}</a></h2><p>${escapeHtml(r.summary)}</p><p>${r.vehicles} model-year records</p></article>`).join('')}</div><p><a href="/vin-lookup">Check your VIN →</a></p>`;
+ return c.html(layout({title:'Search Vehicle Recalls by Symptom | Recalled Rides',description:'Find safety recall filings by everyday vehicle symptoms, from engine stalls to blank backup cameras.',canonical:`${siteUrl}/symptoms`,noIndex:!!q,body}));
+});
+
 // GET /stats/:makeSlug/:modelSlug — Model reliability scorecard
 pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
   const { makeSlug, modelSlug } = c.req.param();
@@ -638,15 +682,15 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
         .bind(model.id)
         .all<{ year: number; recall_count: number; risk_grade: string | null; critical_count: number; high_count: number }>();
 
-      const yearStats = yearStatsResult.results;
+      const yearStats = yearStatsResult.results.map(y => ({ ...y, risk_grade: gradeForCounts(y.recall_count, y.critical_count, y.high_count) }));
 
       const componentStatsResult = await c.env.DB.prepare(
-        `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
-              COUNT(*) as count
+        `SELECT UPPER(TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END)) as name,
+              COUNT(DISTINCT r.nhtsa_campaign_number) as count
        FROM recalls r
        JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
        WHERE vy.model_id = ?
-       GROUP BY name
+       GROUP BY 1
        ORDER BY count DESC
        LIMIT 10`
       )
@@ -706,6 +750,7 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
           worstYears,
           brandAvgRecalls,
           totalRecalls,
+          buyerCardHtml: buyingUsedCard({partner: primaryPartner(c.env.AFFILIATE_PARTNERS),make:make.name,model:model.name,recallCount:totalRecalls,placement:"stats"}),
         }) + adSlot({ client: c.env.ADSENSE_CLIENT || undefined, slot: c.env.ADSENSE_SLOT || undefined });
 
       const statsUrl = `${siteUrl}/stats/${makeSlug}/${modelSlug}`;
@@ -843,13 +888,13 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentSlug{[a-z0-9-]+}-recalls", asyn
 
       // Other components for this make
       const otherComponentsResult = await c.env.DB.prepare(
-        `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
-              COUNT(*) as count
+        `SELECT UPPER(TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END)) as name,
+              COUNT(DISTINCT r.nhtsa_campaign_number) as count
        FROM recalls r
        JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
        JOIN models m ON m.id = vy.model_id
        WHERE m.make_id = ?
-       GROUP BY name
+       GROUP BY 1
        ORDER BY count DESC`
       )
         .bind(make.id)
@@ -986,10 +1031,12 @@ pageRoutes.get("/vin/:vin", async (c) => {
           enriched_at: null,
         }));
 
-        const cards = recallViews.map(recallCard).join("");
+        const checklistHtml = printChecklist(`${vehicle.year} ${vehicle.make} ${vehicle.model}`,recallViews.map(r=>({campaign:r.nhtsa_campaign_number,component:r.component,remedy:r.remedy_raw})));
+        const cards = recallViews.map(r => recallCard(r,slugify(vehicle.make))).join("");
 
         const partner = primaryPartner(c.env.AFFILIATE_PARTNERS);
         const body = vinPageTemplate({
+          checklistHtml,
           vin: vin.toUpperCase(),
           make: vehicle.make,
           model: vehicle.model,
@@ -1085,26 +1132,27 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
       const [models, components] = await Promise.all([
         c.env.DB.prepare(
           `SELECT m.name, m.slug,
-                MIN(vy.year) as min_year, MAX(vy.year) as max_year,
+                MIN(CASE WHEN r.id IS NOT NULL THEN vy.year END) as min_year, MAX(CASE WHEN r.id IS NOT NULL THEN vy.year END) as max_year,
                 COUNT(DISTINCT r.id) as recall_count
          FROM models m
          LEFT JOIN vehicle_years vy ON vy.model_id = m.id
          LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
-         WHERE m.make_id = ?
+         WHERE m.make_id = ? AND m.vehicle_type='passenger'
          GROUP BY m.id
+         HAVING COUNT(r.id) > 0
          ORDER BY m.name`,
         )
           .bind(make.id)
           .all<{ name: string; slug: string; min_year: number | null; max_year: number | null; recall_count: number }>(),
 
         c.env.DB.prepare(
-          `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
-                  COUNT(*) as count
+          `SELECT UPPER(TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END)) as name,
+                  COUNT(DISTINCT r.nhtsa_campaign_number) as count
            FROM recalls r
            JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
            JOIN models m ON m.id = vy.model_id
-           WHERE m.make_id = ?
-           GROUP BY name
+           WHERE m.make_id = ? AND m.vehicle_type='passenger'
+           GROUP BY 1
            ORDER BY count DESC
            LIMIT 12`,
         )
@@ -1117,6 +1165,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
         { href: `/${makeSlug}`, label: make.name },
       ]);
       const body = crumbs + makePageTemplate(make.name, make.slug, models.results, components.results);
+      const freshness = await c.env.DB.prepare(`SELECT MAX(vy.last_ingested_at) as latest FROM vehicle_years vy JOIN models m ON m.id=vy.model_id WHERE m.make_id=? AND julianday(vy.last_ingested_at) <= julianday('now')`).bind(make.id).first<{latest:string|null}>();
 
       return {
         html: layout({
@@ -1125,6 +1174,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
           title: `${make.name} Recalls & Safety Issues by Model | Recalled Rides`,
           description: `Check ${make.name} vehicle recalls by model — ${models.results.filter(m => m.recall_count > 0).length} models with active safety issues. Find your ${make.name}, see the risks, and get free repairs at your dealer.`,
           canonical: `${siteUrl}/${makeSlug}`,
+          dateModified: verifiedTimestamp(freshness?.latest),
           ogType: "website",
           ogImage: "/og-image-home.svg",
           body,
@@ -1204,6 +1254,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
                 COUNT(r.id) as recall_count,
                 vy.risk_grade,
                 vy.risk_score,
+                SUM(CASE WHEN r.severity_level = 'CRITICAL' THEN 1 ELSE 0 END) as critical_count,
+                SUM(CASE WHEN r.severity_level = 'HIGH' THEN 1 ELSE 0 END) as high_count,
                 CASE MIN(CASE r.severity_level
                   WHEN 'CRITICAL' THEN 1
                   WHEN 'HIGH' THEN 2
@@ -1224,18 +1276,18 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
          ORDER BY vy.year DESC`,
         )
           .bind(model.id)
-          .all<{ year: number; recall_count: number; risk_grade: string | null; risk_score: number | null; highest_severity: SeverityLevel | null }>(),
+          .all<{ year: number; recall_count: number; risk_grade: string | null; risk_score: number | null; highest_severity: SeverityLevel | null; critical_count: number; high_count: number }>(),
 
         // COUNT(DISTINCT campaign), not COUNT(*) — a campaign spanning several years
         // would otherwise inflate a component's count (and could misrank it as the
         // model's top issue) the same way the row-count total did.
         c.env.DB.prepare(
-          `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
+          `SELECT UPPER(TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END)) as name,
                 COUNT(DISTINCT r.nhtsa_campaign_number) as count
          FROM recalls r
          JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
          WHERE vy.model_id = ?
-         GROUP BY name
+         GROUP BY 1
          ORDER BY count DESC
          LIMIT 3`,
         )
@@ -1273,7 +1325,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         // Per-model freshness, not the site-wide ingestion watermark — a run for
         // an unrelated make/model shouldn't make this page claim fresher data.
         c.env.DB.prepare(
-          "SELECT MAX(last_ingested_at) as last_ingested FROM vehicle_years WHERE model_id = ?",
+          "SELECT MAX(last_ingested_at) as last_ingested FROM vehicle_years WHERE model_id = ? AND julianday(last_ingested_at) <= julianday('now')",
         ).bind(model.id).first<{ last_ingested: string | null }>(),
 
         // recalls has one row per (campaign, vehicle_year) — a campaign spanning
@@ -1304,8 +1356,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         recallYearCount > 0
           ? `${Math.min(...yearsWithRecalls.map((y) => y.year))}–${Math.max(...yearsWithRecalls.map((y) => y.year))}`
           : "";
-      const lastUpdated = lastIngestedResult?.last_ingested
-        ? new Date(lastIngestedResult.last_ingested).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+      const lastUpdated = verifiedTimestamp(lastIngestedResult?.last_ingested)
+        ? new Date(lastIngestedResult!.last_ingested!).toLocaleDateString("en-US", { month: "long", year: "numeric" })
         : undefined;
       const notableRecalls: NotableRecall[] = notableRecallsResult.results.flatMap((r) => {
         // Campaign detail links are reserved for identifiers that normalize to
@@ -1342,7 +1394,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
 
       const partner = primaryPartner(c.env.AFFILIATE_PARTNERS);
       const affiliateCta = partner
-        ? vinReportCta({ partner, variant: "lookup", make: make.name, model: model.name })
+        ? buyingUsedCard({ partner, placement: "model", make: make.name, model: model.name, recallCount: totalRecalls })
         : undefined;
 
       const crumbs = breadcrumbs([
@@ -1371,7 +1423,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         makeSlug,
         model: model.name,
         modelSlug,
-        years: years.results,
+        years: years.results.map(y => ({ ...y, risk_grade: gradeForCounts(y.recall_count, y.critical_count, y.high_count) })),
         totalRecalls,
         topComponents: componentStatsResult.results,
         notableRecalls,
@@ -1388,8 +1440,9 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
           analyticsToken: c.env.CF_ANALYTICS_TOKEN,
           title,
           description,
-          noIndex: years.results.length === 0,
+          noIndex: totalRecalls === 0,
           canonical: modelPageUrl,
+          dateModified: verifiedTimestamp(lastIngestedResult?.last_ingested),
           ogType: "website",
           ogImage: "/og-image-home.svg",
           lastUpdated,
@@ -1560,7 +1613,7 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
         description = description.slice(0, trunc) + ".";
       }
 
-      const cards = filteredRecalls.map(recallCard).join("");
+      const cards = filteredRecalls.map(r => recallCard(r,makeSlug)).join("");
 
       // Compute related components (all components for this year except current)
       const componentMap = new Map<string, { name: string; slug: string; count: number }>();
@@ -1644,7 +1697,7 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
           recallCount: filteredRecalls.length,
           topSeverity,
           cards,
-          leadGen: dealerLeadGen(),
+          leadGen: dealerLeadGen(makeSlug),
           relatedComponents,
           relatedYears,
           relatedRecalls: relatedRecallsResult.results,
@@ -1778,13 +1831,13 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
 
       // Fetch vehicle_year record including risk score
       const vehicleYear = await c.env.DB.prepare(
-        `SELECT vy.id, vy.risk_score, vy.risk_grade, vy.recall_count
+        `SELECT vy.id, vy.risk_score, vy.risk_grade, vy.recall_count, vy.last_ingested_at
          FROM vehicle_years vy
          JOIN models m ON m.id = vy.model_id
          WHERE m.make_id = ? AND m.slug = ? AND vy.year = ?`
       )
         .bind(make.id, modelSlug, yearNum)
-        .first<{ id: number; risk_score: number | null; risk_grade: string | null; recall_count: number | null }>();
+        .first<{ id: number; risk_score: number | null; risk_grade: string | null; recall_count: number | null; last_ingested_at: string | null }>();
 
       const recallsResult = await c.env.DB.prepare(
         `SELECT r.id, r.nhtsa_campaign_number, r.component, r.manufacturer,
@@ -1820,8 +1873,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
 
       const recalls = recallsResult.results;
       const topSeverity = recalls[0]?.severity_level ?? "UNKNOWN";
-      const riskGrade = vehicleYear?.risk_grade ?? null;
-      const riskScore = vehicleYear?.risk_score ?? null;
+      const riskScore = calculateRawScore(recalls.map(r => ({ severityLevel: r.severity_level, reportReceivedDate: r.report_received_date })));
+      const riskGrade = scoreToGrade(riskScore, 0);
 
       // Extract top component from most severe recall (first segment before colon)
       const topComponent = recalls.length > 0 ? recalls[0].component.split(":")[0].trim() : null;
@@ -1856,7 +1909,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
 
       const cards =
         recalls.length > 0
-          ? recalls.map(recallCard).join("")
+          ? recalls.map(r => recallCard(r,makeSlug)).join("")
           : "<p class='text-gray-500 py-4'>No recalls found for this vehicle year.</p>";
 
       const relatedYearsResult = await c.env.DB.prepare(
@@ -1884,12 +1937,15 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
       ]);
 
       const partner = primaryPartner(c.env.AFFILIATE_PARTNERS);
-      const affiliateCta = partner
-        ? vinReportCta({ partner, variant: "year", make: make.name, model: model.name, year })
-        : "";
       const yearAdSlot =
         recalls.length > 0 ? adSlot({ client: c.env.ADSENSE_CLIENT || undefined, slot: c.env.ADSENSE_SLOT || undefined }) : "";
 
+      const candidates = segmentCompetitors(makeSlug,modelSlug);
+      const available = await Promise.all(candidates.map(async candidate => {
+        const match = await c.env.DB.prepare(`SELECT 1 as found FROM vehicle_years vy JOIN models m ON m.id=vy.model_id JOIN makes mk ON mk.id=m.make_id JOIN recalls r ON r.vehicle_year_id=vy.id WHERE mk.slug=? AND m.slug=? AND vy.year=? LIMIT 1`).bind(candidate.makeSlug,candidate.modelSlug,yearNum).first();
+        return match ? candidate : null;
+      }));
+      const competitors = available.filter((v): v is NonNullable<typeof v> => v !== null).slice(0,3);
       const body =
         crumbs +
         yearPageTemplate({
@@ -1901,9 +1957,13 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           recallCount: recalls.length,
           topSeverity,
           riskGrade,
+          criticalCount: recalls.filter(r => r.severity_level === "CRITICAL").length,
+          highCount: recalls.filter(r => r.severity_level === "HIGH").length,
           riskScore,
           cards,
-          leadGen: dealerLeadGen() + affiliateCta + yearAdSlot,
+          checklistHtml: printChecklist(`${year} ${make.name} ${model.name}`,recalls.map(r=>({campaign:r.nhtsa_campaign_number,component:r.component,remedy:r.remedy_raw}))),
+          leadGen: dealerLeadGen(makeSlug) + yearAdSlot,
+          buyerCardHtml: buyingUsedCard({partner,make:make.name,model:model.name,year,recallCount:recalls.length}),
           alertSignupHtml: alertSignup({
             make: make.name,
             makeSlug,
@@ -1916,10 +1976,10 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           relatedYears,
           components,
         }) +
-        relatedLinks({ make: make.name, makeSlug, model: model.name, modelSlug, year });
+        relatedLinks({ make: make.name, makeSlug, model: model.name, modelSlug, year, competitors });
 
       const yearPageUrl = `${siteUrl}/${makeSlug}/${modelSlug}/${year}`;
-      const mostRecentDate = recalls[0]?.report_received_date ?? undefined;
+      const mostRecentDate = verifiedTimestamp(vehicleYear?.last_ingested_at);
       const yearRemedySteps = recalls
         .filter((r) => (r.remedy_enriched ?? r.remedy_raw).length > 0)
         .slice(0, 1)
@@ -1973,6 +2033,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           description,
           noIndex: recalls.length === 0,
           canonical: `${siteUrl}/${makeSlug}/${modelSlug}/${year}`,
+          dateModified: mostRecentDate,
           ogType: "website",
           ogImage: `/og/${makeSlug}/${modelSlug}/${year}.svg`,
           body,
@@ -2006,13 +2067,14 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
     async () => {
       const recallsResult = await c.env.DB.prepare(
         `SELECT r.id, r.nhtsa_campaign_number, r.component, r.manufacturer,
+              r.summary_raw, r.consequence_raw, r.remedy_raw, r.source_models,
               COALESCE(r.summary_enriched, r.summary_raw) as summary,
               COALESCE(r.consequence_enriched, r.consequence_raw) as consequence,
               COALESCE(r.remedy_enriched, r.remedy_raw) as remedy,
               r.severity_level, r.report_received_date, r.enriched_at,
               m.name as make_name, m.slug as make_slug,
               md.name as model_name, md.slug as model_slug,
-              vy.year
+              vy.year, vy.last_ingested_at
        FROM recalls r
        JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
        JOIN models md ON md.id = vy.model_id
@@ -2077,16 +2139,13 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
       }
 
       const primaryRecall = rows[0];
-      // Curated pages name the affected vehicle in title/H1; DB pages keep
-      // their existing campaign-number title (no churn on indexed pages).
-      const isCurated = primaryRecall.enriched_at === null && recallsResult.results.length === 0;
+      const campaignModified = rows.map(row=>verifiedTimestamp(row.last_ingested_at)).filter((date): date is string => Boolean(date)).sort().at(-1);
       const componentShort = primaryRecall.component.split(":")[0].trim();
-      const title = isCurated
-        ? `${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name} ${componentShort} Recall (NHTSA #${primaryRecall.nhtsa_campaign_number}) | Recalled Rides`
-        : `NHTSA Campaign ${primaryRecall.nhtsa_campaign_number} Recall Details | Recalled Rides`;
-      const heading = isCurated
-        ? `${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name} ${componentShort} Recall`
-        : undefined;
+      const primaryYears = rows.filter(r => r.make_slug === primaryRecall.make_slug && r.model_slug === primaryRecall.model_slug).map(r => r.year);
+      const minYear = Math.min(...primaryYears), maxYear = Math.max(...primaryYears);
+      const yearRange = minYear === maxYear ? String(minYear) : `${minYear}–${maxYear}`;
+      const title = `Recall #${primaryRecall.nhtsa_campaign_number}: ${yearRange} ${primaryRecall.make_name} ${primaryRecall.model_name} ${componentShort} | Recalled Rides`;
+      const heading = `NHTSA Recall #${primaryRecall.nhtsa_campaign_number} — ${primaryRecall.make_name} ${primaryRecall.model_name} ${componentShort}`;
 
       // Build description max 160 chars — component name trimmed, summary truncated
       const descPrefix = `${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name} ${componentShort} recall: `;
@@ -2111,6 +2170,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
         { href: `/${primaryRecall.make_slug}`, label: primaryRecall.make_name },
         { href: `/${primaryRecall.make_slug}/${primaryRecall.model_slug}`, label: primaryRecall.model_name },
         { href: `/${primaryRecall.make_slug}/${primaryRecall.model_slug}/${primaryRecall.year}`, label: String(primaryRecall.year) },
+        { href: `/recall/${primaryRecall.nhtsa_campaign_number}`, label: `Campaign ${primaryRecall.nhtsa_campaign_number}` },
       ]);
 
       const body = crumbs + campaignPageTemplate({
@@ -2125,6 +2185,8 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
         isEnriched: !!primaryRecall.enriched_at,
         affectedVehicles,
         heading,
+        original: { summary: primaryRecall.summary_raw ?? primaryRecall.summary, consequence: primaryRecall.consequence_raw ?? primaryRecall.consequence, remedy: primaryRecall.remedy_raw ?? primaryRecall.remedy },
+        sourceModels: [...new Set(rows.flatMap(r => JSON.parse(r.source_models || '[]') as string[]))],
       }) + adSlot({ client: c.env.ADSENSE_CLIENT || undefined, slot: c.env.ADSENSE_SLOT || undefined });
 
       const campaignUrl = `${siteUrl}/recall/${primaryRecall.nhtsa_campaign_number}`;
@@ -2167,6 +2229,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
           title,
           description,
           canonical: campaignUrl,
+          dateModified: campaignModified,
           ogType: "website",
           ogImage: "/og-image-detail.svg",
           body,

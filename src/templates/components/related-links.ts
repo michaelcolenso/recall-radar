@@ -1,3 +1,4 @@
+import { segmentCompetitors, type Competitor } from "../../lib/vehicle-segments";
 import { escapeHtml, slugify } from "../../lib/utils";
 
 interface RelatedLinksOptions {
@@ -6,74 +7,14 @@ interface RelatedLinksOptions {
   model: string;
   modelSlug: string;
   year: string;
+  competitors?: Competitor[];
 }
 
-// Hardcoded top competitors by class (make/model slug pairs)
-// This is a lightweight seed list; can be expanded or made data-driven in future phases.
-const COMPETITOR_MAP: Record<string, Array<{ makeSlug: string; modelSlug: string; name: string }>> = {
-  "toyota": [
-    { makeSlug: "honda", modelSlug: "accord", name: "Honda Accord" },
-    { makeSlug: "nissan", modelSlug: "altima", name: "Nissan Altima" },
-  ],
-  "honda": [
-    { makeSlug: "toyota", modelSlug: "camry", name: "Toyota Camry" },
-    { makeSlug: "nissan", modelSlug: "altima", name: "Nissan Altima" },
-  ],
-  "ford": [
-    { makeSlug: "chevrolet", modelSlug: "silverado", name: "Chevrolet Silverado" },
-    { makeSlug: "ram", modelSlug: "1500", name: "Ram 1500" },
-  ],
-  "chevrolet": [
-    { makeSlug: "ford", modelSlug: "f-150", name: "Ford F-150" },
-    { makeSlug: "ram", modelSlug: "1500", name: "Ram 1500" },
-  ],
-  "nissan": [
-    { makeSlug: "toyota", modelSlug: "camry", name: "Toyota Camry" },
-    { makeSlug: "honda", modelSlug: "accord", name: "Honda Accord" },
-  ],
-  "hyundai": [
-    { makeSlug: "kia", modelSlug: "optima", name: "Kia Optima" },
-    { makeSlug: "toyota", modelSlug: "camry", name: "Toyota Camry" },
-  ],
-  "kia": [
-    { makeSlug: "hyundai", modelSlug: "sonata", name: "Hyundai Sonata" },
-    { makeSlug: "toyota", modelSlug: "camry", name: "Toyota Camry" },
-  ],
-  "subaru": [
-    { makeSlug: "toyota", modelSlug: "rav4", name: "Toyota RAV4" },
-    { makeSlug: "honda", modelSlug: "cr-v", name: "Honda CR-V" },
-  ],
-  "mazda": [
-    { makeSlug: "toyota", modelSlug: "camry", name: "Toyota Camry" },
-    { makeSlug: "honda", modelSlug: "accord", name: "Honda Accord" },
-  ],
-  "bmw": [
-    { makeSlug: "mercedes-benz", modelSlug: "c-class", name: "Mercedes-Benz C-Class" },
-    { makeSlug: "audi", modelSlug: "a4", name: "Audi A4" },
-  ],
-  "mercedes-benz": [
-    { makeSlug: "bmw", modelSlug: "3-series", name: "BMW 3 Series" },
-    { makeSlug: "audi", modelSlug: "a4", name: "Audi A4" },
-  ],
-  "audi": [
-    { makeSlug: "bmw", modelSlug: "3-series", name: "BMW 3 Series" },
-    { makeSlug: "mercedes-benz", modelSlug: "c-class", name: "Mercedes-Benz C-Class" },
-  ],
-  "jeep": [
-    { makeSlug: "ford", modelSlug: "explorer", name: "Ford Explorer" },
-    { makeSlug: "toyota", modelSlug: "4runner", name: "Toyota 4Runner" },
-  ],
-  "tesla": [
-    { makeSlug: "bmw", modelSlug: "i4", name: "BMW i4" },
-    { makeSlug: "ford", modelSlug: "mustang-mach-e", name: "Ford Mustang Mach-E" },
-  ],
-};
-
-export function relatedLinks({ make, makeSlug, model, modelSlug, year }: RelatedLinksOptions): string {
+export function relatedLinks({ make, makeSlug, model, modelSlug, year, competitors: verifiedCompetitors }: RelatedLinksOptions): string {
   const links: string[] = [];
 
   // Compare to competitors
-  const competitors = COMPETITOR_MAP[makeSlug];
+  const competitors = (verifiedCompetitors ?? segmentCompetitors(makeSlug, modelSlug)).slice(0,3);
   if (competitors) {
     for (const comp of competitors) {
       links.push(`<a href="/${comp.makeSlug}/${comp.modelSlug}/${year}" class="rr-related-link">${escapeHtml(year)} ${escapeHtml(comp.name)} Recalls</a>`);

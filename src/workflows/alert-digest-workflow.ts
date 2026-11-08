@@ -92,7 +92,7 @@ export class AlertDigestWorkflow extends WorkflowEntrypoint<Env, AlertDigestPara
         const result = await this.env.DB.prepare(
           `SELECT DISTINCT s.id AS sub_id
            FROM recalls r
-           JOIN alert_subscriptions s ON s.vehicle_year_id = r.vehicle_year_id AND s.status = 'active'
+           JOIN alert_subscriptions s ON COALESCE((SELECT canonical_id FROM vehicle_year_aliases WHERE source_id=s.vehicle_year_id),s.vehicle_year_id) = r.vehicle_year_id AND s.status = 'active'
            LEFT JOIN alert_sends sent ON sent.subscription_id = s.id AND sent.recall_id = r.id
            WHERE r.created_at > ? AND sent.id IS NULL
            ORDER BY s.id`,
@@ -166,7 +166,7 @@ export class AlertDigestWorkflow extends WorkflowEntrypoint<Env, AlertDigestPara
        JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
        JOIN models m ON m.id = vy.model_id
        JOIN makes mk ON mk.id = m.make_id
-       JOIN alert_subscriptions s ON s.vehicle_year_id = vy.id AND s.status = 'active'
+       JOIN alert_subscriptions s ON COALESCE((SELECT canonical_id FROM vehicle_year_aliases WHERE source_id=s.vehicle_year_id),s.vehicle_year_id) = vy.id AND s.status = 'active'
        LEFT JOIN alert_sends sent ON sent.subscription_id = s.id AND sent.recall_id = r.id
        WHERE r.created_at > ? AND sent.id IS NULL AND s.id IN (${placeholders})
        ORDER BY s.id, r.report_received_date DESC`,

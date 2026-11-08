@@ -1,3 +1,4 @@
+import { recallSources } from "../etl/normalize-models";
 import { z } from "zod";
 
 const makeSchema = z.object({ Make_ID: z.number(), Make_Name: z.string() });
@@ -14,6 +15,7 @@ const recallSchema = z.object({
   Summary: nhtsaText,
   Consequence: nhtsaText,
   Remedy: nhtsaText,
+  SourceModels: z.array(z.string()).optional(),
 });
 
 export type NhtsaMake = z.infer<typeof makeSchema>;
@@ -38,6 +40,10 @@ async function fetchWithRetry(url: string, retries = 3, timeoutMs = 15000): Prom
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const res = await fetch(url, { signal: controller.signal });
+        if(res.status===429 || res.status>=500) {
+          await res.body?.cancel();
+          throw new Error(`NHTSA temporarily unavailable: ${res.status}`);
+        }
         return res;
       } finally {
         clearTimeout(timer);
@@ -71,8 +77,14 @@ export async function fetchRecallsForVehicle(make: string, model: string, year: 
   await delay(300);
   const url = `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${year}`;
   const res = await fetchWithRetry(url);
-  if (!res.ok) return [];
   const data = await res.json();
+  // The recalls API uses HTTP 400 with a successful empty envelope for unknown
+  // aliases (e.g. C-Class). Continue querying trims instead of losing the year.
+  if(!res.ok) {
+    const empty=data as {Count?:number;Message?:string;results?:unknown[]};
+    if(res.status===400 && empty.Count===0 && empty.Message==='Results returned successfully' && Array.isArray(empty.results) && empty.results.length===0) return [];
+    throw new Error(`NHTSA recall request failed: ${res.status}`);
+  }
   return parseRecallResults(data);
 }
 
@@ -255,4 +267,16 @@ export async function fetchRecallsByVin(
 
   const recalls = await fetchRecallsForVehicle(vehicle.make, vehicle.model, vehicle.year);
   return { vehicle, recalls, recallsCount };
+}
+
+/** Query raw aliases, preserving each filing's original model designation. */
+export async function fetchCanonicalRecalls(make: string, model: string, year: number, sources?: string[]): Promise<NhtsaRecall[]> {
+  const campaigns = new Map<string, NhtsaRecall>();
+  for (const source of recallSources(make, model, year, sources)) {
+    for (const recall of await fetchRecallsForVehicle(source.make, source.model, year)) {
+      const previous = campaigns.get(recall.NHTSACampaignNumber);
+      campaigns.set(recall.NHTSACampaignNumber, { ...recall, SourceModels: [...new Set([...(previous?.SourceModels ?? []), `${source.make} ${source.model}`])] });
+    }
+  }
+  return [...campaigns.values()];
 }

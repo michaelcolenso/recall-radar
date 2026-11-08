@@ -1,3 +1,4 @@
+import { recallGradeTooltip } from "../lib/risk-score";
 import { escapeHtml, makeLogoImg, normalizeNhtsaCampaignNumber, slugify, titleCase } from "../lib/utils";
 import { severityBadge } from "./components/severity-badge";
 import { modelOverviewFaqEntries } from "./components/json-ld";
@@ -9,6 +10,8 @@ interface YearRow {
   risk_grade: string | null;
   risk_score: number | null;
   highest_severity: SeverityLevel | null;
+  critical_count?: number;
+  high_count?: number;
 }
 
 export interface RecentCampaignLink {
@@ -195,7 +198,7 @@ export function modelPageTemplate(
   const cards = recallYears.map((y) => `
     <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-card rr-card--year" aria-label="${y.year}: ${y.recall_count} recall${y.recall_count !== 1 ? 's' : ''}${y.highest_severity ? ', highest severity ' + y.highest_severity.toLowerCase() : ''}">
       <div class="rr-card__title">${y.year}</div>
-      ${y.risk_grade ? `<div class="rr-card__risk-grade" style="margin-top: var(--space-4);"><span class="rr-risk-badge rr-risk-badge--${y.risk_grade.charAt(0).toLowerCase()}">${escapeHtml(y.risk_grade)}</span></div>` : ""}
+      ${y.risk_grade ? `<div class="rr-card__risk-grade" style="margin-top: var(--space-4);"><span title="${escapeHtml(recallGradeTooltip(y.recall_count,y.critical_count,y.high_count))}" class="rr-risk-badge rr-risk-badge--${y.risk_grade.charAt(0).toLowerCase()}">${escapeHtml(y.risk_grade)}</span></div>` : ""}
       ${y.highest_severity ? `<div style="margin-top: var(--space-4);">${severityBadge(y.highest_severity)}</div>` : ""}
       <div class="rr-card__meta">${y.recall_count} RECALLS</div>
     </a>
@@ -370,7 +373,7 @@ export function modelPageTemplate(
       <p class="rr-section-header__subtitle">${totalRecalls > 0 ? `Affected years, leading issues, and a free VIN check for the ${escapeHtml(make)} ${escapeHtml(model)}.` : `Recall history for tracked model years and a free VIN check for the ${escapeHtml(make)} ${escapeHtml(model)}.`}</p>
       <div class="rr-meta-bar">
         <span class="rr-meta-bar__count">${totalRecalls > 0 ? `${recallYears.length} model year${recallYears.length !== 1 ? "s" : ""} with recalls (${escapeHtml(recallYearRange)})` : `${years.length} model year${years.length !== 1 ? "s" : ""} tracked (${escapeHtml(yearRange)})`}</span>
-        ${leadingSeverity ? `<span class="rr-meta-bar__notice"><span>Most severe issue:</span>${severityBadge(leadingSeverity)}</span>` : ""}
+        ${leadingSeverity && leadingSeverity !== "UNKNOWN" ? `<span class="rr-meta-bar__notice"><span>Most severe issue:</span>${severityBadge(leadingSeverity)}</span>` : ""}
         ${lastUpdated ? `<span class="rr-meta-bar__notice">Data refreshed ${escapeHtml(lastUpdated)}</span>` : ""}
       </div>
     </section>

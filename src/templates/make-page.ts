@@ -1,3 +1,4 @@
+import { normalizeModel } from "../etl/normalize-models";
 import { escapeHtml, makeLogoImg, slugify } from "../lib/utils";
 
 interface ModelRow {
@@ -14,11 +15,12 @@ interface ComponentRow {
 }
 
 export function makePageTemplate(makeName: string, makeSlug: string, models: ModelRow[], components: ComponentRow[] = []): string {
+  models = models.filter(m => { const n = normalizeModel(makeName, m.name); return n.vehicleType === "passenger" && n.slug === m.slug && n.make === makeName.toUpperCase(); });
   const recallModels = models.filter((m) => m.recall_count > 0);
   const zeroRecallModels = models.filter((m) => m.recall_count === 0);
 
   const cards = recallModels.map((m) => {
-    const yearRange = m.min_year && m.max_year ? `${m.min_year}–${m.max_year}` : "";
+    const yearRange = m.recall_count > 0 && m.min_year && m.max_year ? `${m.min_year}–${m.max_year}` : "";
     return `
       <a href="/${makeSlug}/${m.slug}" class="rr-card rr-card--model" aria-label="${escapeHtml(m.name)}${yearRange ? ', ' + yearRange : ''}${m.recall_count > 0 ? ', ' + m.recall_count + ' recall' + (m.recall_count !== 1 ? 's' : '') : ''}">
         <div class="rr-card__content">
@@ -38,17 +40,17 @@ export function makePageTemplate(makeName: string, makeSlug: string, models: Mod
     ? `
     <section style="margin-top: var(--space-16);">
       <details class="rr-details">
-        <summary class="rr-details__summary">${zeroRecallModels.length} model${zeroRecallModels.length !== 1 ? "s" : ""} with no open recalls</summary>
+        <summary class="rr-details__summary">${zeroRecallModels.length} model${zeroRecallModels.length !== 1 ? "s" : ""} without indexed filings</summary>
         <div class="rr-grid rr-grid--models" style="margin-top: var(--space-4);">
           ${zeroRecallModels.map((m) => {
-            const yearRange = m.min_year && m.max_year ? `${m.min_year}–${m.max_year}` : "";
+            const yearRange = m.recall_count > 0 && m.min_year && m.max_year ? `${m.min_year}–${m.max_year}` : "";
             return `
-              <div class="rr-card rr-card--model rr-card--muted" aria-label="${escapeHtml(m.name)}${yearRange ? ', ' + yearRange : ''}: no recalls">
+              <div class="rr-card rr-card--model rr-card--muted" aria-label="${escapeHtml(m.name)}${yearRange ? ', ' + yearRange : ''}: no indexed filings">
                 <div class="rr-card__content">
                   <div class="rr-card__title">${escapeHtml(m.name)}</div>
                   ${yearRange ? `<div class="rr-card__meta">${yearRange}</div>` : ""}
                 </div>
-                <span class="rr-badge rr-badge--ok">No recalls</span>
+                <span class="rr-badge rr-badge--ok">No indexed filings</span>
               </div>
             `;
           }).join("")}

@@ -13,7 +13,7 @@ const SEVERITY_LABEL: Record<SeverityLevel, string> = {
   HIGH: "High Priority",
   MEDIUM: "Moderate",
   LOW: "Low Priority",
-  UNKNOWN: "Under Review",
+  UNKNOWN: "Standard NHTSA Filing",
 };
 
 export function severityBadge(severity: SeverityLevel): string {

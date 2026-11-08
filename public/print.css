@@ -1,0 +1,13 @@
+@page { size:letter; margin:12mm; }
+@media print {
+ body.rr-printing > :not(.rr-print-copy) { display:none!important; }
+ body.rr-printing,.rr-print-copy { background:white!important;color:black!important;font:9pt/1.25 Arial,sans-serif; }
+ .rr-print-copy { display:block!important; }
+ .rr-print-copy h1 { font-size:17pt;margin:0 0 6pt; }
+ .rr-print-copy p { margin:6pt 0; }
+ .rr-print-copy table { border-collapse:collapse;width:100%;font-size:8pt; }
+ .rr-print-copy th,.rr-print-copy td { border:1px solid #777;text-align:left;padding:3pt; }
+ .rr-print-copy tr { break-inside:avoid; }
+ nav,footer,.rr-aff,.rr-print-button { display:none!important; }
+ a {color:inherit;text-decoration:none;}
+}

@@ -1,14 +1,17 @@
+import { scoreVehicleYearsBatch } from "../lib/risk-score-batch";
+import { repairCanonicalModels } from "../etl/repair-models";
+import { normalizeModel, canonicalModelGroups } from "../etl/normalize-models";
 import { z } from "zod";
 import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 import { POPULAR_MAKES, DEFAULT_YEAR_START, YEAR_MAX } from "../lib/constants";
-import { fetchAllMakes, fetchModelsForMake, fetchRecallsForVehicle } from "../lib/nhtsa-client";
+import { fetchAllMakes, fetchModelsForMake, fetchCanonicalRecalls } from "../lib/nhtsa-client";
 import { classifySeverity } from "../lib/severity";
 import { scoreVehicleYear } from "../lib/risk-score";
 import { slugify, parseNhtsaDate } from "../lib/utils";
 
 const IngestionParamsSchema = z
   .object({
-    mode: z.enum(["full", "makes-only", "single-make", "delta", "backfill"]),
+    mode: z.enum(["full", "makes-only", "single-make", "delta", "backfill", "repair"]),
     targetMake: z.string().optional(),
     yearStart: z.number().int().min(1966).max(YEAR_MAX).optional(),
     yearEnd: z.number().int().min(1966).max(YEAR_MAX).optional(),
@@ -27,6 +30,7 @@ interface StaleRow {
   model_id: number;
   year: number;
   model_name: string;
+  model_slug: string;
   make_name: string;
 }
 
@@ -44,6 +48,38 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
     }
 
     const { mode, targetMake, yearStart, yearEnd, deltaThresholdHours, chainEnrichment } = parseResult.data;
+
+    if (mode === "repair") {
+      if (!targetMake) throw new Error("Repair workflows require a target make");
+      const sourceModels = await step.do("repair-model-list", async () => (await this.env.DB.prepare(`SELECT m.id,m.name,m.slug,mk.name as make_name FROM models m JOIN makes mk ON mk.id=m.make_id WHERE mk.slug=?`).bind(slugify(targetMake)).all<{id:number;name:string;slug:string;make_name:string}>()).results);
+      // One bounded unit per source model-year; source rows remain as audit shells.
+      const work: {modelId:number;year?:number}[] = [];
+      for (const row of sourceModels) {
+        const canonical=normalizeModel(row.make_name,row.name);
+        if(canonical.vehicleType !== 'passenger' || canonical.slug === row.slug && canonical.make === row.make_name) continue;
+        const years=await step.do(`repair-years-${row.id}`,async()=> (await this.env.DB.prepare('SELECT year FROM vehicle_years WHERE model_id=? AND (EXISTS(SELECT 1 FROM recalls r WHERE r.vehicle_year_id=vehicle_years.id) OR EXISTS(SELECT 1 FROM alert_subscriptions s WHERE s.vehicle_year_id=vehicle_years.id))').bind(row.id).all<{year:number}>()).results);
+        if(!years.length) work.push({modelId:row.id});
+        else for(const rowYear of years) work.push({modelId:row.id,year:rowYear.year});
+      }
+      let merged=0,scored=0;
+      for(let i=0;i<work.length;i+=3) {
+        merged+=await step.do(`repair-batch-${i}`,async()=>{
+          let count=0;
+          for(const item of work.slice(i,i+3)) count+=(await repairCanonicalModels(this.env.DB,{sourceModelId:item.modelId,sourceYear:item.year,rescore:false})).merged;
+          return count;
+        });
+      }
+      await step.do('classify-existing-vehicle-types',async()=>{
+        const statements=sourceModels.map(row=>this.env.DB.prepare('UPDATE models SET vehicle_type=? WHERE id=?').bind(normalizeModel(row.make_name,row.name).vehicleType,row.id));
+        for(let i=0;i<statements.length;i+=100) await this.env.DB.batch(statements.slice(i,i+100));
+      });
+      const vehicleYears=await step.do('repair-score-list',async()=> (await this.env.DB.prepare(`SELECT vy.id FROM vehicle_years vy JOIN models m ON m.id=vy.model_id JOIN makes mk ON mk.id=m.make_id WHERE mk.slug=?`).bind(slugify(targetMake)).all<{id:number}>()).results);
+      for(let i=0;i<vehicleYears.length;i+=100) {
+        scored+=await step.do(`repair-score-${i}`,async()=>scoreVehicleYearsBatch(this.env.DB,vehicleYears.slice(i,i+100).map(row=>row.id)));
+      }
+      await step.do('log-repair',()=>this._logRun(startedAt,'repair',targetMake,'completed',merged,scored));
+      return {ok:true,merged,scored};
+    }
 
     const startYear = yearStart ?? DEFAULT_YEAR_START;
     // new Date() is safe here — run() executes in a live request context, not at module init time
@@ -96,6 +132,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
     if (mode === "delta") {
       const thresholdIso = new Date(Date.now() - (deltaThresholdHours ?? 144) * 3_600_000).toISOString();
 
+      const sourceGroups = new Map<string, ReturnType<typeof canonicalModelGroups>>();
       // Ensure models are up to date before searching for stale/missing combos.
       // Without this, a fresh DB (or newly added models) can never be ingested in delta mode.
       for (const make of filteredMakes) {
@@ -106,19 +143,20 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
           timeout: "60 seconds",
         }, () => fetchModelsForMake(make.Make_ID));
 
+        sourceGroups.set(make.Make_Name, canonicalModelGroups(make.Make_Name,models));
         await step.do(`delta-upsert-models-${makeSlug}`, async () => {
           const makeRecord = await this.env.DB.prepare("SELECT id FROM makes WHERE slug = ?")
             .bind(makeSlug).first<{ id: number }>();
           if (!makeRecord) return;
 
           const now = new Date().toISOString();
-          for (const model of models) {
-            const modelSlug = slugify(model.Model_Name);
+          for (const model of canonicalModelGroups(make.Make_Name, models)) {
+            const modelSlug = model.slug;
             await this.env.DB.prepare(
               `INSERT INTO models (make_id, name, slug, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?)
                ON CONFLICT (make_id, slug) DO UPDATE SET updated_at = excluded.updated_at`
-            ).bind(makeRecord.id, model.Model_Name, modelSlug, now, now).run();
+            ).bind(makeRecord.id, model.name, modelSlug, now, now).run();
           }
         });
       }
@@ -135,20 +173,20 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
 
       const staleRows = await step.do("fetch-stale-combos", async () => {
         const result = await this.env.DB.prepare(
-          `SELECT vy.model_id, vy.year,
-                  m.name AS model_name, m.slug AS model_slug,
-                  mk.name AS make_name, mk.id AS make_id
-           FROM vehicle_years vy
-           JOIN models m ON m.id = vy.model_id
-           JOIN makes mk ON mk.id = m.make_id
-           WHERE mk.name IN (${placeholders})
-             AND (vy.last_ingested_at IS NULL OR vy.last_ingested_at < ?)
-           ORDER BY vy.last_ingested_at ASC
+          `WITH RECURSIVE years(year) AS (SELECT ? UNION ALL SELECT year+1 FROM years WHERE year < ?)
+           SELECT m.id AS model_id, years.year,
+                  m.name AS model_name, m.slug AS model_slug, mk.name AS make_name
+           FROM models m JOIN makes mk ON mk.id=m.make_id
+           CROSS JOIN years LEFT JOIN vehicle_years vy ON vy.model_id=m.id AND vy.year=years.year
+           LEFT JOIN vehicle_lookup_checks checks ON checks.model_id=m.id AND checks.year=years.year
+           WHERE m.vehicle_type='passenger' AND mk.name IN (${placeholders})
+             AND (COALESCE(checks.checked_at,vy.last_ingested_at) IS NULL OR COALESCE(checks.checked_at,vy.last_ingested_at) < ?)
+           ORDER BY years.year DESC, m.id
            LIMIT 5000`
         )
-          .bind(...makeNames, thresholdIso)
+          .bind(startYear, endYear, ...makeNames, thresholdIso)
           .all<StaleRow>();
-        return result.results;
+        return result.results.filter(row => normalizeModel(row.make_name,row.model_name).slug === row.model_slug);
       });
 
       // Batch stale rows using same recall-upsert logic
@@ -165,8 +203,10 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
           for (const row of batch) {
             try {
               await new Promise((r) => setTimeout(r, NHTSA_RATE_LIMIT_MS));
-              const recalls = await fetchRecallsForVehicle(row.make_name, row.model_name, row.year);
+              const recalls = await fetchCanonicalRecalls(row.make_name, row.model_name, row.year, sourceGroups.get(row.make_name)?.find(m => m.name === row.model_name)?.sources);
               const now = new Date().toISOString();
+              await this.env.DB.prepare(`INSERT INTO vehicle_lookup_checks(model_id,year,checked_at) VALUES(?,?,?) ON CONFLICT(model_id,year) DO UPDATE SET checked_at=excluded.checked_at`).bind(row.model_id,row.year,now).run();
+              if (recalls.length === 0) continue;
 
               await this.env.DB.prepare(
                 `INSERT INTO vehicle_years (model_id, year, created_at, updated_at, last_ingested_at)
@@ -189,13 +229,14 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                 await this.env.DB.prepare(
                   `INSERT INTO recalls (
                      vehicle_year_id, nhtsa_campaign_number, report_received_date,
-                     component, manufacturer, summary_raw, consequence_raw, remedy_raw,
+                     component, manufacturer, source_models, summary_raw, consequence_raw, remedy_raw,
                      severity_level, created_at, updated_at
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT (nhtsa_campaign_number, vehicle_year_id) DO UPDATE SET
                      updated_at = excluded.updated_at,
                      component = excluded.component,
-                     manufacturer = excluded.manufacturer`,
+                     manufacturer = excluded.manufacturer,
+                     source_models = excluded.source_models`,
                 )
                   .bind(
                     vyRecord.id,
@@ -203,6 +244,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                     parseNhtsaDate(recall.ReportReceivedDate),
                     recall.Component,
                     recall.Manufacturer || null,
+                    JSON.stringify(recall.SourceModels ?? []),
                     recall.Summary,
                     recall.Consequence,
                     recall.Remedy,
@@ -268,18 +310,18 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
 
         const now = new Date().toISOString();
         const batch: D1PreparedStatement[] = [];
-        const modelData: Array<{ name: string; slug: string }> = [];
+        const modelData: Array<{ name: string; slug: string; sources: string[] }> = [];
 
-        for (const model of models) {
-          const modelSlug = slugify(model.Model_Name);
+        for (const model of canonicalModelGroups(make.Make_Name, models)) {
+          const modelSlug = model.slug;
           batch.push(
             this.env.DB.prepare(
               `INSERT INTO models (make_id, name, slug, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?)
                ON CONFLICT (make_id, slug) DO UPDATE SET updated_at = excluded.updated_at`,
-            ).bind(makeRecord.id, model.Model_Name, modelSlug, now, now),
+            ).bind(makeRecord.id, model.name, modelSlug, now, now),
           );
-          modelData.push({ name: model.Model_Name, slug: modelSlug });
+          modelData.push({ name: model.name, slug: modelSlug, sources: model.sources });
         }
 
         if (batch.length > 0) {
@@ -297,6 +339,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
           .map((m, idx) => ({
             modelId: idResults[idx].results[0]?.id || 0,
             modelName: m.name,
+            sources: m.sources,
             modelSlug: m.slug,
             makeDbId: makeRecord.id,
           }))
@@ -323,9 +366,12 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
 
             try {
               // fetchRecallsForVehicle already includes a 300ms delay
-              const recalls = await fetchRecallsForVehicle(make.Make_Name, model.modelName, year);
+              const recalls = await fetchCanonicalRecalls(make.Make_Name, model.modelName, year, model.sources);
 
-              // Upsert vehicle_year and get its ID back in one query
+              await this.env.DB.prepare(`INSERT INTO vehicle_lookup_checks(model_id,year,checked_at) VALUES(?,?,?) ON CONFLICT(model_id,year) DO UPDATE SET checked_at=excluded.checked_at`).bind(model.modelId,year,now).run();
+              if (recalls.length === 0) return { count: 0, errors: [] };
+
+              // Upsert only years supported by actual NHTSA filings
               const vy = await this.env.DB.prepare(
                 `INSERT INTO vehicle_years (model_id, year, created_at, updated_at, last_ingested_at)
                  VALUES (?, ?, ?, ?, ?)
@@ -342,19 +388,21 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
                   this.env.DB.prepare(
                     `INSERT INTO recalls (
                        vehicle_year_id, nhtsa_campaign_number, report_received_date,
-                       component, manufacturer, summary_raw, consequence_raw, remedy_raw,
+                       component, manufacturer, source_models, summary_raw, consequence_raw, remedy_raw,
                        severity_level, created_at, updated_at
-                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                      ON CONFLICT (nhtsa_campaign_number, vehicle_year_id) DO UPDATE SET
                        updated_at = excluded.updated_at,
                        component = excluded.component,
-                       manufacturer = excluded.manufacturer`,
+                       manufacturer = excluded.manufacturer,
+                     source_models = excluded.source_models`,
                   ).bind(
                     vy.id,
                     recall.NHTSACampaignNumber,
                     parseNhtsaDate(recall.ReportReceivedDate),
                     recall.Component,
                     recall.Manufacturer || null,
+                    JSON.stringify(recall.SourceModels ?? []),
                     recall.Summary,
                     recall.Consequence,
                     recall.Remedy,

@@ -46,3 +46,9 @@ next-env.d.ts
 
 # readability audit output (generated)
 scripts/out/
+
+# Generated browser verification output
+artifacts/audit/
+
+# Generated production browser and Lighthouse evidence
+artifacts/production/
