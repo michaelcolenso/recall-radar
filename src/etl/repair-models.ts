@@ -15,7 +15,7 @@ export async function repairCanonicalModels(db: D1Database, options: {sourceMode
   await db.prepare('INSERT INTO models(make_id,name,slug,created_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(make_id,slug) DO NOTHING').bind(make.id,n.model,n.slug,now,now).run();
   const model = await db.prepare('SELECT id FROM models WHERE make_id=? AND slug=?').bind(make.id,n.slug).first<{id:number}>();
   if (!model || model.id === row.id) continue;
-  const years = await db.prepare('SELECT id,year,last_ingested_at FROM vehicle_years WHERE model_id=?').bind(row.id).all<{id:number;year:number;last_ingested_at:string|null}>();
+  const years = await db.prepare('SELECT id,year,last_ingested_at FROM vehicle_years WHERE model_id=? AND (EXISTS(SELECT 1 FROM recalls r WHERE r.vehicle_year_id=vehicle_years.id) OR EXISTS(SELECT 1 FROM alert_subscriptions s WHERE s.vehicle_year_id=vehicle_years.id))').bind(row.id).all<{id:number;year:number;last_ingested_at:string|null}>();
   for (const year of years.results) {
    if(options.sourceYear !== undefined && year.year !== options.sourceYear) continue;
    await db.prepare('INSERT INTO vehicle_years(model_id,year,created_at,updated_at,last_ingested_at) VALUES(?,?,?,?,?) ON CONFLICT(model_id,year) DO UPDATE SET last_ingested_at=MAX(COALESCE(vehicle_years.last_ingested_at,\'\'),COALESCE(excluded.last_ingested_at,\'\'))').bind(model.id,year.year,now,now,year.last_ingested_at).run();

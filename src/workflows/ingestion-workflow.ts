@@ -1,3 +1,4 @@
+import { scoreVehicleYearsBatch } from "../lib/risk-score-batch";
 import { repairCanonicalModels } from "../etl/repair-models";
 import { normalizeModel, canonicalModelGroups } from "../etl/normalize-models";
 import { z } from "zod";
@@ -56,7 +57,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
       for (const row of sourceModels) {
         const canonical=normalizeModel(row.make_name,row.name);
         if(canonical.vehicleType !== 'passenger' || canonical.slug === row.slug && canonical.make === row.make_name) continue;
-        const years=await step.do(`repair-years-${row.id}`,async()=> (await this.env.DB.prepare('SELECT year FROM vehicle_years WHERE model_id=?').bind(row.id).all<{year:number}>()).results);
+        const years=await step.do(`repair-years-${row.id}`,async()=> (await this.env.DB.prepare('SELECT year FROM vehicle_years WHERE model_id=? AND (EXISTS(SELECT 1 FROM recalls r WHERE r.vehicle_year_id=vehicle_years.id) OR EXISTS(SELECT 1 FROM alert_subscriptions s WHERE s.vehicle_year_id=vehicle_years.id))').bind(row.id).all<{year:number}>()).results);
         if(!years.length) work.push({modelId:row.id});
         else for(const rowYear of years) work.push({modelId:row.id,year:rowYear.year});
       }
@@ -74,7 +75,7 @@ export class IngestionWorkflow extends WorkflowEntrypoint<Env, IngestionParams> 
       });
       const vehicleYears=await step.do('repair-score-list',async()=> (await this.env.DB.prepare(`SELECT vy.id FROM vehicle_years vy JOIN models m ON m.id=vy.model_id JOIN makes mk ON mk.id=m.make_id WHERE mk.slug=?`).bind(slugify(targetMake)).all<{id:number}>()).results);
       for(let i=0;i<vehicleYears.length;i+=100) {
-        scored+=await step.do(`repair-score-${i}`,async()=>{for(const row of vehicleYears.slice(i,i+100)) await scoreVehicleYear(this.env.DB,row.id);return vehicleYears.slice(i,i+100).length;});
+        scored+=await step.do(`repair-score-${i}`,async()=>scoreVehicleYearsBatch(this.env.DB,vehicleYears.slice(i,i+100).map(row=>row.id)));
       }
       await step.do('log-repair',()=>this._logRun(startedAt,'repair',targetMake,'completed',merged,scored));
       return {ok:true,merged,scored};
