@@ -30,7 +30,7 @@ export async function repairCanonicalModels(db: D1Database, options: {sourceMode
      await db.prepare('UPDATE recalls SET vehicle_year_id=?,source_models=? WHERE id=?').bind(target.id,sources,recall.id).run();
     } else {
      await db.batch([
-      db.prepare('UPDATE recalls SET source_models=? WHERE id=?').bind(sources,duplicate.id),
+      db.prepare('UPDATE recalls SET source_models=?, summary_enriched=COALESCE(summary_enriched,(SELECT summary_enriched FROM recalls WHERE id=?)), consequence_enriched=COALESCE(consequence_enriched,(SELECT consequence_enriched FROM recalls WHERE id=?)), remedy_enriched=COALESCE(remedy_enriched,(SELECT remedy_enriched FROM recalls WHERE id=?)), enriched_at=COALESCE(enriched_at,(SELECT enriched_at FROM recalls WHERE id=?)) WHERE id=?').bind(sources,recall.id,recall.id,recall.id,recall.id,duplicate.id),
       db.prepare('UPDATE OR IGNORE alert_sends SET recall_id=? WHERE recall_id=?').bind(duplicate.id,recall.id),
       db.prepare('UPDATE OR IGNORE enrichment_failures SET recall_id=? WHERE recall_id=?').bind(duplicate.id,recall.id),
       db.prepare('DELETE FROM recalls WHERE id=?').bind(recall.id),

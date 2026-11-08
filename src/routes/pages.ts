@@ -1137,6 +1137,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
          LEFT JOIN recalls r ON r.vehicle_year_id = vy.id
          WHERE m.make_id = ? AND m.vehicle_type='passenger'
          GROUP BY m.id
+         HAVING COUNT(r.id) > 0
          ORDER BY m.name`,
         )
           .bind(make.id)
@@ -1148,7 +1149,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
            FROM recalls r
            JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
            JOIN models m ON m.id = vy.model_id
-           WHERE m.make_id = ?
+           WHERE m.make_id = ? AND m.vehicle_type='passenger'
            GROUP BY 1
            ORDER BY count DESC
            LIMIT 12`,
@@ -1391,7 +1392,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
 
       const partner = primaryPartner(c.env.AFFILIATE_PARTNERS);
       const affiliateCta = partner
-        ? vinReportCta({ partner, variant: "lookup", make: make.name, model: model.name })
+        ? buyingUsedCard({ partner, placement: "model", make: make.name, model: model.name, recallCount: totalRecalls })
         : undefined;
 
       const crumbs = breadcrumbs([
@@ -1934,9 +1935,6 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
       ]);
 
       const partner = primaryPartner(c.env.AFFILIATE_PARTNERS);
-      const affiliateCta = partner
-        ? vinReportCta({ partner, variant: "year", make: make.name, model: model.name, year })
-        : "";
       const yearAdSlot =
         recalls.length > 0 ? adSlot({ client: c.env.ADSENSE_CLIENT || undefined, slot: c.env.ADSENSE_SLOT || undefined }) : "";
 

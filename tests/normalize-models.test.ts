@@ -24,3 +24,9 @@ test('parent vPIC models expand to real NHTSA trim filing aliases', () => {
  assert.equal(normalizeModel('MERCEDES-BENZ','AMG C43').model,'C-Class');
  assert.equal(normalizeModel('MERCEDES-BENZ','C300 4MATIC').model,'C-Class');
 });
+
+test('plain Mercedes families and BMW trim designations normalize consistently', () => {
+ assert.equal(normalizeModel('MERCEDES-BENZ','GLC').model,'GLC-Class');
+ assert.equal(normalizeModel('BMW','330i xDrive').model,'3 Series');
+ assert.equal(normalizeModel('BMW','i3').model,'i3');
+});

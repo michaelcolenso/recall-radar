@@ -13,13 +13,14 @@ export function normalizeModel(make: string, model: string): { make: string; mod
   if (make === 'MERCEDES-BENZ') {
     if (/^(L\d{4}|LP\d{4}|TOURRIDER|UNIMOG|ACTROS|ATEGO|ECONIC)/.test(compact)) vehicleType = 'commercial';
     for (const family of ['GLA','GLB','GLC','GLE','GLS','CLA','CLS','SL','C','E','S','G','M']) {
-      if (new RegExp(`^${family}(?:CLASS|\\d{2,3}(?:AMG|4MATIC|[A-Z].*)?|AMG\\d{2,3})$`).test(compact)) {
+      if (new RegExp(`^${family}(?:CLASS|\\d{2,3}(?:AMG|4MATIC|[A-Z].*)?|AMG\\d{2,3})?$`).test(compact)) {
         model = `${family}-Class`; break;
       }
     }
     if (/SPRINTER/.test(compact)) model = 'Sprinter';
     if (/METRIS/.test(compact)) model = 'Metris';
   }
+  if (make === 'BMW' && /^[1-8]\d{2}(?:I|D|E|XI|XD|XDRIVE|IXDRIVE|DXDRIVE).*$/i.test(compact)) model = `${compact[0]} Series`;
   if ((make === 'HONDA' && /^(CB\d|CBR|CRF|CMX|NC\d|VFR|VT\d|VTX|GL\d|GOLDWING|REBEL|SHADOW|AFRICA|PCX|GROM|TRX|FOURTRAX|PIONEER|TALON|RANCHER|FOREMAN|XR\d|CR\d|NSS|NPS|CHF|SH\d|RUCKUS|METROPOLITAN|SXS)/.test(compact)) ||
       (make === 'BMW' && /^(?:RNINET|[RFKGS]\d{2,4}(?:GS|GT|GTL|RT|RS|RR|XR|R|S|B|C|X)?|CE0[24]|HP[24])$/.test(compact))) vehicleType = 'motorcycle';
   return { make, model, slug: slugify(model), vehicleType, sourceModel };
