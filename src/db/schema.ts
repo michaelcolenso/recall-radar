@@ -218,3 +218,9 @@ export const vehicleLookupChecks = sqliteTable("vehicle_lookup_checks", {
  year: integer("year").notNull(),
  checkedAt: text("checked_at").notNull(),
 }, table => [uniqueIndex("idx_lookup_model_year").on(table.modelId,table.year)]);
+
+// Preserve alert subscription identities when historical vehicle rows merge.
+export const vehicleYearAliases = sqliteTable("vehicle_year_aliases", {
+ sourceId: integer("source_id").primaryKey().references(() => vehicleYears.id, { onDelete: "cascade" }),
+ canonicalId: integer("canonical_id").notNull().references(() => vehicleYears.id, { onDelete: "cascade" }),
+});

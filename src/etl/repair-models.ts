@@ -21,6 +21,7 @@ export async function repairCanonicalModels(db: D1Database, options: {sourceMode
    await db.prepare('INSERT INTO vehicle_years(model_id,year,created_at,updated_at,last_ingested_at) VALUES(?,?,?,?,?) ON CONFLICT(model_id,year) DO UPDATE SET last_ingested_at=MAX(COALESCE(vehicle_years.last_ingested_at,\'\'),COALESCE(excluded.last_ingested_at,\'\'))').bind(model.id,year.year,now,now,year.last_ingested_at).run();
    const target = await db.prepare('SELECT id FROM vehicle_years WHERE model_id=? AND year=?').bind(model.id,year.year).first<{id:number}>();
    if (!target) continue;
+   await db.prepare('INSERT INTO vehicle_year_aliases(source_id,canonical_id) VALUES(?,?) ON CONFLICT(source_id) DO UPDATE SET canonical_id=excluded.canonical_id').bind(year.id,target.id).run();
    // Preserve aliases even on overlapping campaigns before merging them.
    const recalls = await db.prepare('SELECT id,nhtsa_campaign_number,source_models FROM recalls WHERE vehicle_year_id=?').bind(year.id).all<{id:number;nhtsa_campaign_number:string;source_models:string|null}>();
    for (const recall of recalls.results) {
@@ -37,7 +38,8 @@ export async function repairCanonicalModels(db: D1Database, options: {sourceMode
      ]);
     }
    }
-   await db.prepare('UPDATE OR IGNORE alert_subscriptions SET vehicle_year_id=? WHERE vehicle_year_id=?').bind(target.id,year.id).run();
+   // Keep subscription IDs, confirmation and unsubscribe tokens unchanged.
+   // Digest joins resolve historical vehicle IDs through vehicle_year_aliases.
   }
   merged++;
  }
