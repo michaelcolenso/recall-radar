@@ -641,12 +641,12 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
       const yearStats = yearStatsResult.results.map(y => ({ ...y, risk_grade: gradeForCounts(y.recall_count, y.critical_count, y.high_count) }));
 
       const componentStatsResult = await c.env.DB.prepare(
-        `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
-              COUNT(*) as count
+        `SELECT UPPER(TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END)) as name,
+              COUNT(DISTINCT r.nhtsa_campaign_number) as count
        FROM recalls r
        JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
        WHERE vy.model_id = ?
-       GROUP BY name
+       GROUP BY 1
        ORDER BY count DESC
        LIMIT 10`
       )
@@ -843,13 +843,13 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentSlug{[a-z0-9-]+}-recalls", asyn
 
       // Other components for this make
       const otherComponentsResult = await c.env.DB.prepare(
-        `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
-              COUNT(*) as count
+        `SELECT UPPER(TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END)) as name,
+              COUNT(DISTINCT r.nhtsa_campaign_number) as count
        FROM recalls r
        JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
        JOIN models m ON m.id = vy.model_id
        WHERE m.make_id = ?
-       GROUP BY name
+       GROUP BY 1
        ORDER BY count DESC`
       )
         .bind(make.id)
@@ -1098,13 +1098,13 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
           .all<{ name: string; slug: string; min_year: number | null; max_year: number | null; recall_count: number }>(),
 
         c.env.DB.prepare(
-          `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
-                  COUNT(*) as count
+          `SELECT UPPER(TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END)) as name,
+                  COUNT(DISTINCT r.nhtsa_campaign_number) as count
            FROM recalls r
            JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
            JOIN models m ON m.id = vy.model_id
            WHERE m.make_id = ?
-           GROUP BY name
+           GROUP BY 1
            ORDER BY count DESC
            LIMIT 12`,
         )
@@ -1232,12 +1232,12 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         // would otherwise inflate a component's count (and could misrank it as the
         // model's top issue) the same way the row-count total did.
         c.env.DB.prepare(
-          `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
+          `SELECT UPPER(TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END)) as name,
                 COUNT(DISTINCT r.nhtsa_campaign_number) as count
          FROM recalls r
          JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
          WHERE vy.model_id = ?
-         GROUP BY name
+         GROUP BY 1
          ORDER BY count DESC
          LIMIT 3`,
         )
