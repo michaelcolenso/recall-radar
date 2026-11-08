@@ -17,7 +17,9 @@ export function extractCriticalCss(cssText) {
   return regions
     .join("\n")
     .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/@font-face\s*\{[^}]*?(?:-ext\.woff2|font-style:\s*italic)[^}]*\}/g, "")
     .replace(/\s+/g, " ")
+    .replace(/\s*([{}:;,])\s*/g, "$1")
     .trim();
 }
 

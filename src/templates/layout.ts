@@ -97,7 +97,7 @@ export function layout({
       </div>
     </div>
   </nav>
-  <main id="main" class="rr-main rr-animate-in" tabindex="-1">
+  <main id="main" class="rr-main" tabindex="-1">
     ${body}
   </main>
   <footer class="rr-footer">
@@ -209,18 +209,7 @@ export function layout({
     })();
   </script>
   <div id="rr-toast" class="rr-toast" role="status" aria-live="polite"></div>
-  <script>
-    // Scroll-triggered reveal animation
-    (function(){
-      if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;
-      var groups=document.querySelectorAll(".rr-grid, .rr-readout-list");
-      groups.forEach(function(g){Array.from(g.children).forEach(function(c){c.classList.add("rr-reveal")})});
-      var observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting){var children=Array.from(entry.target.children).filter(function(c){return c.classList.contains("rr-reveal")&&c.classList.contains("is-visible")===false});
-      children.forEach(function(c,i){setTimeout(function(){c.classList.add("is-visible")},Math.min(i*60,400))});
-      if(entry.target.children.length===0||children.length===0)observer.unobserve(entry.target)}})},{threshold:0.05,rootMargin:"0px 0px -40px 0px"});
-      groups.forEach(function(g){observer.observe(g)});
-    })();
-  </script>
+
 </body>
 </html>`;
 }
