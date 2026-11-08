@@ -610,7 +610,7 @@ button:focus-visible,
 }
 
 /* @critical:start */
-.rr-hero__cta {
+.rr-hero__cta, .rr-btn {
   display: inline-block;
   width: fit-content;
   padding: var(--space-4) var(--space-8);
@@ -620,12 +620,13 @@ button:focus-visible,
   text-transform: uppercase;
   letter-spacing: 0.05em;
   background: var(--accent);
-  color: var(--text-inverse);
+  color: #0a0a0c;
+  cursor: pointer;
   border: 2px solid var(--text-primary);
   transition: all 0.2s var(--ease-mechanical);
 }
 
-.rr-hero__cta:hover {
+.rr-hero__cta:hover, .rr-btn:hover {
   background: var(--accent-hover);
   transform: translateY(-2px);
   box-shadow: 4px 4px 0 var(--text-primary);
