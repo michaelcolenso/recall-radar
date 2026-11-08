@@ -1,6 +1,6 @@
 import { escapeHtml, makeLogoImg } from "../lib/utils";
 import { severityBadge } from "./components/severity-badge";
-import { gradeDescription } from "../lib/risk-score";
+import { recallGradeTooltip, gradeDescription } from "../lib/risk-score";
 import type { SeverityLevel } from "../db/schema";
 
 interface YearStat {
@@ -67,7 +67,7 @@ export function modelStatsPageTemplate({
           <a href="/${makeSlug}/${modelSlug}/${y.year}" class="rr-year-bar__label">${y.year}</a>
           <div class="rr-year-bar__track"><div class="rr-year-bar__fill"></div></div>
           <span class="rr-year-bar__count">${y.recall_count}</span>
-          ${y.risk_grade ? `<span class="rr-year-bar__grade" title="${escapeHtml(gradeDescription(y.risk_grade))}">${y.risk_grade}</span>` : ""}
+          ${y.risk_grade ? `<span class="rr-year-bar__grade" title="${escapeHtml(recallGradeTooltip(y.recall_count, y.critical_count, y.high_count))}">${y.risk_grade}</span>` : ""}
         </div>
       `;
     })

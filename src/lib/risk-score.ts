@@ -18,24 +18,6 @@ const TEMPORAL_DECAY_BASE = 0.85;
 const RECENCY_BONUS_MONTHS = 24;
 const RECENCY_MULTIPLIER = 1.5;
 
-// Grade boundaries (percentile thresholds)
-// Grade is assigned based on what % of vehicles have a LOWER (better) score
-const GRADE_BOUNDARIES = [
-  { grade: "A+", minPercentile: 95 },
-  { grade: "A", minPercentile: 90 },
-  { grade: "A-", minPercentile: 80 },
-  { grade: "B+", minPercentile: 75 },
-  { grade: "B", minPercentile: 70 },
-  { grade: "B-", minPercentile: 60 },
-  { grade: "C+", minPercentile: 55 },
-  { grade: "C", minPercentile: 45 },
-  { grade: "C-", minPercentile: 40 },
-  { grade: "D+", minPercentile: 35 },
-  { grade: "D", minPercentile: 25 },
-  { grade: "D-", minPercentile: 20 },
-  { grade: "F", minPercentile: 0 },
-];
-
 // ─── Types ──────────────────────────────────────────────────────
 interface RecallForScoring {
   severityLevel: SeverityLevel;
@@ -106,20 +88,23 @@ export function calculateRawScore(recalls: RecallForScoring[], referenceDate = n
   if (totalCount >= 7) penalty += 3;
   if (totalCount >= 10) penalty += 5;
 
-  return Math.min(100, Math.round(weightedSum + penalty));
+  // Age cannot erase a recorded defect: repair completion is VIN specific.
+  const floor = criticalCount >= 2 ? 70 : criticalCount === 1 ? 35
+    : totalCount >= 10 ? 70 : totalCount >= 6 ? 35
+    : totalCount >= 3 ? 13 : totalCount >= 2 || highCount ? 4 : 0;
+  return Math.min(100, Math.max(floor, Math.round(weightedSum + penalty)));
 }
 
 /**
- * Convert a raw score to a letter grade based on global percentiles.
- * Requires the total count of scored vehicles to compute percentile.
+ * Convert absolute risk to a grade. The legacy percentile argument is ignored.
  */
 export function scoreToGrade(rawScore: number, percentile: number): string {
-  // Exact percentile lookup
-  for (const boundary of GRADE_BOUNDARIES) {
-    if (percentile >= boundary.minPercentile) {
-      return boundary.grade;
-    }
-  }
+  // Risk is absolute: a higher score always means a worse recall history.
+  if (rawScore <= 1) return "A+";
+  if (rawScore <= 3) return "A";
+  if (rawScore <= 12) return "B";
+  if (rawScore <= 34) return "C";
+  if (rawScore <= 69) return "D";
   return "F";
 }
 
@@ -174,8 +159,7 @@ export async function scoreVehicleYear(
   const lowCount = recalls.filter((r) => r.severityLevel === "LOW").length;
 
   // Compute percentile and grade
-  const percentile = await computePercentile(db, score);
-  const grade = scoreToGrade(score, percentile);
+  const grade = scoreToGrade(score, 0);
 
   const now = new Date().toISOString();
 
@@ -304,4 +288,16 @@ export function gradeDescription(grade: string): string {
     "F": "Avoid — among the worst recall records.",
   };
   return map[grade] ?? "Risk grade pending.";
+}
+
+/** Consistent fallback for cached rows scored before the polarity fix. */
+export function gradeForCounts(count: number, critical = 0, high = 0): string {
+  if (critical >= 2 || count >= 10) return "F";
+  if (critical || count >= 6) return "D";
+  if (count >= 3) return "C";
+  if (count >= 2 || high) return "B";
+  return count ? "A" : "A+";
+}
+export function recallGradeTooltip(count: number, critical = 0, high = 0): string {
+  return `${count} recall${count === 1 ? "" : "s"}; ${critical} critical; ${high} high priority. Recall history does not confirm VIN repair status.`;
 }

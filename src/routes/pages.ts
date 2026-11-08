@@ -33,7 +33,7 @@ import { newRecallsPageTemplate, NEW_RECALLS_PAGE_SIZE } from "../templates/new-
 import { vinPageTemplate } from "../templates/vin-page";
 import { fetchRecallsByVin, validateVin } from "../lib/nhtsa-client";
 import { relatedLinks } from "../templates/components/related-links";
-import { gradeDescription } from "../lib/risk-score";
+import { calculateRawScore, scoreToGrade, gradeForCounts, gradeDescription } from "../lib/risk-score";
 import { POPULAR_MAKES } from "../lib/constants";
 import { acceptsMarkdown, htmlToMarkdown } from "../lib/utils";
 import { primaryPartner } from "../lib/affiliates";
@@ -48,7 +48,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v14";
+const PAGE_CACHE_VERSION = "v15";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -638,7 +638,7 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
         .bind(model.id)
         .all<{ year: number; recall_count: number; risk_grade: string | null; critical_count: number; high_count: number }>();
 
-      const yearStats = yearStatsResult.results;
+      const yearStats = yearStatsResult.results.map(y => ({ ...y, risk_grade: gradeForCounts(y.recall_count, y.critical_count, y.high_count) }));
 
       const componentStatsResult = await c.env.DB.prepare(
         `SELECT TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END) as name,
@@ -1204,6 +1204,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
                 COUNT(r.id) as recall_count,
                 vy.risk_grade,
                 vy.risk_score,
+                SUM(CASE WHEN r.severity_level = 'CRITICAL' THEN 1 ELSE 0 END) as critical_count,
+                SUM(CASE WHEN r.severity_level = 'HIGH' THEN 1 ELSE 0 END) as high_count,
                 CASE MIN(CASE r.severity_level
                   WHEN 'CRITICAL' THEN 1
                   WHEN 'HIGH' THEN 2
@@ -1224,7 +1226,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
          ORDER BY vy.year DESC`,
         )
           .bind(model.id)
-          .all<{ year: number; recall_count: number; risk_grade: string | null; risk_score: number | null; highest_severity: SeverityLevel | null }>(),
+          .all<{ year: number; recall_count: number; risk_grade: string | null; risk_score: number | null; highest_severity: SeverityLevel | null; critical_count: number; high_count: number }>(),
 
         // COUNT(DISTINCT campaign), not COUNT(*) — a campaign spanning several years
         // would otherwise inflate a component's count (and could misrank it as the
@@ -1371,7 +1373,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         makeSlug,
         model: model.name,
         modelSlug,
-        years: years.results,
+        years: years.results.map(y => ({ ...y, risk_grade: gradeForCounts(y.recall_count, y.critical_count, y.high_count) })),
         totalRecalls,
         topComponents: componentStatsResult.results,
         notableRecalls,
@@ -1820,8 +1822,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
 
       const recalls = recallsResult.results;
       const topSeverity = recalls[0]?.severity_level ?? "UNKNOWN";
-      const riskGrade = vehicleYear?.risk_grade ?? null;
-      const riskScore = vehicleYear?.risk_score ?? null;
+      const riskScore = calculateRawScore(recalls.map(r => ({ severityLevel: r.severity_level, reportReceivedDate: r.report_received_date })));
+      const riskGrade = scoreToGrade(riskScore, 0);
 
       // Extract top component from most severe recall (first segment before colon)
       const topComponent = recalls.length > 0 ? recalls[0].component.split(":")[0].trim() : null;
@@ -1901,6 +1903,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           recallCount: recalls.length,
           topSeverity,
           riskGrade,
+          criticalCount: recalls.filter(r => r.severity_level === "CRITICAL").length,
+          highCount: recalls.filter(r => r.severity_level === "HIGH").length,
           riskScore,
           cards,
           leadGen: dealerLeadGen() + affiliateCta + yearAdSlot,
