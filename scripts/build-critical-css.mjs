@@ -14,13 +14,30 @@ export function extractCriticalCss(cssText) {
   for (const match of cssText.matchAll(CRITICAL_REGION)) {
     regions.push(match[1]);
   }
-  return regions
+  const compact = regions
     .join("\n")
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/@font-face\s*\{[^}]*?(?:-ext\.woff2|font-style:\s*italic)[^}]*\}/g, "")
     .replace(/\s+/g, " ")
     .replace(/\s*([{}:;,])\s*/g, "$1")
     .trim();
+  // The full stylesheet retains every token. Inline only tokens referenced by
+  // critical rules (including dependencies and dark-mode overrides).
+  const roots = /(:root\{)([^{}]*)(\})/g;
+  const needed = new Set([...compact.replace(roots, "").matchAll(/var\((--[\w-]+)/g)].map(match => match[1]));
+  const declarations = [...compact.matchAll(roots)].flatMap(match => match[2].split(";"));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const declaration of declarations) {
+      const [name, ...value] = declaration.split(":");
+      if (!needed.has(name)) continue;
+      for (const match of value.join(":").matchAll(/var\((--[\w-]+)/g)) {
+        if (!needed.has(match[1])) { needed.add(match[1]); changed = true; }
+      }
+    }
+  }
+  return compact.replace(roots, (_, start, content, end) => start + content.split(";").filter(declaration => !declaration.startsWith("--") || needed.has(declaration.split(":")[0])).join(";") + end);
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);

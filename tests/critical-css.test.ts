@@ -20,3 +20,17 @@ test("CRITICAL_CSS matches the @critical regions in public/styles.css", () => {
 test("CRITICAL_CSS is substantial", () => {
   assert.ok(CRITICAL_CSS.length > 5000, `expected CRITICAL_CSS.length > 5000, got ${CRITICAL_CSS.length}`);
 });
+
+
+test("critical CSS stays within the 8 KiB inline budget", () => {
+ assert.ok(Buffer.byteLength(CRITICAL_CSS, 'utf8') <= 8192);
+ assert.match(CRITICAL_CSS, /font-family:"Space Grotesk"/);
+ assert.match(CRITICAL_CSS, /font-family:"Literata"/);
+ assert.match(CRITICAL_CSS, /font-display:swap/);
+});
+
+test("critical token extraction keeps dependency chains and dark overrides", () => {
+ const css=extractCriticalCss('/* @critical:start */ :root { --base:red; --color:var(--base); --unused:blue; } @media(prefers-color-scheme:dark){:root{--base:white;--unused:black;}} .hero{color:var(--color)} /* @critical:end */');
+ assert.match(css,/--base:red/);assert.match(css,/--base:white/);
+ assert.match(css,/--color:var\(--base\)/);assert.doesNotMatch(css,/--unused/);
+});

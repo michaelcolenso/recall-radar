@@ -369,6 +369,7 @@ button:focus-visible,
   padding: 0 var(--space-6) var(--space-16);
 }
 
+/* @critical:end */
 .rr-footer {
   background: var(--text-primary);
   color: var(--bg-page);
@@ -397,6 +398,7 @@ button:focus-visible,
   background: var(--accent);
 }
 
+/* @critical:start */
 /* ── Mobile layout ── */
 @media (max-width: 768px) {
   .rr-nav__inner {
@@ -466,6 +468,7 @@ button:focus-visible,
   gap: var(--space-8);
 }
 
+/* @critical:end */
 .rr-hero::before {
   content: "";
   position: absolute;
@@ -480,6 +483,7 @@ button:focus-visible,
   z-index: -1;
 }
 
+/* @critical:start */
 .rr-hero__title {
   font-family: "Space Grotesk", sans-serif;
   font-weight: 700;
@@ -499,6 +503,7 @@ button:focus-visible,
   line-height: 1.4;
 }
 
+/* @critical:end */
 .rr-hero__marker {
   position: absolute;
   top: var(--space-8);
@@ -512,6 +517,7 @@ button:focus-visible,
   opacity: 0.5;
 }
 
+/* @critical:start */
 /* Hero search */
 .rr-hero__actions {
   display: flex;
@@ -544,6 +550,7 @@ button:focus-visible,
   border-color: var(--accent);
 }
 
+/* @critical:end */
 .rr-hero__search-results {
   position: absolute;
   top: 100%;
@@ -602,6 +609,7 @@ button:focus-visible,
   text-align: center;
 }
 
+/* @critical:start */
 .rr-hero__cta {
   display: inline-block;
   width: fit-content;
@@ -944,6 +952,7 @@ a.rr-readout__campaign:hover {
 /* Entrance animation must NOT delay first paint (LCP): children start fully
    visible — no opacity: 0 — and only a subtle transform is animated.
    The hero (first child, the LCP element) animates immediately. */
+/* @critical:end */
 @keyframes rr-slide-up {
   from { transform: translateY(12px); }
   to { transform: translateY(0); }
@@ -959,6 +968,7 @@ a.rr-readout__campaign:hover {
 .rr-animate-in > *:nth-child(4) { animation-delay: 0.09s; }
 .rr-animate-in > *:nth-child(5) { animation-delay: 0.12s; }
 
+/* @critical:start */
 /* ═══════════════════════════════════════════════════════════════
    BREADCRUMBS
    ═══════════════════════════════════════════════════════════════ */
@@ -1948,7 +1958,7 @@ a.rr-readout__campaign:hover {
 /* @critical:start */
 .rr-vehicle-selector { width:100%; max-width:48rem; text-align:left; }
 .rr-vehicle-selector [role="tablist"] { display:flex; gap:1rem; margin-bottom:1rem; }
-.rr-vehicle-selector [role="tab"], .rr-vehicle-selector select { font:inherit; padding:.65rem; color:var(--ink); background:var(--paper); border:1px solid currentColor; }
+.rr-vehicle-selector [role="tab"], .rr-vehicle-selector select { font:inherit; padding:.65rem; color:var(--text-primary); background:var(--bg-surface); border:1px solid currentColor; }
 .rr-vehicle-selector [role="tab"][aria-selected="true"] { border-bottom:3px solid currentColor; }
 .rr-vehicle-selector [role="tabpanel"]:not([hidden]) { display:flex; flex-wrap:wrap; gap:.75rem; align-items:end; }
 .rr-vehicle-selector label { display:grid; gap:.25rem; flex:1; min-width:8rem; }
