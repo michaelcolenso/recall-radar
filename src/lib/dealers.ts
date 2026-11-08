@@ -11,5 +11,10 @@ const OEM: Record<string,string> = {
 };
 export function officialRecallUrl(makeSlug: string): string | undefined {return OEM[makeSlug];}
 export function recallServiceDetails(remedy: string): {phone?:string;code?:string} {
- return {phone:remedy.match(/\b1[- .]?\d{3}[- .]?\d{3}[- .]?\d{4}\b/)?.[0], code:remedy.match(/(?:recall\s+(?:number|numbers|code)|(?:manufacturer|FCA)(?:'s)?\s+recall(?:\s+(?:number|code))?)\s*(?:is|are|:|#)?\s*([A-Z0-9][A-Z0-9-]{1,14})\b/i)?.[1]};
+ const numberWording=remedy.match(/\bnumber(?:s)?\s+for\s+this\s+recall\s+(?:is|are)\s+([A-Z0-9-]{2,15})\b/i)?.[1];
+ const code=numberWording ?? remedy.match(/(?:recall\s+(?:number|numbers|code)|(?:manufacturer|FCA)(?:'s)?\s+recall(?:\s+(?:number|code))?)\s*(?:is|are|:|#)?\s*([A-Z0-9][A-Z0-9-]{1,14})\b/i)?.[1];
+ return {
+  phone:remedy.match(/\b1[- .]?\d{3}[- .]?\d{3}[- .]?\d{4}\b/)?.[0] ?? remedy.match(/\b\d{3}[- .]\d{3}[- .]\d{4}\b/)?.[0],
+  code:code && /\d/.test(code) ? code : undefined,
+ };
 }
