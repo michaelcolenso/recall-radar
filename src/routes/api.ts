@@ -437,7 +437,7 @@ apiRoutes.get("/vin-lookup", async (c) => {
   }
 });
 
-// Run after migration 0008, then ingest all makes to discover missing aliases/years.
+// Apply all migrations before repair; then ingest makes to discover missing aliases/years.
 apiRoutes.post("/admin/repair-models", async (c) => {
   const denied = requireAuth(c); if (denied) return denied;
   const body=await c.req.json<{makeSlug?:string}>().catch(()=>({makeSlug:undefined}));

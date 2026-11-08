@@ -1,0 +1,37 @@
+import { chromium } from 'playwright';
+import { spawn } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import assert from 'node:assert/strict';
+const server=spawn(process.execPath,['--import','tsx','tests/helpers/preview.ts'],{stdio:['ignore','pipe','pipe']});
+let browser;
+try {
+ await new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>reject(Error('Fixture server did not start')),15000);
+  server.once('exit',code=>{clearTimeout(timer);reject(Error(`Fixture server exited ${code}`));});
+  server.stdout.on('data',data=>{if(String(data).includes('Audit fixture preview:')){clearTimeout(timer);resolve();}});
+  server.stderr.on('data',data=>{if(!String(data).includes('ExperimentalWarning')&&!String(data).includes('--trace-warnings'))process.stderr.write(data);});
+ });
+ mkdirSync('artifacts/audit',{recursive:true});
+ browser=await chromium.launch({...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{}),args:['--no-sandbox']});
+ const page=await browser.newPage({viewport:{width:390,height:844}});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:8799/');
+ await page.selectOption('#vehicle-make','ram');await page.waitForFunction(()=>!document.querySelector('#vehicle-model').disabled);
+ await page.selectOption('#vehicle-model','1500');await page.waitForFunction(()=>!document.querySelector('#vehicle-year').disabled);
+ await page.selectOption('#vehicle-year','2019');
+ await page.screenshot({path:'artifacts/audit/home-mobile.png'});
+ const cta=await page.locator('#vehicle-panel button').boundingBox();assert.ok(cta.y+cta.height<=844,'Hero lookup CTA should fit above the mobile fold');
+ await page.locator('#vehicle-panel button').click();await page.waitForURL('**/ram/1500/2019');
+ assert.match(await page.textContent('body'),/Risk Grade: F/);
+ await page.screenshot({path:'artifacts/audit/year-mobile.png'});
+ await page.pdf({path:'artifacts/audit/recall-checklist.pdf',preferCSSPageSize:true,printBackground:true});
+ await page.goto('http://127.0.0.1:8799/');await page.getByRole('tab',{name:'By VIN or Keyword'}).click();
+ await page.fill('#rr-global-search','1FA6P8TH4F5410015');
+ await page.route('**/api/vin-lookup?*',r=>r.fulfill({json:{vin:'1FA6P8TH4F5410015',recalls:[{campaign:'24V653000',component:'BRAKES',summary:'Brake software.'}],checklistHtml:'<section class="rr-print-checklist" hidden>VIN checklist</section>'}}));
+ await page.locator('#keyword-panel button').click();await page.waitForURL('**/vin-lookup?vin=*');await page.waitForSelector('#vin-results article');
+ await page.goto('http://127.0.0.1:8799/symptoms?q=backup%20camera%20blank');assert.ok(await page.locator('.rr-readout').count()>0);
+ await page.goto('http://127.0.0.1:8799/?q=2023%20Chevrolet%20Malibu');await page.waitForSelector('#rr-global-search-results a');assert.ok(await page.locator('#keyword-panel').isVisible());
+ await page.goto('http://127.0.0.1:8799/chevrolet/malibu/2023');assert.doesNotMatch(await page.textContent('body'),/Most severe issue:|Under Review/);
+ assert.deepEqual(errors,[]);
+ console.log('Browser checks passed. Screenshots and PDF: artifacts/audit/');
+} finally {await browser?.close();server.kill('SIGTERM');}

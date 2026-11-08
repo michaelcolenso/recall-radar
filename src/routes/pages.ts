@@ -1163,7 +1163,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
         { href: `/${makeSlug}`, label: make.name },
       ]);
       const body = crumbs + makePageTemplate(make.name, make.slug, models.results, components.results);
-      const freshness = await c.env.DB.prepare(`SELECT MAX(vy.last_ingested_at) as latest FROM vehicle_years vy JOIN models m ON m.id=vy.model_id WHERE m.make_id=? AND vy.last_ingested_at <= datetime('now')`).bind(make.id).first<{latest:string|null}>();
+      const freshness = await c.env.DB.prepare(`SELECT MAX(vy.last_ingested_at) as latest FROM vehicle_years vy JOIN models m ON m.id=vy.model_id WHERE m.make_id=? AND julianday(vy.last_ingested_at) <= julianday('now')`).bind(make.id).first<{latest:string|null}>();
 
       return {
         html: layout({
@@ -1323,7 +1323,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         // Per-model freshness, not the site-wide ingestion watermark — a run for
         // an unrelated make/model shouldn't make this page claim fresher data.
         c.env.DB.prepare(
-          "SELECT MAX(last_ingested_at) as last_ingested FROM vehicle_years WHERE model_id = ? AND last_ingested_at <= datetime('now')",
+          "SELECT MAX(last_ingested_at) as last_ingested FROM vehicle_years WHERE model_id = ? AND julianday(last_ingested_at) <= julianday('now')",
         ).bind(model.id).first<{ last_ingested: string | null }>(),
 
         // recalls has one row per (campaign, vehicle_year) — a campaign spanning

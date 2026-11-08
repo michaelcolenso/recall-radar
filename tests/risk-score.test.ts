@@ -10,3 +10,7 @@ test('risk polarity and age-independent safety floors', () => {
   assert.equal(gradeForCounts(30, 4), 'F');
   assert.equal(gradeForCounts(2), 'B');
 });
+
+test('malformed dates never produce a NaN score', () => {
+ assert.ok(Number.isFinite(calculateRawScore([{severityLevel:'CRITICAL',reportReceivedDate:'invalid'}])));
+});
