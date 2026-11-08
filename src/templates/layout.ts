@@ -142,6 +142,7 @@ export function layout({
           fetch("/api/search?q="+encodeURIComponent(q))
             .then(function(r){return r.json()})
             .then(function(d){
+              if(q!==input.value.trim())return;
               if(!d.results||!d.results.length){results.hidden=true;results.innerHTML="";return}
               results.innerHTML=d.results.map(function(r,i){
                 return '<a href="'+r.href+'" data-index="'+i+'"><strong>'+escHtml(r.label)+'</strong> <span class="rr-search-result__sublabel">'+escHtml(r.sublabel)+'</span></a>'
@@ -158,7 +159,7 @@ export function layout({
         if(!items.length||results.hidden)return;
         if(e.key==="ArrowDown"){e.preventDefault();activeIndex=(activeIndex+1)%items.length;updateActive(items)}
         else if(e.key==="ArrowUp"){e.preventDefault();activeIndex=(activeIndex-1+items.length)%items.length;updateActive(items)}
-        else if(e.key==="Enter"){e.preventDefault();if(activeIndex>=0&&items[activeIndex]){location.href=items[activeIndex].href}}
+        else if(e.key==="Enter"&&activeIndex>=0&&items[activeIndex]){e.preventDefault();location.href=items[activeIndex].href}
       });
       function updateActive(items){items.forEach(function(item,i){item.classList.toggle("rr-search-result--active",i===activeIndex)})}
       function escHtml(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}

@@ -1,3 +1,4 @@
+import { anchorHistoricalRemedy } from "../etl/temporal-summaries";
 import { escapeHtml } from "../lib/utils";
 import { severityBadge } from "./components/severity-badge";
 import type { SeverityLevel } from "../db/schema";
@@ -63,6 +64,7 @@ export function campaignPageTemplate({
   original,
   sourceModels,
 }: CampaignPageOptions): string {
+  remedy = isEnriched ? anchorHistoricalRemedy(remedy, reportReceivedDate) : remedy;
   const indicator = isEnriched
     ? `<span class="rr-readout__indicator rr-readout__indicator--enriched">Plain English</span>`
     : `<span class="rr-readout__indicator rr-readout__indicator--raw">NHTSA Official Language</span>`;

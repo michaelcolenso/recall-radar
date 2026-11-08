@@ -2,7 +2,7 @@ import { normalizeModel } from './normalize-models';
 import { scoreAllVehicleYears } from '../lib/risk-score';
 /** Idempotent repair. Raw government text and original model metadata survive merges. */
 export async function repairCanonicalModels(db: D1Database, options: {sourceModelId?:number; sourceYear?:number; rescore?:boolean} = {}): Promise<{ merged: number; scored: number }> {
- const rows = await db.prepare('SELECT m.id, m.name, m.slug, mk.name as make_name FROM models m JOIN makes mk ON mk.id=m.make_id').all<{id:number;name:string;slug:string;make_name:string}>();
+ const rows = await db.prepare('SELECT m.id, m.name, m.slug, mk.name as make_name FROM models m JOIN makes mk ON mk.id=m.make_id'+(options.sourceModelId !== undefined ? ' WHERE m.id=?' : '')).bind(...(options.sourceModelId !== undefined ? [options.sourceModelId] : [])).all<{id:number;name:string;slug:string;make_name:string}>();
  let merged = 0;
  for (const row of rows.results) {
   if(options.sourceModelId !== undefined && row.id !== options.sourceModelId) continue;
