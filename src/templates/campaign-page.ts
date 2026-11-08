@@ -24,6 +24,8 @@ interface CampaignPageOptions {
   /** Optional H1 naming the affected vehicle/component (used for curated
    *  fresh-campaign pages). Defaults to `Campaign <number>`. */
   heading?: string;
+  original?: { summary: string; consequence: string; remedy: string };
+  sourceModels?: string[];
 }
 
 // Model-level listings do NOT prove an individual vehicle is affected.
@@ -58,6 +60,8 @@ export function campaignPageTemplate({
   isEnriched,
   affectedVehicles,
   heading,
+  original,
+  sourceModels,
 }: CampaignPageOptions): string {
   const indicator = isEnriched
     ? `<span class="rr-readout__indicator rr-readout__indicator--enriched">Plain English</span>`
@@ -121,6 +125,8 @@ export function campaignPageTemplate({
       </div>
     </article>
 
+    ${original ? `<details class="rr-readout__original"><summary>Show original NHTSA language</summary><div class="rr-readout__original-body"><h2>What happened</h2><p>${escapeHtml(original.summary)}</p><h2>Risk if unfixed</h2><p>${escapeHtml(original.consequence)}</p><h2>Remedy</h2><p>${escapeHtml(original.remedy)}</p></div></details>` : ""}
+    ${sourceModels?.length ? `<p>Original NHTSA model designations: ${sourceModels.map(escapeHtml).join(', ')}</p>` : ""}
     ${vehiclesHtml}
 
     ${vinCheckCta(campaign)}

@@ -48,7 +48,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v20";
+const PAGE_CACHE_VERSION = "v21";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -165,6 +165,10 @@ interface CampaignRow {
   summary: string;
   consequence: string;
   remedy: string;
+  summary_raw?: string;
+  consequence_raw?: string;
+  remedy_raw?: string;
+  source_models?: string | null;
   severity_level: SeverityLevel;
   report_received_date: string | null;
   enriched_at: string | null;
@@ -2010,6 +2014,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
     async () => {
       const recallsResult = await c.env.DB.prepare(
         `SELECT r.id, r.nhtsa_campaign_number, r.component, r.manufacturer,
+              r.summary_raw, r.consequence_raw, r.remedy_raw, r.source_models,
               COALESCE(r.summary_enriched, r.summary_raw) as summary,
               COALESCE(r.consequence_enriched, r.consequence_raw) as consequence,
               COALESCE(r.remedy_enriched, r.remedy_raw) as remedy,
@@ -2081,16 +2086,12 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
       }
 
       const primaryRecall = rows[0];
-      // Curated pages name the affected vehicle in title/H1; DB pages keep
-      // their existing campaign-number title (no churn on indexed pages).
-      const isCurated = primaryRecall.enriched_at === null && recallsResult.results.length === 0;
       const componentShort = primaryRecall.component.split(":")[0].trim();
-      const title = isCurated
-        ? `${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name} ${componentShort} Recall (NHTSA #${primaryRecall.nhtsa_campaign_number}) | Recalled Rides`
-        : `NHTSA Campaign ${primaryRecall.nhtsa_campaign_number} Recall Details | Recalled Rides`;
-      const heading = isCurated
-        ? `${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name} ${componentShort} Recall`
-        : undefined;
+      const primaryYears = rows.filter(r => r.make_slug === primaryRecall.make_slug && r.model_slug === primaryRecall.model_slug).map(r => r.year);
+      const minYear = Math.min(...primaryYears), maxYear = Math.max(...primaryYears);
+      const yearRange = minYear === maxYear ? String(minYear) : `${minYear}–${maxYear}`;
+      const title = `Recall #${primaryRecall.nhtsa_campaign_number}: ${yearRange} ${primaryRecall.make_name} ${primaryRecall.model_name} ${componentShort} | Recalled Rides`;
+      const heading = `NHTSA Recall #${primaryRecall.nhtsa_campaign_number} — ${primaryRecall.make_name} ${primaryRecall.model_name} ${componentShort}`;
 
       // Build description max 160 chars — component name trimmed, summary truncated
       const descPrefix = `${primaryRecall.year} ${primaryRecall.make_name} ${primaryRecall.model_name} ${componentShort} recall: `;
@@ -2115,6 +2116,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
         { href: `/${primaryRecall.make_slug}`, label: primaryRecall.make_name },
         { href: `/${primaryRecall.make_slug}/${primaryRecall.model_slug}`, label: primaryRecall.model_name },
         { href: `/${primaryRecall.make_slug}/${primaryRecall.model_slug}/${primaryRecall.year}`, label: String(primaryRecall.year) },
+        { href: `/recall/${primaryRecall.nhtsa_campaign_number}`, label: `Campaign ${primaryRecall.nhtsa_campaign_number}` },
       ]);
 
       const body = crumbs + campaignPageTemplate({
@@ -2129,6 +2131,8 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
         isEnriched: !!primaryRecall.enriched_at,
         affectedVehicles,
         heading,
+        original: { summary: primaryRecall.summary_raw ?? primaryRecall.summary, consequence: primaryRecall.consequence_raw ?? primaryRecall.consequence, remedy: primaryRecall.remedy_raw ?? primaryRecall.remedy },
+        sourceModels: [...new Set(rows.flatMap(r => JSON.parse(r.source_models || '[]') as string[]))],
       }) + adSlot({ client: c.env.ADSENSE_CLIENT || undefined, slot: c.env.ADSENSE_SLOT || undefined });
 
       const campaignUrl = `${siteUrl}/recall/${primaryRecall.nhtsa_campaign_number}`;
