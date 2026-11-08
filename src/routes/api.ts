@@ -452,7 +452,10 @@ apiRoutes.post("/admin/repair-models", async (c) => {
 
 apiRoutes.post("/admin/repair-summaries", async (c) => {
  const denied = requireAuth(c); if (denied) return denied;
- return c.json({patched: await repairTemporalSummaries(c.env.DB)});
+ const body=await c.req.json().catch(()=>({}));
+ const parsed=z.object({afterId:z.number().int().min(0).default(0)}).safeParse(body);
+ if(!parsed.success) return c.json({error:parsed.error.flatten()},400);
+ return c.json(await repairTemporalSummaries(c.env.DB,parsed.data.afterId));
 });
 
 // Cascading selector returns only years backed by actual recall filings.
