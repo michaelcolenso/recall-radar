@@ -114,8 +114,10 @@ function scoreEnrichment(enriched: { summary: string; consequence: string; remed
 }
 
 function parseEnrichmentJson(text: string, model: string): EnrichmentResult | null {
+  const extracted = extractJsonObject(text);
+  if (!extracted) return null;
   try {
-    const parsed = JSON.parse(text.trim());
+    const parsed = JSON.parse(extracted);
     const validated = EnrichmentResultSchema.parse(parsed);
     return {
       ...validated,
@@ -125,6 +127,14 @@ function parseEnrichmentJson(text: string, model: string): EnrichmentResult | nu
   } catch {
     return null;
   }
+}
+
+export function extractJsonObject(text: string): string | null {
+  const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
+  const start = stripped.indexOf("{");
+  const end = stripped.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  return stripped.slice(start, end + 1);
 }
 
 const AI_CALL_TIMEOUT_MS = 45_000;
@@ -142,7 +152,7 @@ async function tryWorkersAiEnrichment(env: Env, userMessage: string, model: stri
     const text = await aiRunWithTimeout(env, model, [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userMessage },
-    ], 500);
+    ], 900);
     const parsed = parseEnrichmentJson(text, model);
     if (parsed) return parsed;
     // Retry with correction prompt
@@ -151,7 +161,7 @@ async function tryWorkersAiEnrichment(env: Env, userMessage: string, model: stri
       { role: "user", content: userMessage },
       { role: "assistant", content: text },
       { role: "user", content: "Please respond in valid JSON only." },
-    ], 500);
+    ], 900);
     return parseEnrichmentJson(retryText, model);
   } catch {
     return null;

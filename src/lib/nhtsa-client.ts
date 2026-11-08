@@ -2,14 +2,18 @@ import { z } from "zod";
 
 const makeSchema = z.object({ Make_ID: z.number(), Make_Name: z.string() });
 const modelSchema = z.object({ Make_ID: z.number(), Make_Name: z.string(), Model_ID: z.number(), Model_Name: z.string() });
+// NHTSA sometimes sends null for Component (seen on Buick Regal 2019). A
+// required string fails the whole vehicle-year and that combo is skipped.
+const nhtsaText = z.union([z.string(), z.null()]).optional().transform((value: string | null | undefined) => value ?? "");
+
 const recallSchema = z.object({
   NHTSACampaignNumber: z.string(),
-  ReportReceivedDate: z.string().default(""),
-  Component: z.string(),
-  Manufacturer: z.string().default(""),
-  Summary: z.string().default(""),
-  Consequence: z.string().default(""),
-  Remedy: z.string().default(""),
+  ReportReceivedDate: nhtsaText,
+  Component: nhtsaText,
+  Manufacturer: nhtsaText,
+  Summary: nhtsaText,
+  Consequence: nhtsaText,
+  Remedy: nhtsaText,
 });
 
 export type NhtsaMake = z.infer<typeof makeSchema>;
@@ -59,13 +63,17 @@ export async function fetchModelsForMake(makeId: number): Promise<NhtsaModel[]> 
   return vpicEnvelope(modelSchema).parse(data).Results;
 }
 
+export function parseRecallResults(data: unknown): NhtsaRecall[] {
+  return recallsEnvelope.parse(data).results;
+}
+
 export async function fetchRecallsForVehicle(make: string, model: string, year: number): Promise<NhtsaRecall[]> {
   await delay(300);
   const url = `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${year}`;
   const res = await fetchWithRetry(url);
   if (!res.ok) return [];
   const data = await res.json();
-  return recallsEnvelope.parse(data).results;
+  return parseRecallResults(data);
 }
 
 // ─── VIN LOOKUP ─────────────────────────────────────────────────

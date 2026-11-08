@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 
 import { pageRoutes } from "./routes/pages";
+import { renderOgImage } from "./routes/og-image";
 import { apiRoutes } from "./routes/api";
 import { adminRoutes } from "./routes/admin";
 import { seoRoutes } from "./routes/seo";
@@ -105,9 +106,16 @@ app.route("/", pageRoutes);
 const mcpHandler = RecallMcp.serve("/mcp", { binding: "RECALL_MCP" });
 
 export default {
-  fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    if (new URL(request.url).pathname === "/mcp") {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const path = new URL(request.url).pathname;
+    if (path === "/mcp") {
       return mcpHandler.fetch(request, env, ctx);
+    }
+    // Hono's `/og/:year{[0-9]+}.svg` pattern does not match, so the
+    // four-segment vehicle route 404s every social preview.
+    if (path.startsWith("/og/")) {
+      const og = await renderOgImage(env, path);
+      if (og) return og;
     }
     return app.fetch(request, env, ctx);
   },
