@@ -27,7 +27,7 @@ export function normalizeModel(make: string, model: string): { make: string; mod
     const series=compact.match(/^M?([1-8])\d{2}[A-Z]*$/)?.[1] ?? compact.match(/^ACTIVEHYBRID([357])$/)?.[1];
     if(series) model = `${series} Series`;
   }
-  if ((make === 'HONDA' && /^(CB\d|CBR|CRF|CMX|NC\d|VFR|VT\d|VTX|GL\d|GOLDWING|REBEL|SHADOW|AFRICA|PCX|GROM|TRX|FOURTRAX|PIONEER|TALON|RANCHER|FOREMAN|XR\d|CR\d|NSS|NPS|CHF|SH\d|RUCKUS|METROPOLITAN|SXS|CTX\d|ST\d|NT\d|VF\d|VTR\d)/.test(compact)) ||
+  if ((make === 'HONDA' && /^(CB\d|CBR|CRF|CMX|NC\d|VFR|VT\d|VTX|GL\d|GOLDWING|SILVERWING|REBEL|SHADOW|AFRICA|PCX|GROM|TRX|FOURTRAX|PIONEER|TALON|RANCHER|FOREMAN|XR\d|CR\d|NSS|NPS|CHF|SH\d|RUCKUS|METROPOLITAN|SXS|CTX\d|ST\d|NT\d|VF\d|VTR\d)/.test(compact)) ||
       (make === 'BMW' && /^(?:RNINET[A-Z]*|[RFKGS]\d{2,4}(?:GS(?:ADVENTURE)?|GSA|GT|GTL|RT|RS|RR|XR|ST|R|S|B|C|X|TRANSCONTINENTAL|CLASSIC|SPORT)?|C(?:400(?:X|GT)|600SPORT|650(?:GT|SPORT)|EVOLUTION)|M1000(?:R|RR|XR)|CE0[24]|HP[24])$/.test(compact))) vehicleType = 'motorcycle';
   return { make, model, slug: slugify(model), vehicleType, sourceModel };
 }

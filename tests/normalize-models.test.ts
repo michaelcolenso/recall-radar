@@ -51,7 +51,7 @@ test('historical Sprinter brand records join the Mercedes family', () => {
 
 test('production scooter, touring and adventure variants stay out of consumer grids',()=>{
  for(const name of ['C 400 X','C Evolution','F 800 ST','M 1000 R','M 1000 RR','M 1000 XR','R 1200 ST','R 1250 GS Adventure','R 1300 GS Adventure','R 18 Transcontinental']) assert.equal(normalizeModel('BMW',name).vehicleType,'motorcycle',name);
- for(const name of ['CTX700','ST1300','ST1300P','ST1300PA'])assert.equal(normalizeModel('HONDA',name).vehicleType,'motorcycle',name);
+ for(const name of ['CTX700','ST1300','ST1300P','ST1300PA','Silver Wing'])assert.equal(normalizeModel('HONDA',name).vehicleType,'motorcycle',name);
  for(const name of ['Accord','CR-Z','S2000'])assert.equal(normalizeModel('HONDA',name).vehicleType,'passenger',name);
 });
 
