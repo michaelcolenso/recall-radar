@@ -81,3 +81,13 @@ test('every audited page emits matching breadcrumbs and campaign freshness uses 
   if(path==='/ram/1500'||path==='/ram/1500/2019') assert.ok(schemas.some(s=>s['@type']==='FAQPage'));
  }
 });
+
+test('canonical aliases also redirect stats pages and empty models stay noindex',async()=>{
+ const {db,ramModel,make,model,year}=fixtureDatabase();
+ const app=new Hono().route('/',pageRoutes),env={DB:db,SITE_URL:'https://example.com'};
+ for(const [from,to] of [['/stats/dodge/ram-1500','/stats/ram/1500'],['/stats/mercedes-benz/c300','/stats/mercedes-benz/c-class'],['/bmw/330i','/bmw/3-series']]){
+  const r=await app.request(from,{},env);assert.equal(r.status,301);assert.equal(r.headers.get('location'),to);
+ }
+ year(model(make('TEST MAKE','test-make'),'Empty','empty'),2020);
+ const empty=await app.request('/test-make/empty',{},env);assert.equal(empty.status,200);assert.match(await empty.text(),/name="robots" content="noindex, follow"/);
+});

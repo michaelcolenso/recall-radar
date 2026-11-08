@@ -53,10 +53,12 @@ import type { FreshCampaign } from "../lib/fresh-campaigns";
 export const pageRoutes = new Hono<{ Bindings: Env }>();
 // Keep historical trim URLs useful after their rows merge into canonical families.
 pageRoutes.use('*', async (c,next) => {
- const match = /^\/(dodge|ram|mercedes-benz)\/([a-z0-9-]+)((?:\/\d{4}(?:\/[a-z0-9-]+)?)?)$/.exec(c.req.path);
+ const prefix=c.req.path.startsWith('/stats/')?'/stats':'';
+ const vehiclePath=prefix?c.req.path.slice(prefix.length):c.req.path;
+ const match = /^\/(dodge|ram|mercedes-benz|bmw)\/([a-z0-9-]+)((?:\/\d{4}(?:\/[a-z0-9-]+)?)?)$/.exec(vehiclePath);
  if(match) {
   const n=normalizeModel(match[1],match[2]);
-  const path=`/${slugify(n.make)}/${n.slug}${match[3]}`;
+  const path=`${prefix}/${slugify(n.make)}/${n.slug}${match[3]}`;
   if(path !== c.req.path) return c.redirect(path+new URL(c.req.url).search,301);
  }
  await next();
@@ -65,7 +67,7 @@ pageRoutes.use('*', async (c,next) => {
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v34";
+const PAGE_CACHE_VERSION = "v35";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -1438,7 +1440,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
           analyticsToken: c.env.CF_ANALYTICS_TOKEN,
           title,
           description,
-          noIndex: years.results.length === 0,
+          noIndex: totalRecalls === 0,
           canonical: modelPageUrl,
           dateModified: verifiedTimestamp(lastIngestedResult?.last_ingested),
           ogType: "website",
