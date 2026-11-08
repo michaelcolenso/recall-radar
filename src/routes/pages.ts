@@ -1,3 +1,4 @@
+import { verifiedTimestamp } from "../lib/freshness";
 import { segmentCompetitors } from "../lib/vehicle-segments";
 import { Hono } from "hono";
 import type { Context } from "hono";
@@ -49,7 +50,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v22";
+const PAGE_CACHE_VERSION = "v23";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -170,6 +171,7 @@ interface CampaignRow {
   consequence_raw?: string;
   remedy_raw?: string;
   source_models?: string | null;
+  last_ingested_at?: string | null;
   severity_level: SeverityLevel;
   report_received_date: string | null;
   enriched_at: string | null;
@@ -379,7 +381,7 @@ pageRoutes.get("/new", async (c) => {
               r.report_received_date,
               mk.name as make_name, mk.slug as make_slug,
               m.name as model_name, m.slug as model_slug,
-              vy.year
+              vy.year, vy.last_ingested_at
        FROM recalls r
        JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
        JOIN models m ON m.id = vy.model_id
@@ -1122,6 +1124,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
         { href: `/${makeSlug}`, label: make.name },
       ]);
       const body = crumbs + makePageTemplate(make.name, make.slug, models.results, components.results);
+      const freshness = await c.env.DB.prepare(`SELECT MAX(vy.last_ingested_at) as latest FROM vehicle_years vy JOIN models m ON m.id=vy.model_id WHERE m.make_id=? AND vy.last_ingested_at <= datetime('now')`).bind(make.id).first<{latest:string|null}>();
 
       return {
         html: layout({
@@ -1130,6 +1133,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
           title: `${make.name} Recalls & Safety Issues by Model | Recalled Rides`,
           description: `Check ${make.name} vehicle recalls by model — ${models.results.filter(m => m.recall_count > 0).length} models with active safety issues. Find your ${make.name}, see the risks, and get free repairs at your dealer.`,
           canonical: `${siteUrl}/${makeSlug}`,
+          dateModified: verifiedTimestamp(freshness?.latest),
           ogType: "website",
           ogImage: "/og-image-home.svg",
           body,
@@ -1280,7 +1284,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         // Per-model freshness, not the site-wide ingestion watermark — a run for
         // an unrelated make/model shouldn't make this page claim fresher data.
         c.env.DB.prepare(
-          "SELECT MAX(last_ingested_at) as last_ingested FROM vehicle_years WHERE model_id = ?",
+          "SELECT MAX(last_ingested_at) as last_ingested FROM vehicle_years WHERE model_id = ? AND last_ingested_at <= datetime('now')",
         ).bind(model.id).first<{ last_ingested: string | null }>(),
 
         // recalls has one row per (campaign, vehicle_year) — a campaign spanning
@@ -1311,8 +1315,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
         recallYearCount > 0
           ? `${Math.min(...yearsWithRecalls.map((y) => y.year))}–${Math.max(...yearsWithRecalls.map((y) => y.year))}`
           : "";
-      const lastUpdated = lastIngestedResult?.last_ingested
-        ? new Date(lastIngestedResult.last_ingested).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+      const lastUpdated = verifiedTimestamp(lastIngestedResult?.last_ingested)
+        ? new Date(lastIngestedResult!.last_ingested!).toLocaleDateString("en-US", { month: "long", year: "numeric" })
         : undefined;
       const notableRecalls: NotableRecall[] = notableRecallsResult.results.flatMap((r) => {
         // Campaign detail links are reserved for identifiers that normalize to
@@ -1785,13 +1789,13 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
 
       // Fetch vehicle_year record including risk score
       const vehicleYear = await c.env.DB.prepare(
-        `SELECT vy.id, vy.risk_score, vy.risk_grade, vy.recall_count
+        `SELECT vy.id, vy.risk_score, vy.risk_grade, vy.recall_count, vy.last_ingested_at
          FROM vehicle_years vy
          JOIN models m ON m.id = vy.model_id
          WHERE m.make_id = ? AND m.slug = ? AND vy.year = ?`
       )
         .bind(make.id, modelSlug, yearNum)
-        .first<{ id: number; risk_score: number | null; risk_grade: string | null; recall_count: number | null }>();
+        .first<{ id: number; risk_score: number | null; risk_grade: string | null; recall_count: number | null; last_ingested_at: string | null }>();
 
       const recallsResult = await c.env.DB.prepare(
         `SELECT r.id, r.nhtsa_campaign_number, r.component, r.manufacturer,
@@ -1934,7 +1938,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
         relatedLinks({ make: make.name, makeSlug, model: model.name, modelSlug, year, competitors });
 
       const yearPageUrl = `${siteUrl}/${makeSlug}/${modelSlug}/${year}`;
-      const mostRecentDate = recalls[0]?.report_received_date ?? undefined;
+      const mostRecentDate = verifiedTimestamp(vehicleYear?.last_ingested_at);
       const yearRemedySteps = recalls
         .filter((r) => (r.remedy_enriched ?? r.remedy_raw).length > 0)
         .slice(0, 1)
@@ -1988,6 +1992,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           description,
           noIndex: recalls.length === 0,
           canonical: `${siteUrl}/${makeSlug}/${modelSlug}/${year}`,
+          dateModified: mostRecentDate,
           ogType: "website",
           ogImage: `/og/${makeSlug}/${modelSlug}/${year}.svg`,
           body,
@@ -2028,7 +2033,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
               r.severity_level, r.report_received_date, r.enriched_at,
               m.name as make_name, m.slug as make_slug,
               md.name as model_name, md.slug as model_slug,
-              vy.year
+              vy.year, vy.last_ingested_at
        FROM recalls r
        JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
        JOIN models md ON md.id = vy.model_id
@@ -2182,6 +2187,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
           title,
           description,
           canonical: campaignUrl,
+          dateModified: verifiedTimestamp(primaryRecall.last_ingested_at),
           ogType: "website",
           ogImage: "/og-image-detail.svg",
           body,

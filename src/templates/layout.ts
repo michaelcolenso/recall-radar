@@ -1,3 +1,4 @@
+import { webPageJsonLd, visibleFaq } from "./components/json-ld";
 import { escapeHtml } from "../lib/utils";
 import { ASSET_VERSION } from "../lib/constants";
 import { CRITICAL_CSS } from "./critical-css";
@@ -14,6 +15,7 @@ interface LayoutOptions {
   googleVerification?: string;
   analyticsToken?: string;
   lastUpdated?: string;
+  dateModified?: string;
   /** AdSense publisher id — when set, the adsbygoogle loader is emitted. */
   adsenseClient?: string;
 }
@@ -30,6 +32,7 @@ export function layout({
   googleVerification,
   analyticsToken,
   lastUpdated,
+  dateModified,
   adsenseClient,
 }: LayoutOptions): string {
   const escapedTitle = escapeHtml(title);
@@ -73,6 +76,7 @@ export function layout({
   <link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}" media="print" onload="this.media='all'"/>
   <noscript><link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}"/></noscript>
   ${jsonLd}
+  ${canonical ? webPageJsonLd(canonical, title, dateModified) : ""}
   ${analyticsToken ? `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon="{&quot;token&quot;: &quot;${analyticsToken}&quot;}"></script>` : ""}
   ${adsenseClient ? `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${escapeHtml(adsenseClient)}" crossorigin="anonymous"></script>` : ""}
 </head>
@@ -99,14 +103,15 @@ export function layout({
   </nav>
   <main id="main" class="rr-main" tabindex="-1">
     ${body}
+    ${body.includes('id="rr-faq-title"') ? "" : visibleFaq(jsonLd)}
   </main>
   <footer class="rr-footer">
     <div class="rr-footer__inner">
-      <p>Source: <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration</a>. Updated <span id="rr-footer-date">${escapeHtml(lastUpdated || "recently")}</span>.</p>
+      <p>Source: <a href="https://www.nhtsa.gov/" target="_blank" rel="noopener noreferrer">National Highway Traffic Safety Administration</a>. Updated <span id="rr-footer-date">${escapeHtml(lastUpdated || "date not recorded")}</span>.</p>
       <p>Independent site. Not affiliated with NHTSA or vehicle manufacturers. &middot; <a href="/about">Learn More</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/disclosure">Disclosure</a></p>
     </div>
   </footer>
-  ${!lastUpdated ? `<script>document.getElementById("rr-footer-date").textContent=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})</script>` : ""}
+
   <script>
     // Prefill search from ?q= param
     (function(){

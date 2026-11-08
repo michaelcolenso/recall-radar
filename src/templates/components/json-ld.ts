@@ -1,3 +1,4 @@
+import { verifiedTimestamp } from "../../lib/freshness";
 import { escapeHtml, slugify } from "../../lib/utils";
 
 /**
@@ -9,7 +10,7 @@ import { escapeHtml, slugify } from "../../lib/utils";
  * still parses to the exact same value.
  */
 function jsonLdScript(schema: unknown): string {
-  const json = JSON.stringify(schema)
+  const json = JSON.stringify(schema, (key, value) => key === "dateModified" || key === "datePublished" ? verifiedTimestamp(value) : value)
     .replace(/</g, "\\u003c")
     .replace(/>/g, "\\u003e")
     .replace(/&/g, "\\u0026");
@@ -78,7 +79,7 @@ export function faqPageJsonLd(
       name: `Is the ${recalls[0]?.year ?? ""} ${recalls[0]?.make ?? ""} ${recalls[0]?.model ?? ""} safe to drive?`,
       acceptedAnswer: {
         "@type": "Answer",
-        text: `The ${recalls[0]?.year ?? ""} ${recalls[0]?.make ?? ""} ${recalls[0]?.model ?? ""} ${recalls.length === 0 ? "has no open safety recalls on record." : `has ${recalls.length} open safety recall${recalls.length !== 1 ? "s" : ""}. While the vehicle may still be driven, owners should contact an authorized dealership to schedule free repairs for any outstanding recalls. Some recalls, especially those classified as critical or high severity, may pose significant safety risks.`}`,
+        text: `This model year has ${recalls.length} recorded safety recall${recalls.length === 1 ? "" : "s"}. Model-level listings do not establish VIN-specific open recalls or whether this vehicle is safe to drive. Check your VIN and contact the manufacturer for recall instructions.`,
       },
     });
   }
@@ -379,3 +380,19 @@ export function modelOverviewFaqJsonLd(input: ModelOverviewFaqInput): string {
 
 // Legacy export for backwards compatibility
 export const pageJsonLd = (payload: Record<string, unknown>): string => jsonLdScript(payload);
+
+export function webPageJsonLd(url: string, name: string, dateModified?: string): string {
+ return jsonLdScript({"@context":"https://schema.org","@type":"WebPage",url,name,...(verifiedTimestamp(dateModified) ? {dateModified:verifiedTimestamp(dateModified)} : {})});
+}
+/** Display exactly the FAQ content emitted in schema when a template has no FAQ. */
+export function visibleFaq(jsonLd: string): string {
+ const sections: string[]=[];
+ for (const match of jsonLd.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) {
+  const schema=JSON.parse(match[1]);
+  if(schema['@type'] !== 'FAQPage') continue;
+  for(const question of schema.mainEntity ?? []) {
+   sections.push(`<details><summary>${escapeHtml(question.name)}</summary><p>${escapeHtml(question.acceptedAnswer.text)}</p></details>`);
+  }
+ }
+ return sections.length ? `<section aria-labelledby="rr-faq-title"><h2 id="rr-faq-title">Frequently Asked Questions</h2>${sections.join('')}</section>` : '';
+}
