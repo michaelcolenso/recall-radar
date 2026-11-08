@@ -40,6 +40,10 @@ async function fetchWithRetry(url: string, retries = 3, timeoutMs = 15000): Prom
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const res = await fetch(url, { signal: controller.signal });
+        if(res.status===429 || res.status>=500) {
+          await res.body?.cancel();
+          throw new Error(`NHTSA temporarily unavailable: ${res.status}`);
+        }
         return res;
       } finally {
         clearTimeout(timer);
@@ -73,8 +77,14 @@ export async function fetchRecallsForVehicle(make: string, model: string, year: 
   await delay(300);
   const url = `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${year}`;
   const res = await fetchWithRetry(url);
-  if (!res.ok) throw new Error(`NHTSA recall request failed: ${res.status}`);
   const data = await res.json();
+  // The recalls API uses HTTP 400 with a successful empty envelope for unknown
+  // aliases (e.g. C-Class). Continue querying trims instead of losing the year.
+  if(!res.ok) {
+    const empty=data as {Count?:number;Message?:string;results?:unknown[]};
+    if(res.status===400 && empty.Count===0 && empty.Message==='Results returned successfully' && Array.isArray(empty.results) && empty.results.length===0) return [];
+    throw new Error(`NHTSA recall request failed: ${res.status}`);
+  }
   return parseRecallResults(data);
 }
 
