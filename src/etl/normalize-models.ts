@@ -9,7 +9,7 @@ export function normalizeModel(make: string, model: string): { make: string; mod
   if (make === 'DODGE' && /^RAM(1500|2500|3500)$/.test(compact)) {
     make = 'RAM'; model = compact.slice(3);
   }
-  if (make === 'RAM') model = model.replace(/^RAM\s*/i, '').replace(/\s+(CLASSIC|PICKUP).*$/i, '');
+  if (make === 'RAM') model = model.replace(/^RAM\s*/i, '').replace(/[\s-]+(CLASSIC|PICKUP).*$/i, '');
   if (make === 'MERCEDES-BENZ') {
     if (/^(L\d{4}|LP\d{4}|TOURRIDER|UNIMOG|ACTROS|ATEGO|ECONIC)/.test(compact)) vehicleType = 'commercial';
     for (const family of ['GLA','GLB','GLC','GLE','GLS','CLA','CLS','SL','C','E','S','G','M']) {

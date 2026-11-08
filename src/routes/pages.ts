@@ -1,3 +1,4 @@
+import { normalizeModel } from "../etl/normalize-models";
 import { symptomQuery } from "../lib/symptom-search";
 import { printChecklist } from "../templates/components/print-checklist";
 import { dealerPageTemplate } from "../templates/dealer-page";
@@ -50,6 +51,17 @@ import { FRESH_CAMPAIGNS, getFreshCampaign, freshCampaignsForMakeModel, severity
 import type { FreshCampaign } from "../lib/fresh-campaigns";
 
 export const pageRoutes = new Hono<{ Bindings: Env }>();
+// Keep historical trim URLs useful after their rows merge into canonical families.
+pageRoutes.use('*', async (c,next) => {
+ const match = /^\/(dodge|ram|mercedes-benz)\/([a-z0-9-]+)((?:\/\d{4}(?:\/[a-z0-9-]+)?)?)$/.exec(c.req.path);
+ if(match) {
+  const n=normalizeModel(match[1],match[2]);
+  const path=`/${slugify(n.make)}/${n.slug}${match[3]}`;
+  if(path !== c.req.path) return c.redirect(path+new URL(c.req.url).search,301);
+ }
+ await next();
+});
+
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };

@@ -69,16 +69,17 @@ apiRoutes.get("/search", async (c) => {
   ).bind(searchTerm).all<{ name: string; slug: string; type: string; make_name: string | null; make_slug: string | null; year: number | null }>();
 
   // Search years for specific make+model combos
+  const yearTerms = q.split(/\s+/).filter(Boolean).slice(0,6).map(term => `%${term}%`);
   const yearsResult = await c.env.DB.prepare(
-    `SELECT CAST(vy.year AS TEXT) as name, CAST(vy.year AS TEXT) as slug, 'year' as type,
+    `SELECT m.name as name, m.slug as slug, 'year' as type,
             mk.name as make_name, mk.slug as make_slug, vy.year
      FROM vehicle_years vy
      JOIN models m ON m.id = vy.model_id
      JOIN makes mk ON mk.id = m.make_id
      WHERE EXISTS (SELECT 1 FROM recalls r WHERE r.vehicle_year_id = vy.id)
-       AND (mk.name || ' ' || m.name || ' ' || CAST(vy.year AS TEXT)) LIKE ?
+       AND ${yearTerms.map(() => "(mk.name || ' ' || m.name || ' ' || CAST(vy.year AS TEXT)) LIKE ?").join(' AND ')}
      ORDER BY mk.name, m.name, vy.year DESC LIMIT 5`,
-  ).bind(searchTerm).all<{ name: string; slug: string; type: string; make_name: string | null; make_slug: string | null; year: number | null }>();
+  ).bind(...yearTerms).all<{ name: string; slug: string; type: string; make_name: string | null; make_slug: string | null; year: number | null }>();
 
   const results = [...makesResult.results, ...modelsResult.results, ...yearsResult.results].slice(0, 8).map((r) => {
     if (r.type === "make") {
