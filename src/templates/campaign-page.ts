@@ -129,6 +129,7 @@ export function campaignPageTemplate({
     ${sourceModels?.length ? `<p>Original NHTSA model designations: ${sourceModels.map(escapeHtml).join(', ')}</p>` : ""}
     ${vehiclesHtml}
 
+    <section id="service"><h2>Arrange a free repair</h2>${affectedVehicles[0] ? `<a href="/dealers/${escapeHtml(affectedVehicles[0].makeSlug)}?campaign=${encodeURIComponent(campaign)}">Contact an authorized ${escapeHtml(affectedVehicles[0].make)} dealer →</a>` : `<a href="/vin-lookup">Check your VIN and manufacturer →</a>`}</section>
     ${vinCheckCta(campaign)}
   `;
 }

@@ -1,3 +1,4 @@
+import { dealerPageTemplate } from "../templates/dealer-page";
 import { verifiedTimestamp } from "../lib/freshness";
 import { segmentCompetitors } from "../lib/vehicle-segments";
 import { Hono } from "hono";
@@ -50,7 +51,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v24";
+const PAGE_CACHE_VERSION = "v25";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -587,6 +588,17 @@ pageRoutes.get("/vin-lookup", async (c) => {
   return maybeMarkdown(c, html);
 });
 
+// Service helpers are intentionally noindex; canonical recall pages carry the filing.
+pageRoutes.get("/dealers/:makeSlug{[a-z0-9-]+}", async c => {
+ const {makeSlug}=c.req.param();
+ const make=await c.env.DB.prepare('SELECT name FROM makes WHERE slug=?').bind(makeSlug).first<{name:string}>();
+ if(!make) return c.notFound();
+ const campaign=c.req.query('campaign');
+ const recall=campaign ? await c.env.DB.prepare(`SELECT r.remedy_raw FROM recalls r JOIN vehicle_years vy ON vy.id=r.vehicle_year_id JOIN models m ON m.id=vy.model_id JOIN makes mk ON mk.id=m.make_id WHERE mk.slug=? AND r.nhtsa_campaign_number=? LIMIT 1`).bind(makeSlug,campaign).first<{remedy_raw:string}>() : null;
+ const siteUrl=c.env.SITE_URL || 'https://recalledrides.com';
+ return c.html(layout({title:`${make.name} Recall Service & Dealer Help | Recalled Rides`,canonical:`${siteUrl}/dealers/${makeSlug}`,noIndex:true,body:`<div id="service">${dealerPageTemplate(make.name,makeSlug,recall ? campaign : undefined,recall?.remedy_raw)}</div>`}));
+});
+
 // GET /stats/:makeSlug/:modelSlug — Model reliability scorecard
 pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
   const { makeSlug, modelSlug } = c.req.param();
@@ -994,7 +1006,7 @@ pageRoutes.get("/vin/:vin", async (c) => {
           enriched_at: null,
         }));
 
-        const cards = recallViews.map(recallCard).join("");
+        const cards = recallViews.map(r => recallCard(r,slugify(vehicle.make))).join("");
 
         const partner = primaryPartner(c.env.AFFILIATE_PARTNERS);
         const body = vinPageTemplate({
@@ -1572,7 +1584,7 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
         description = description.slice(0, trunc) + ".";
       }
 
-      const cards = filteredRecalls.map(recallCard).join("");
+      const cards = filteredRecalls.map(r => recallCard(r,makeSlug)).join("");
 
       // Compute related components (all components for this year except current)
       const componentMap = new Map<string, { name: string; slug: string; count: number }>();
@@ -1656,7 +1668,7 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
           recallCount: filteredRecalls.length,
           topSeverity,
           cards,
-          leadGen: dealerLeadGen(),
+          leadGen: dealerLeadGen(makeSlug),
           relatedComponents,
           relatedYears,
           relatedRecalls: relatedRecallsResult.results,
@@ -1868,7 +1880,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
 
       const cards =
         recalls.length > 0
-          ? recalls.map(recallCard).join("")
+          ? recalls.map(r => recallCard(r,makeSlug)).join("")
           : "<p class='text-gray-500 py-4'>No recalls found for this vehicle year.</p>";
 
       const relatedYearsResult = await c.env.DB.prepare(
@@ -1923,7 +1935,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           highCount: recalls.filter(r => r.severity_level === "HIGH").length,
           riskScore,
           cards,
-          leadGen: dealerLeadGen() + yearAdSlot,
+          leadGen: dealerLeadGen(makeSlug) + yearAdSlot,
           buyerCardHtml: buyingUsedCard({partner,make:make.name,model:model.name,year,recallCount:recalls.length}),
           alertSignupHtml: alertSignup({
             make: make.name,

@@ -18,7 +18,7 @@ interface RecallView {
   enriched_at: string | null;
 }
 
-export function recallCard(recall: RecallView): string {
+export function recallCard(recall: RecallView, makeSlug?: string): string {
   const isEnriched = !!recall.enriched_at;
   const summary = recall.summary_enriched ?? recall.summary_raw;
   const consequence = recall.consequence_enriched ?? recall.consequence_raw;
@@ -97,7 +97,7 @@ export function recallCard(recall: RecallView): string {
     ${originalToggle}
     <div class="rr-readout__actions">
       <a href="${shareUrl}" class="rr-readout__detail-link">View full recall details →</a>
-      <span class="rr-lead__inline">Repairs are <strong>free</strong> at any authorized dealer. <a href="https://www.nhtsa.gov/recalls#recall-locator" target="_blank" rel="noopener noreferrer">Find a dealer →</a></span>
+      <span class="rr-lead__inline">Repairs are <strong>free</strong> at any authorized dealer. <a href="${makeSlug ? `/dealers/${encodeURIComponent(makeSlug)}?campaign=${encodeURIComponent(recall.nhtsa_campaign_number)}` : `/recall/${encodeURIComponent(recall.nhtsa_campaign_number)}`}#service">Find a dealer →</a></span>
     </div>
   </article>`;
 }
