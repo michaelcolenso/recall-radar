@@ -91,3 +91,13 @@ test('canonical aliases also redirect stats pages and empty models stay noindex'
  year(model(make('TEST MAKE','test-make'),'Empty','empty'),2020);
  const empty=await app.request('/test-make/empty',{},env);assert.equal(empty.status,200);assert.match(await empty.text(),/name="robots" content="noindex, follow"/);
 });
+
+test('canonical record moves are batched while preserving every campaign',async()=>{
+ const {db,sqlite,make,model,year,recall}=fixtureDatabase();
+ const sourceModel=model(make('BMW','bmw'),'330Ci','330ci'), sourceYear=year(sourceModel,2008);
+ for(let i=0;i<20;i++)recall(sourceYear,`MOVE-${i}`);
+ let batches=0;const spy={prepare:db.prepare.bind(db),batch:async(statements:any[])=>{batches++;return db.batch(statements);}} as unknown as D1Database;
+ await repairCanonicalModels(spy,{sourceModelId:sourceModel,rescore:false});
+ assert.ok(batches>0);assert.equal(sqlite.prepare("SELECT COUNT(*) as n FROM recalls r JOIN vehicle_years vy ON vy.id=r.vehicle_year_id JOIN models m ON m.id=vy.model_id WHERE m.slug='3-series' AND r.nhtsa_campaign_number LIKE 'MOVE-%'").get()!.n,20);
+ assert.equal(sqlite.prepare('SELECT COUNT(*) as n FROM recalls WHERE vehicle_year_id=?').get(sourceYear)!.n,0);
+});

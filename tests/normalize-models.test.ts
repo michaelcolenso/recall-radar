@@ -48,3 +48,15 @@ test('historical Sprinter brand records join the Mercedes family', () => {
  assert.ok(historical.some(s=>s.make==='FREIGHTLINER'&&s.model==='SPRINTER 3500'));
  assert.ok(!recallSources('MERCEDES-BENZ','Sprinter',2024).some(s=>s.make==='DODGE'));
 });
+
+test('production scooter, touring and adventure variants stay out of consumer grids',()=>{
+ for(const name of ['C 400 X','C Evolution','F 800 ST','M 1000 R','M 1000 RR','M 1000 XR','R 1200 ST','R 1250 GS Adventure','R 1300 GS Adventure','R 18 Transcontinental']) assert.equal(normalizeModel('BMW',name).vehicleType,'motorcycle',name);
+ for(const name of ['CTX700','ST1300','ST1300P','ST1300PA'])assert.equal(normalizeModel('HONDA',name).vehicleType,'motorcycle',name);
+ for(const name of ['Accord','CR-Z','S2000'])assert.equal(normalizeModel('HONDA',name).vehicleType,'passenger',name);
+});
+
+test('BMW coupe and long-wheelbase trims resolve to their series without merging M3 or i3',()=>{
+ for(const name of ['325Ci','328Ci','330Ci','335','M340i','ActiveHybrid 3'])assert.equal(normalizeModel('BMW',name).model,'3 Series',name);
+ for(const name of ['740Li','745Le','750Li','750Lxi','760Li','M760Li'])assert.equal(normalizeModel('BMW',name).model,'7 Series',name);
+ assert.equal(normalizeModel('BMW','M3').model,'M3');assert.equal(normalizeModel('BMW','i3').model,'i3');assert.equal(normalizeModel('BMW','2002').model,'2002');
+});

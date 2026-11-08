@@ -24,20 +24,24 @@ export async function repairCanonicalModels(db: D1Database, options: {sourceMode
    await db.prepare('INSERT INTO vehicle_year_aliases(source_id,canonical_id) VALUES(?,?) ON CONFLICT(source_id) DO UPDATE SET canonical_id=excluded.canonical_id').bind(year.id,target.id).run();
    // Preserve aliases even on overlapping campaigns before merging them.
    const recalls = await db.prepare('SELECT id,nhtsa_campaign_number,source_models FROM recalls WHERE vehicle_year_id=?').bind(year.id).all<{id:number;nhtsa_campaign_number:string;source_models:string|null}>();
+   const existing=await db.prepare('SELECT id,nhtsa_campaign_number,source_models FROM recalls WHERE vehicle_year_id=?').bind(target.id).all<{id:number;nhtsa_campaign_number:string;source_models:string|null}>();
+   const byCampaign=new Map(existing.results.map(recall=>[recall.nhtsa_campaign_number,recall]));
+   const statements:D1PreparedStatement[]=[];
    for (const recall of recalls.results) {
-    const duplicate = await db.prepare('SELECT id,source_models FROM recalls WHERE vehicle_year_id=? AND nhtsa_campaign_number=?').bind(target.id,recall.nhtsa_campaign_number).first<{id:number;source_models:string|null}>();
+    const duplicate = byCampaign.get(recall.nhtsa_campaign_number);
     const sources = JSON.stringify([...new Set([`${row.make_name} ${row.name}`, ...JSON.parse(recall.source_models || '[]'), ...JSON.parse(duplicate?.source_models || '[]')])]);
     if (!duplicate) {
-     await db.prepare('UPDATE recalls SET vehicle_year_id=?,source_models=? WHERE id=?').bind(target.id,sources,recall.id).run();
+     statements.push(db.prepare('UPDATE recalls SET vehicle_year_id=?,source_models=? WHERE id=?').bind(target.id,sources,recall.id));
     } else {
-     await db.batch([
+     statements.push(
       db.prepare('UPDATE recalls SET source_models=?, summary_enriched=COALESCE(summary_enriched,(SELECT summary_enriched FROM recalls WHERE id=?)), consequence_enriched=COALESCE(consequence_enriched,(SELECT consequence_enriched FROM recalls WHERE id=?)), remedy_enriched=COALESCE(remedy_enriched,(SELECT remedy_enriched FROM recalls WHERE id=?)), enriched_at=COALESCE(enriched_at,(SELECT enriched_at FROM recalls WHERE id=?)) WHERE id=?').bind(sources,recall.id,recall.id,recall.id,recall.id,duplicate.id),
       db.prepare('UPDATE OR IGNORE alert_sends SET recall_id=? WHERE recall_id=?').bind(duplicate.id,recall.id),
       db.prepare('UPDATE OR IGNORE enrichment_failures SET recall_id=? WHERE recall_id=?').bind(duplicate.id,recall.id),
       db.prepare('DELETE FROM recalls WHERE id=?').bind(recall.id),
-     ]);
+     );
     }
    }
+   for(let offset=0;offset<statements.length;offset+=90) await db.batch(statements.slice(offset,offset+90));
    // Keep subscription IDs, confirmation and unsubscribe tokens unchanged.
    // Digest joins resolve historical vehicle IDs through vehicle_year_aliases.
   }
