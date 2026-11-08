@@ -8,7 +8,7 @@
 // All outbound affiliate links route through the first-party /go/:partner
 // redirect (src/routes/go.ts) so clicks are logged and URLs stay swappable.
 
-export type AffiliatePlacement = "vin" | "year" | "lookup" | "email";
+export type AffiliatePlacement = "vin" | "year" | "lookup" | "email" | "stats" | "model";
 
 export interface AffiliatePartner {
   id: string;

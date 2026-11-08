@@ -39,7 +39,7 @@ import { calculateRawScore, scoreToGrade, gradeForCounts, gradeDescription } fro
 import { POPULAR_MAKES } from "../lib/constants";
 import { acceptsMarkdown, htmlToMarkdown } from "../lib/utils";
 import { primaryPartner } from "../lib/affiliates";
-import { vinReportCta } from "../templates/components/affiliate-box";
+import { buyingUsedCard, vinReportCta } from "../templates/components/affiliate-box";
 import { alertSignup } from "../templates/components/alert-signup";
 import { adSlot } from "../templates/components/ad-slot";
 import { privacyPageTemplate, disclosurePageTemplate } from "../templates/static-pages";
@@ -50,7 +50,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v23";
+const PAGE_CACHE_VERSION = "v24";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -713,6 +713,7 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
           worstYears,
           brandAvgRecalls,
           totalRecalls,
+          buyerCardHtml: buyingUsedCard({partner: primaryPartner(c.env.AFFILIATE_PARTNERS),make:make.name,model:model.name,recallCount:totalRecalls,placement:"stats"}),
         }) + adSlot({ client: c.env.ADSENSE_CLIENT || undefined, slot: c.env.ADSENSE_SLOT || undefined });
 
       const statsUrl = `${siteUrl}/stats/${makeSlug}/${modelSlug}`;
@@ -1922,7 +1923,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           highCount: recalls.filter(r => r.severity_level === "HIGH").length,
           riskScore,
           cards,
-          leadGen: dealerLeadGen() + affiliateCta + yearAdSlot,
+          leadGen: dealerLeadGen() + yearAdSlot,
+          buyerCardHtml: buyingUsedCard({partner,make:make.name,model:model.name,year,recallCount:recalls.length}),
           alertSignupHtml: alertSignup({
             make: make.name,
             makeSlug,

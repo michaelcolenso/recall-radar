@@ -36,6 +36,7 @@ interface ModelStatsPageOptions {
   worstYears: YearStat[];
   brandAvgRecalls: number;
   totalRecalls: number;
+  buyerCardHtml?: string;
 }
 
 export function modelStatsPageTemplate({
@@ -50,6 +51,7 @@ export function modelStatsPageTemplate({
   worstYears,
   brandAvgRecalls,
   totalRecalls,
+  buyerCardHtml,
 }: ModelStatsPageOptions): string {
   const avgRecalls = yearStats.length > 0 ? (totalRecalls / yearStats.length).toFixed(1) : "0";
   const vsBrand = brandAvgRecalls > 0
@@ -148,6 +150,7 @@ export function modelStatsPageTemplate({
       </div>
     </section>
 
+    ${buyerCardHtml ?? ""}
     <section style="margin-bottom: var(--space-16);">
       <h2 class="rr-label" style="margin-bottom: var(--space-6);">Recalls by Year</h2>
       <div class="rr-year-bars">
