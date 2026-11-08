@@ -72,6 +72,8 @@ export function layout({
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin/>
   <link rel="preload" href="/fonts/literata.woff2" as="font" type="font/woff2" crossorigin/>
   <style>${CRITICAL_CSS}</style>
+  <link rel="stylesheet" href="/print.css?v=${ASSET_VERSION}" media="print"/>
+  <script src="/checklist.js" defer></script>
   <link rel="preload" href="/styles.css?v=${ASSET_VERSION}" as="style"/>
   <link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}" media="print" onload="this.media='all'"/>
   <noscript><link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}"/></noscript>
@@ -94,6 +96,7 @@ export function layout({
       <div class="rr-nav__links">
         <a href="/#makes">Browse</a>
         <a href="/vin-lookup">VIN Lookup</a>
+        <a href="/symptoms">Symptom Search</a>
         <a href="/toyota">Toyota</a>
         <a href="/honda">Honda</a>
         <a href="/ford">Ford</a>

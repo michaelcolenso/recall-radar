@@ -1,3 +1,5 @@
+import { symptomQuery } from "../lib/symptom-search";
+import { printChecklist } from "../templates/components/print-checklist";
 import { dealerPageTemplate } from "../templates/dealer-page";
 import { verifiedTimestamp } from "../lib/freshness";
 import { segmentCompetitors } from "../lib/vehicle-segments";
@@ -51,7 +53,7 @@ export const pageRoutes = new Hono<{ Bindings: Env }>();
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v25";
+const PAGE_CACHE_VERSION = "v26";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -599,6 +601,15 @@ pageRoutes.get("/dealers/:makeSlug{[a-z0-9-]+}", async c => {
  return c.html(layout({title:`${make.name} Recall Service & Dealer Help | Recalled Rides`,canonical:`${siteUrl}/dealers/${makeSlug}`,noIndex:true,body:`<div id="service">${dealerPageTemplate(make.name,makeSlug,recall ? campaign : undefined,recall?.remedy_raw)}</div>`}));
 });
 
+pageRoutes.get("/symptoms", async c => {
+ const q=(c.req.query('q') || '').trim().slice(0,160);
+ const query=symptomQuery(q);
+ const rows=q.length>=3 ? (await c.env.DB.prepare(query.sql).bind(...query.params).all<{campaign:string;component:string;summary:string;vehicles:number}>()).results : [];
+ const siteUrl=c.env.SITE_URL || 'https://recalledrides.com';
+ const body=`<section class="rr-section-header"><h1>Search Recalls by Symptom</h1><p>Try “steering wheel shakes”, “backup camera blank”, or “engine stalls at stop”. A symptom match is a research lead; confirm your vehicle's recall status by VIN.</p><form action="/symptoms" method="get"><label>What is your vehicle doing? <input name="q" value="${escapeHtml(q)}" minlength="3" maxlength="160" required></label><button class="rr-btn rr-btn--primary">Search Symptoms</button></form></section>${q ? `<p>${rows.length} matching campaigns${rows.length===30 ? ' (showing the newest 30)' : ''}.</p>` : ''}<div class="rr-readout-list">${rows.map(r=>`<article class="rr-readout"><h2><a href="/recall/${encodeURIComponent(r.campaign)}">#${escapeHtml(r.campaign)} — ${escapeHtml(r.component)}</a></h2><p>${escapeHtml(r.summary)}</p><p>${r.vehicles} model-year records</p></article>`).join('')}</div><p><a href="/vin-lookup">Check your VIN →</a></p>`;
+ return c.html(layout({title:'Search Vehicle Recalls by Symptom | Recalled Rides',description:'Find safety recall filings by everyday vehicle symptoms, from engine stalls to blank backup cameras.',canonical:`${siteUrl}/symptoms`,noIndex:!!q,body}));
+});
+
 // GET /stats/:makeSlug/:modelSlug — Model reliability scorecard
 pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
   const { makeSlug, modelSlug } = c.req.param();
@@ -1006,10 +1017,12 @@ pageRoutes.get("/vin/:vin", async (c) => {
           enriched_at: null,
         }));
 
+        const checklistHtml = printChecklist(`${vehicle.year} ${vehicle.make} ${vehicle.model}`,recallViews.map(r=>({campaign:r.nhtsa_campaign_number,component:r.component,remedy:r.remedy_raw})));
         const cards = recallViews.map(r => recallCard(r,slugify(vehicle.make))).join("");
 
         const partner = primaryPartner(c.env.AFFILIATE_PARTNERS);
         const body = vinPageTemplate({
+          checklistHtml,
           vin: vin.toUpperCase(),
           make: vehicle.make,
           model: vehicle.model,
@@ -1935,6 +1948,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
           highCount: recalls.filter(r => r.severity_level === "HIGH").length,
           riskScore,
           cards,
+          checklistHtml: printChecklist(`${year} ${make.name} ${model.name}`,recalls.map(r=>({campaign:r.nhtsa_campaign_number,component:r.component,remedy:r.remedy_raw}))),
           leadGen: dealerLeadGen(makeSlug) + yearAdSlot,
           buyerCardHtml: buyingUsedCard({partner,make:make.name,model:model.name,year,recallCount:recalls.length}),
           alertSignupHtml: alertSignup({

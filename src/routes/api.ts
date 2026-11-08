@@ -1,3 +1,4 @@
+import { printChecklist } from "../templates/components/print-checklist";
 import { repairTemporalSummaries } from "../etl/temporal-summaries";
 import { repairCanonicalModels } from "../etl/repair-models";
 import { Hono } from "hono";
@@ -430,7 +431,7 @@ apiRoutes.get("/vin-lookup", async (c) => {
       date: r.ReportReceivedDate,
     }));
 
-    return c.json({ vin, recalls, count: recalls.length });
+    return c.json({ vin, recalls, count: recalls.length, checklistHtml: printChecklist(`VIN ${vin}`,recalls.map(r=>({campaign:r.campaign,component:r.component || "Unspecified",remedy:r.remedy || ""}))) });
   } catch {
     return c.json({ error: "Unable to reach NHTSA. Please try again later." }, 502);
   }

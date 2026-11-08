@@ -12,6 +12,7 @@ interface VinPageOptions {
   recallCount: number;
   topSeverity: SeverityLevel | null;
   cards: string;
+  checklistHtml?: string;
   /** Vehicle-history-report affiliate CTA (Phase 1) — shown under the VIN summary. */
   affiliateCtaHtml?: string;
   /** Recall-alert signup card (Phase 2), prefilled from the decoded VIN. */
@@ -28,6 +29,7 @@ export function vinPageTemplate({
   recallCount,
   topSeverity,
   cards,
+  checklistHtml,
   affiliateCtaHtml,
   alertSignupHtml,
 }: VinPageOptions): string {
@@ -69,6 +71,7 @@ export function vinPageTemplate({
       </div>
     </section>
 
+    ${checklistHtml ?? ""}
     ${affiliateCtaHtml ?? ""}
 
     ${recallCount === 0 ? `

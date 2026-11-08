@@ -9,12 +9,13 @@ const MAX_URLS_PER_SITEMAP = 50000;
 const YEAR_SITEMAP_CHUNK_SIZE = 45000;
 const COMPONENT_SITEMAP_CHUNK_SIZE = 45000;
 const CAMPAIGN_SITEMAP_CHUNK_SIZE = 45000;
-const SEO_CACHE_VERSION = "v7";
+const SEO_CACHE_VERSION = "v8";
 
 // Static (non-DB-driven) pages not covered by the make/model/year/etc. sitemaps.
 // Homepage is intentionally excluded — it's already emitted by sitemap-makes.xml
 // and the single-urlset branch below.
 const STATIC_SITEMAP_PATHS: Array<{ path: string; priority: string; changefreq: string }> = [
+  { path: "/symptoms", priority: "0.6", changefreq: "weekly" },
   { path: "/about", priority: "0.5", changefreq: "monthly" },
   { path: "/new", priority: "0.7", changefreq: "daily" },
   { path: "/vin-lookup", priority: "0.8", changefreq: "monthly" },

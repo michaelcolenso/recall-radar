@@ -29,6 +29,7 @@ interface YearPageOptions {
   riskScore: number | null;
   cards: string;
   buyerCardHtml?: string;
+  checklistHtml?: string;
   leadGen: string;
   /** Recall-alert email signup card — rendered on every year page. */
   alertSignupHtml?: string;
@@ -36,7 +37,7 @@ interface YearPageOptions {
   components?: ComponentLink[];
 }
 
-export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recallCount, topSeverity, criticalCount = 0, highCount = 0, riskGrade, riskScore, cards, buyerCardHtml, leadGen, alertSignupHtml, relatedYears, components }: YearPageOptions): string {
+export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recallCount, topSeverity, criticalCount = 0, highCount = 0, riskGrade, riskScore, cards, buyerCardHtml, checklistHtml, leadGen, alertSignupHtml, relatedYears, components }: YearPageOptions): string {
   const componentHtml = components && components.length > 0
     ? `
       <section style="margin-top: var(--space-20);">
@@ -92,6 +93,7 @@ export function yearPageTemplate({ make, makeSlug, model, modelSlug, year, recal
       ` : ""}
     </section>
 
+    ${checklistHtml ?? ""}
     ${buyerCardHtml ?? ""}
     ${recallCount === 0 ? `
     <section class="rr-good-news" aria-labelledby="good-news-title">

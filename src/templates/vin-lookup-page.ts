@@ -98,7 +98,7 @@ export function vinLookupPageTemplate(siteUrl: string, affiliateCtaHtml?: string
                 aff.hidden=false;
               }
               if(!data.recalls||data.recalls.length===0){
-                results.innerHTML='<div class="rr-empty"><h2 class="rr-empty__title">No Open Recalls</h2><p class="rr-empty__text">Good news — NHTSA shows no open recalls for this VIN.</p></div>';
+                results.innerHTML='<div class="rr-empty"><h2 class="rr-empty__title">No Open Recalls</h2><p class="rr-empty__text">Good news — NHTSA shows no open recalls for this VIN.</p></div>'+(data.checklistHtml||'');
                 return;
               }
               var html='<div class="rr-readout-list"><h2 class="rr-label" style="margin-bottom:var(--space-6)">'+data.recalls.length+' Open Recall'+((data.recalls.length!==1)?'s':'')+'</h2>';
@@ -106,7 +106,7 @@ export function vinLookupPageTemplate(siteUrl: string, affiliateCtaHtml?: string
                 html+='<article class="rr-readout"><div class="rr-readout__header"><div class="rr-readout__meta"><span class="rr-readout__title-link">'+escHtml(r.component)+'</span><span class="rr-readout__date">Campaign '+escHtml(r.campaign)+'</span></div></div><div class="rr-readout__body"><p>'+escHtml(r.summary)+'</p></div></article>';
               });
               html+='</div>';
-              results.innerHTML=html;
+              results.innerHTML=(data.checklistHtml||'')+html;
             })
             .catch(function(){
               results.innerHTML='<p class="rr-body rr-body--error">Unable to check VIN. Please try again later.</p>';
