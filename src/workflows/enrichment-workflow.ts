@@ -9,8 +9,7 @@ export interface EnrichmentParams {
 
 export class EnrichmentWorkflow extends WorkflowEntrypoint<Env, EnrichmentParams> {
   async run(event: WorkflowEvent<EnrichmentParams>, step: WorkflowStep) {
-    const batchSize = event.payload.batchSize ?? 50;
-    const concurrency = Math.min(event.payload.concurrency ?? 1, 2); // cap at 2 to avoid Workers AI rate limits
+    const batchSize = Math.min(event.payload.batchSize ?? 8, 8);
     const targetMake = event.payload.targetMake;
     const startedAt = new Date().toISOString();
     let totalEnriched = 0;
@@ -67,75 +66,60 @@ export class EnrichmentWorkflow extends WorkflowEntrypoint<Env, EnrichmentParams
 
       if (rows.length === 0) break;
 
-      // Process sequentially (concurrency=1) or in small chunks (concurrency=2)
-      const chunks: typeof rows[] = [];
-      for (let i = 0; i < rows.length; i += concurrency) {
-        chunks.push(rows.slice(i, i + concurrency));
-      }
+      // One step covers the whole fetched batch. One step per recall blows the
+      // workflow step cap before a 3,900-row backfill can finish.
+      const chunkEnriched = await step.do(`enrich-batch-${batchNumber}`, async () => {
+        let enrichedInChunk = 0;
+        for (const row of rows) {
+          try {
+            const enriched = await enrichRecall(
+              this.env,
+              row.summary_raw,
+              row.consequence_raw,
+              row.remedy_raw,
+              row.component
+            );
+            const now = new Date().toISOString();
 
-      for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
-        const chunk = chunks[chunkIdx];
-        const chunkEnriched = await step.do(`enrich-batch-${batchNumber}-chunk-${chunkIdx}`, async () => {
-          let enrichedInChunk = 0;
-          // Process sequentially even within a chunk to respect rate limits
-          for (const row of chunk) {
-            try {
-              const enriched = await enrichRecall(
-                this.env,
-                row.summary_raw,
-                row.consequence_raw,
-                row.remedy_raw,
-                row.component
-              );
-              const now = new Date().toISOString();
-              
-              if (!enriched || enriched.score < 0.5) {
-                const errorMsg = !enriched ? "LLM returned null or malformed JSON" : `Low quality score: ${enriched.score}`;
-                console.warn(`Enrichment issue for recall ${row.id}: ${errorMsg}`);
-                
-                // Record in dead letter queue
-                await this.env.DB.prepare(
-                  `INSERT INTO enrichment_failures (recall_id, error, attempts, last_attempt_at)
-                   VALUES (?, ?, 1, ?)
-                   ON CONFLICT(recall_id) DO UPDATE SET 
-                     attempts = enrichment_failures.attempts + 1,
-                     last_attempt_at = excluded.last_attempt_at,
-                     error = excluded.error,
-                     resolved = 0`
-                ).bind(row.id, errorMsg, now).run();
-                continue;
-              }
-
+            if (!enriched || enriched.score < 0.5) {
+              const errorMsg = !enriched ? "LLM returned null or malformed JSON" : `Low quality score: ${enriched.score}`;
+              console.warn(`Enrichment issue for recall ${row.id}: ${errorMsg}`);
               await this.env.DB.prepare(
-                `UPDATE recalls SET
-                   summary_enriched = ?, consequence_enriched = ?, remedy_enriched = ?,
-                   enrichment_quality_score = ?, enrichment_model = ?,
-                   enriched_at = ?, updated_at = ?
-                 WHERE id = ?`
-              ).bind(
-                enriched.summary, enriched.consequence, enriched.remedy,
-                Math.round(enriched.score * 100), enriched.model,
-                now, now, row.id
-              ).run();
-              
-              // If previously failed, mark as resolved
-              await this.env.DB.prepare(
-                "UPDATE enrichment_failures SET resolved = 1 WHERE recall_id = ?"
-              ).bind(row.id).run();
+                `INSERT INTO enrichment_failures (recall_id, error, attempts, last_attempt_at)
+                 VALUES (?, ?, 1, ?)
+                 ON CONFLICT(recall_id) DO UPDATE SET
+                   attempts = enrichment_failures.attempts + 1,
+                   last_attempt_at = excluded.last_attempt_at,
+                   error = excluded.error,
+                   resolved = 0`
+              ).bind(row.id, errorMsg, now).run();
+              continue;
+            }
 
-              enrichedInChunk++;
-            } catch (err) {
-              console.error(`Enrichment error for recall ${row.id}: ${String(err)}`);
-            }
-            // Small delay between individual calls to avoid rate limiting
-            if (chunk.length > 1 || concurrency > 1) {
-              await new Promise((r) => setTimeout(r, 500));
-            }
+            await this.env.DB.prepare(
+              `UPDATE recalls SET
+                 summary_enriched = ?, consequence_enriched = ?, remedy_enriched = ?,
+                 enrichment_quality_score = ?, enrichment_model = ?,
+                 enriched_at = ?, updated_at = ?
+               WHERE id = ?`
+            ).bind(
+              enriched.summary, enriched.consequence, enriched.remedy,
+              Math.round(enriched.score * 100), enriched.model,
+              now, now, row.id
+            ).run();
+
+            await this.env.DB.prepare(
+              "UPDATE enrichment_failures SET resolved = 1 WHERE recall_id = ?"
+            ).bind(row.id).run();
+            enrichedInChunk++;
+          } catch (err) {
+            console.error(`Enrichment error for recall ${row.id}: ${String(err)}`);
           }
-          return enrichedInChunk;
-        });
-        totalEnriched += chunkEnriched;
-      }
+          await new Promise((r) => setTimeout(r, 200));
+        }
+        return enrichedInChunk;
+      });
+      totalEnriched += chunkEnriched;
 
       if (rows.length < batchSize) break;
       batchNumber += 1;
