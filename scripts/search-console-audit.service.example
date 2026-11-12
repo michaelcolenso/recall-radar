@@ -1,0 +1,9 @@
+[Unit]
+Description=Recalled Rides Search Console coverage snapshot
+
+[Service]
+Type=oneshot
+WorkingDirectory=/absolute/path/to/recall-radar
+EnvironmentFile=/private/path/to/search-console.env
+ExecStart=/absolute/path/to/python scripts/search-console-audit.py --output artifacts/operations/search-console.json
+TimeoutStartSec=10min

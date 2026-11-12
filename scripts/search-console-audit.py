@@ -30,3 +30,5 @@ except HttpError as e:report['error_status']=e.resp.status;report['error_reason'
 os.makedirs(os.path.dirname(args.output) or '.',exist_ok=True)
 with open(args.output,'w') as f:json.dump(report,f,indent=2)
 print(json.dumps({'access':report['access'],'sitemaps':report['sitemaps'],'performance':report.get('performance'),'inspection':[{'path':r['path'],'indexStatusResult':r.get('indexStatusResult'),'error_status':r.get('error_status')} for r in report['inspection']],'error_status':report.get('error_status')}))
+if report.get('error_status') or any(r.get('error_status') for r in report['inspection']):
+ raise SystemExit(1)
