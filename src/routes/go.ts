@@ -16,8 +16,9 @@ goRoutes.get("/go/:partner", (c) => {
 
   const vin = (c.req.query("vin") || "").toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "").slice(0, 17) || undefined;
   const placement = (c.req.query("placement") || "unknown").slice(0, 32);
-  const referer = c.req.header("Referer")?.slice(0, 255) ?? null;
-  const pagePath = referer ? safePath(referer) : (c.req.query("from") || "").slice(0, 255);
+  const pagePath = safePath(c.req.header("Referer") || c.req.query("from") || "");
+  // Referrer query strings can contain a full VIN. Persist only the sanitized path.
+  const referer = null;
 
   // No PII: only the first 8 VIN chars (world-manufacturer + descriptor, no serial).
   const vinPrefix = vin ? vin.slice(0, 8) : null;
@@ -39,10 +40,11 @@ goRoutes.get("/go/:partner", (c) => {
   return c.redirect(partner.urlTemplate(vin), 302);
 });
 
-function safePath(referer: string): string {
+function safePath(value: string): string {
+  if(!value)return "";
   try {
-    return new URL(referer).pathname.slice(0, 255);
-  } catch {
-    return "";
-  }
+    const path=decodeURIComponent(new URL(value,'https://recalledrides.com').pathname);
+    if(!/^\/[a-z0-9/\-]*$/i.test(path))return "";
+    return path.replace(/[A-HJ-NPR-Z0-9]{17}/gi,'[redacted]').slice(0,255);
+  } catch {return "";}
 }

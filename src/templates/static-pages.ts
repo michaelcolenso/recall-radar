@@ -1,5 +1,5 @@
 import { escapeHtml } from "../lib/utils";
-import { AFFILIATE_PARTNERS, getEnabledPartners } from "../lib/affiliates";
+import { getEnabledPartners } from "../lib/affiliates";
 
 export function privacyPageTemplate(siteUrl: string): string {
   return `
@@ -41,7 +41,7 @@ export function privacyPageTemplate(siteUrl: string): string {
 
 export function disclosurePageTemplate(affiliatePartnersEnv: string | undefined): string {
   const enabled = getEnabledPartners(affiliatePartnersEnv);
-  const partnerList = (enabled.length > 0 ? enabled : AFFILIATE_PARTNERS)
+  const partnerList = enabled
     .map((p) => `<li>${escapeHtml(p.name)}</li>`)
     .join("");
 
@@ -54,7 +54,7 @@ export function disclosurePageTemplate(affiliatePartnersEnv: string | undefined)
     <section class="rr-prose" style="max-width: 720px; margin-bottom: var(--space-16);">
       <p>Recalled Rides is free to use. All recall data comes from the U.S. National Highway Traffic Safety Administration (NHTSA) and always will be free — recall repairs themselves are free at franchised dealers by federal law, and we will never charge you or take a cut for telling you that.</p>
 
-      <p>To keep the site running, some pages include <strong>partner links</strong> to third-party vehicle-history-report services. If you click one of these links and make a purchase, we may earn a commission <strong>at no additional cost to you</strong>. This is the disclosure required by the U.S. Federal Trade Commission's Endorsement Guides (16&nbsp;CFR&nbsp;Part&nbsp;255).</p>
+      <p>To keep the site running, we may add clearly labeled <strong>partner links</strong> to third-party vehicle-history-report services. If you click one of these links and make a purchase, we may earn a commission <strong>at no additional cost to you</strong>. This is the disclosure required by the U.S. Federal Trade Commission's Endorsement Guides (16&nbsp;CFR&nbsp;Part&nbsp;255).</p>
 
       <h2>What to expect</h2>
       <ul>
@@ -64,7 +64,7 @@ export function disclosurePageTemplate(affiliatePartnersEnv: string | undefined)
       </ul>
 
       <h2>Current partners</h2>
-      <ul>${partnerList}</ul>
+      ${enabled.length ? `<ul>${partnerList}</ul>` : `<p>No affiliate partners are currently active.</p>`}
 
       <p>Questions? Reach us via the <a href="/about">About page</a>.</p>
       <p><em>Last updated: November 2026</em></p>
