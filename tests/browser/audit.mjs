@@ -14,6 +14,7 @@ try {
  mkdirSync('artifacts/audit',{recursive:true});
  browser=await chromium.launch({...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{}),args:['--no-sandbox']});
  const page=await browser.newPage({viewport:{width:390,height:844}});
+ const events=[];page.on('request',r=>{if(r.url().endsWith('/api/events')&&r.postData())events.push(r.postDataJSON());});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:8799/');
  await page.selectOption('#vehicle-make','ram');await page.waitForFunction(()=>!document.querySelector('#vehicle-model').disabled);
@@ -32,6 +33,9 @@ try {
  await page.goto('http://127.0.0.1:8799/symptoms?q=backup%20camera%20blank');assert.ok(await page.locator('.rr-readout').count()>0);
  await page.goto('http://127.0.0.1:8799/?q=2023%20Chevrolet%20Malibu');await page.waitForSelector('#rr-global-search-results a');assert.ok(await page.locator('#keyword-panel').isVisible());
  await page.goto('http://127.0.0.1:8799/chevrolet/malibu/2023');assert.doesNotMatch(await page.textContent('body'),/Most severe issue:|Under Review/);
+ const counts=await (await page.request.get('http://127.0.0.1:8799/__fixture/conversions')).json();
+ for(const event of ['page_view','vehicle_search','vin_lookup_started','vin_lookup_model_year','checklist_print'])assert.ok(counts.some(r=>r.event===event&&r.count>0),event);
+ assert.ok(events.length>0);assert.ok(events.every(e=>Object.keys(e).sort().join(',')==='event,page_type'));assert.ok(!JSON.stringify(events).includes('1FA6P8TH4F5410015'));
  assert.deepEqual(errors,[]);
  console.log('Browser checks passed. Screenshots and PDF: artifacts/audit/');
 } finally {await browser?.close();server.kill('SIGTERM');}

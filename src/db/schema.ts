@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, uniqueIndex, index, primaryKey } from "drizzle-orm/sqlite-core";
 
 // ─── MAKES ──────────────────────────────────────────────────────
 export const makes = sqliteTable("makes", {
@@ -224,3 +224,8 @@ export const vehicleYearAliases = sqliteTable("vehicle_year_aliases", {
  sourceId: integer("source_id").primaryKey().references(() => vehicleYears.id, { onDelete: "cascade" }),
  canonicalId: integer("canonical_id").notNull().references(() => vehicleYears.id, { onDelete: "cascade" }),
 });
+
+// Daily aggregate conversions: no visitor or vehicle identifiers.
+export const conversionCounts=sqliteTable("conversion_counts",{
+ day:text("day").notNull(),event:text("event").notNull(),pageType:text("page_type").notNull(),count:integer("count").notNull().default(0),
+},table=>[primaryKey({columns:[table.day,table.event,table.pageType]})]);

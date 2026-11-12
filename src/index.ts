@@ -2,6 +2,7 @@ import { Hono } from "hono";
 
 import { pageRoutes } from "./routes/pages";
 import { renderOgImage } from "./routes/og-image";
+import { eventRoutes } from "./routes/events";
 import { apiRoutes } from "./routes/api";
 import { adminRoutes } from "./routes/admin";
 import { seoRoutes } from "./routes/seo";
@@ -94,6 +95,7 @@ app.use(async (c, next) => {
 app.get("/b9d5420d355147c7941823e6fc9435c3.txt", (c) =>
        c.text("b9d5420d355147c7941823e6fc9435c3", 200, { "Content-Type": "text/plain" })
      );
+app.route("/", eventRoutes);
 app.route("/", alertRoutes); // /api/alerts/* + /api/webhooks/resend (before apiRoutes' /api mount)
 app.route("/api", apiRoutes);
 app.route("/", goRoutes);
