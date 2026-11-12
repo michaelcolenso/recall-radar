@@ -140,11 +140,14 @@ export function extractJsonObject(text: string): string | null {
 
 const AI_CALL_TIMEOUT_MS = 45_000;
 
+export async function withAiTimeout<T>(operation:()=>Promise<T>,timeoutMs=AI_CALL_TIMEOUT_MS):Promise<T>{
+ let timer:ReturnType<typeof setTimeout>|undefined;
+ try{return await Promise.race([operation(),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error("AI_CALL_TIMEOUT")),timeoutMs);})]);}
+ finally{if(timer!==undefined)clearTimeout(timer);}
+}
+
 async function aiRunWithTimeout(env: Env, model: string, messages: unknown[], maxTokens: number): Promise<string> {
-  const result = await Promise.race([
-    env.AI.run(model, { messages, max_tokens: maxTokens } as unknown as Record<string, unknown>),
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI_CALL_TIMEOUT")), AI_CALL_TIMEOUT_MS)),
-  ]);
+  const result = await withAiTimeout(()=>env.AI.run(model, { messages, max_tokens: maxTokens } as unknown as Record<string, unknown>));
   return (result as { response?: string }).response ?? "";
 }
 

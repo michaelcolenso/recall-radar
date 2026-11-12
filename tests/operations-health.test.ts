@@ -16,3 +16,8 @@ test('monitor distinguishes the future scheduled cycle from successful manual re
  sqlite.prepare("INSERT INTO ingestion_logs(run_type,status,records_found,records_saved,started_at,completed_at) VALUES('delta','completed',0,0,'2026-11-09T02:01:00Z','2026-11-09T02:03:00Z')").run();
  assert.equal((await pipelineHealth(db,'2026-11-09T02:00:00Z',new Date('2026-11-09T04:00:00Z'))).status,'healthy');sqlite.close();
 });
+test('a successful ingestion cannot hide a failed or stalled summary workflow',async()=>{
+ const{includeWorkflowHealth}=await import('../src/lib/operations-health');const {db,sqlite}=fixtureDatabase();await repairCanonicalModels(db);const base=await pipelineHealth(db);
+ const failed=includeWorkflowHealth(base,[{name:'enrichment-workflow',id:'broken',status:'errored',createdAt:'2026-11-12T02:00:00Z'}]);assert.equal(failed.status,'unhealthy');assert.match(failed.issues[0],/enrichment-workflow/);
+ const stalled=includeWorkflowHealth(base,[{name:'enrichment-workflow',id:'stalled',status:'running',createdAt:'2026-11-12T02:00:00Z'}],new Date('2026-11-12T07:00:00Z'));assert.equal(stalled.status,'unhealthy');sqlite.close();
+});

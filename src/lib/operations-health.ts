@@ -25,3 +25,12 @@ export async function pipelineHealth(db: D1Database, expectedAfter?: string, now
   }
   return {checkedAt:now.toISOString(),status:issues.length?'unhealthy':status==='pending'?'awaiting-scheduled-run':'healthy',issues,scheduledRun:{expectedAfter:expectedAfter??null,latest,status},integrity};
 }
+export interface WorkflowHealth {name:string;id:string;status:string;createdAt:string}
+export function includeWorkflowHealth(report:PipelineHealth,workflows:WorkflowHealth[],now=new Date()):PipelineHealth&{workflows:WorkflowHealth[]}{
+ const issues=[...report.issues];
+ for(const w of workflows){
+  if(['errored','terminated'].includes(w.status))issues.push(`${w.name}: ${w.status}`);
+  else if(w.status!=='complete'&&now.getTime()-Date.parse(w.createdAt)>4*60*60*1000)issues.push(`${w.name}: unfinished for more than four hours`);
+ }
+ return {...report,issues,status:issues.length?'unhealthy':report.status,workflows};
+}
