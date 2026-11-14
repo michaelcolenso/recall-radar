@@ -1,0 +1,8 @@
+[Unit]
+Description=Recalled Rides scheduled pipeline and data-integrity check
+
+[Service]
+Type=oneshot
+WorkingDirectory=/absolute/path/to/recall-radar
+EnvironmentFile=/private/path/to/recall-radar-operations.env
+ExecStart=/usr/bin/node --import tsx scripts/operations-check.mjs --expect-delta-after latest --output /private/path/to/pipeline-health.json

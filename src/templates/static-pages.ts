@@ -1,5 +1,5 @@
 import { escapeHtml } from "../lib/utils";
-import { AFFILIATE_PARTNERS, getEnabledPartners } from "../lib/affiliates";
+import { getEnabledPartners } from "../lib/affiliates";
 
 export function privacyPageTemplate(siteUrl: string): string {
   return `
@@ -10,7 +10,7 @@ export function privacyPageTemplate(siteUrl: string): string {
 
     <section class="rr-prose" style="max-width: 720px; margin-bottom: var(--space-16);">
       <h2>The short version</h2>
-      <p>Recalled Rides is a free vehicle-recall lookup site. You can use every page without creating an account or giving us any personal information. We collect data in exactly three situations, all described below.</p>
+      <p>Recalled Rides is a free vehicle-recall lookup site. You can use every page without creating an account or giving us any personal information. The data we collect is described below.</p>
 
       <h2>1. VIN lookups — not stored</h2>
       <p>When you check a VIN, the number is passed directly to the U.S. National Highway Traffic Safety Administration (NHTSA) API to fetch recall results. We do not log, store, or share your VIN, and VIN lookups are not tied to you in any way.</p>
@@ -27,21 +27,21 @@ export function privacyPageTemplate(siteUrl: string): string {
       <p>Some pages contain clearly labeled partner links to vehicle-history-report providers (see our <a href="/disclosure">affiliate disclosure</a>). When you click one, we record which partner was clicked, the page it was clicked on, and — for VIN pages — the first 8 characters of the VIN (which identify the vehicle line, not your specific vehicle). No name, email, IP address, or full VIN is stored with click records.</p>
 
       <h2>Analytics &amp; cookies</h2>
-      <p>We use Cloudflare Web Analytics, a privacy-first tool that does not use cookies, does not fingerprint devices, and does not track you across sites. Recalled Rides sets no advertising or tracking cookies of its own. If we display ads in the future, the ad network's own policies will apply and this page will be updated first.</p>
+      <p>We count page views, completed vehicle searches, VIN lookup attempts and results, dealer clicks and recall-checklist print attempts in daily totals by page type. These counters store no VIN, search text, URL, IP address, email, cookie, visitor ID or browser fingerprint. Counts are events rather than unique people or confirmed repairs. We honor browser Do Not Track and Global Privacy Control signals. Cloudflare Web Analytics may also be used when configured; it does not use cookies or track you across sites. Recalled Rides sets no advertising or tracking cookies of its own. If we display ads in the future, the ad network's own policies will apply and this page will be updated first.</p>
 
       <h2>Data requests &amp; deletion</h2>
       <p>To unsubscribe, use the link in any alert email — it works instantly. To have your email address removed entirely from our records, or for any other privacy question, contact us via the address on our <a href="/about">About page</a>.</p>
 
       <h2>Changes</h2>
       <p>If this policy changes, the new version will be posted at <a href="${siteUrl}/privacy">${siteUrl}/privacy</a> with an updated date.</p>
-      <p><em>Last updated: July 2026</em></p>
+      <p><em>Last updated: November 2026</em></p>
     </section>
   `;
 }
 
 export function disclosurePageTemplate(affiliatePartnersEnv: string | undefined): string {
   const enabled = getEnabledPartners(affiliatePartnersEnv);
-  const partnerList = (enabled.length > 0 ? enabled : AFFILIATE_PARTNERS)
+  const partnerList = enabled
     .map((p) => `<li>${escapeHtml(p.name)}</li>`)
     .join("");
 
@@ -54,7 +54,7 @@ export function disclosurePageTemplate(affiliatePartnersEnv: string | undefined)
     <section class="rr-prose" style="max-width: 720px; margin-bottom: var(--space-16);">
       <p>Recalled Rides is free to use. All recall data comes from the U.S. National Highway Traffic Safety Administration (NHTSA) and always will be free — recall repairs themselves are free at franchised dealers by federal law, and we will never charge you or take a cut for telling you that.</p>
 
-      <p>To keep the site running, some pages include <strong>partner links</strong> to third-party vehicle-history-report services. If you click one of these links and make a purchase, we may earn a commission <strong>at no additional cost to you</strong>. This is the disclosure required by the U.S. Federal Trade Commission's Endorsement Guides (16&nbsp;CFR&nbsp;Part&nbsp;255).</p>
+      <p>To keep the site running, we may add clearly labeled <strong>partner links</strong> to third-party vehicle-history-report services. If you click one of these links and make a purchase, we may earn a commission <strong>at no additional cost to you</strong>. This is the disclosure required by the U.S. Federal Trade Commission's Endorsement Guides (16&nbsp;CFR&nbsp;Part&nbsp;255).</p>
 
       <h2>What to expect</h2>
       <ul>
@@ -64,10 +64,10 @@ export function disclosurePageTemplate(affiliatePartnersEnv: string | undefined)
       </ul>
 
       <h2>Current partners</h2>
-      <ul>${partnerList}</ul>
+      ${enabled.length ? `<ul>${partnerList}</ul>` : `<p>No affiliate partners are currently active.</p>`}
 
       <p>Questions? Reach us via the <a href="/about">About page</a>.</p>
-      <p><em>Last updated: July 2026</em></p>
+      <p><em>Last updated: November 2026</em></p>
     </section>
   `;
 }

@@ -74,6 +74,8 @@ export function layout({
   <style>${CRITICAL_CSS}</style>
   <link rel="stylesheet" href="/print.css?v=${ASSET_VERSION}" media="print"/>
   <script src="/checklist.js" defer></script>
+  <script>window.rrTrack=e=>(window.rrEventQueue||=[]).push(e);</script>
+  <script src="/events.js?v=${ASSET_VERSION}" defer></script>
   <link rel="preload" href="/styles.css?v=${ASSET_VERSION}" as="style"/>
   <link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}" media="print" onload="this.media='all'"/>
   <noscript><link rel="stylesheet" href="/styles.css?v=${ASSET_VERSION}"/></noscript>
@@ -116,7 +118,6 @@ export function layout({
   </footer>
 
   <script>
-    // Prefill search from ?q= param
     (function(){
       var p=new URLSearchParams(location.search);
       var q=p.get("q");
@@ -127,7 +128,6 @@ export function layout({
     })();
   </script>
   <script>
-    // Vehicle search typeahead
     (function(){
       var input=document.getElementById("rr-global-search");
       var results=document.getElementById("rr-global-search-results");
@@ -169,7 +169,6 @@ export function layout({
     document.addEventListener("click",function(e){var b=e.target.closest(".rr-share-btn");if(!b)return;var u=b.getAttribute("data-share-url");if(!u)return;var a=u;if(!/^https?:/.test(u))a=location.origin+u;var showToast=function(msg){var t=document.getElementById("rr-toast");if(!t)return;t.textContent=msg;t.classList.add("is-visible");setTimeout(function(){t.classList.remove("is-visible")},2200)};if(navigator.share){navigator.share({url:a}).then(function(){showToast("Shared successfully")}).catch(function(){})}else{navigator.clipboard.writeText(a).then(function(){b.setAttribute("data-shared","1");var icon=b.querySelector("svg");if(icon){var orig=icon.innerHTML;icon.innerHTML='<path d="M4 8l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';setTimeout(function(){b.removeAttribute("data-shared");icon.innerHTML=orig},1500)}showToast("Link copied to clipboard")})}});
   </script>
   <script>
-    // WebMCP — expose site tools to AI agents
     (function(){
       var mc = document.modelContext || navigator.modelContext;
       if(!mc || !mc.registerTool)return;

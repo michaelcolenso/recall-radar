@@ -77,6 +77,7 @@ export function vinLookupPageTemplate(siteUrl: string, affiliateCtaHtml?: string
           e.preventDefault();
           var vin=form.vin.value.toUpperCase().trim();
           if(vin.length!==17)return;
+          if(window.rrTrack)window.rrTrack('vin_lookup_started');
           results.hidden=false;
           results.innerHTML='<p class="rr-body">Checking NHTSA database…</p>';
           fetch('/api/vin-lookup?vin='+encodeURIComponent(vin))
@@ -86,9 +87,11 @@ export function vinLookupPageTemplate(siteUrl: string, affiliateCtaHtml?: string
               var modelYear=data.scope!=='vin';
               var notice=modelYear?'<p class="rr-body"><strong>Model-year records.</strong> These records do not show which recalls are still open for your VIN. Confirm your VIN with NHTSA or the manufacturer.</p>':'';
               if(data.error){
+                if(window.rrTrack)window.rrTrack('vin_lookup_failed');
                 results.innerHTML='<p class="rr-body rr-body--error">'+escHtml(data.error)+'</p>'+official;
                 return;
               }
+              if(window.rrTrack)window.rrTrack(modelYear?'vin_lookup_model_year':'vin_lookup_vin');
               // Reveal the affiliate CTA after a successful lookup, deep-linking the typed VIN
               var aff=document.getElementById('vin-aff-cta');
               if(aff){
@@ -112,6 +115,7 @@ export function vinLookupPageTemplate(siteUrl: string, affiliateCtaHtml?: string
               results.innerHTML=notice+official+(data.checklistHtml||'')+html;
             })
             .catch(function(){
+              if(window.rrTrack)window.rrTrack('vin_lookup_failed');
               results.innerHTML='<p class="rr-body rr-body--error">Unable to check VIN. Please try again later.</p>'+
                 '<p><a href="https://www.nhtsa.gov/recalls">Check open recalls directly with NHTSA →</a></p>';
             });

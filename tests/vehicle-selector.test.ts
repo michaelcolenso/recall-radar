@@ -8,5 +8,5 @@ test('hero offers labeled cascading selector and VIN search with a small script 
  const html=vehicleSelector([{slug:'ram',name:'RAM'}]);
  assert.match(html,/By Vehicle/);assert.match(html,/By VIN or Keyword/);assert.match(html,/vehicle-year/);
  const inline=[...layout({title:'Test',body:html}).matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('');
- assert.ok(gzipSync(inline).length+gzipSync(readFileSync('public/vehicle-selector.js','utf8')).length+gzipSync(readFileSync('public/checklist.js','utf8')).length<4096);
+ assert.ok(gzipSync(inline).length+gzipSync(readFileSync('public/vehicle-selector.js','utf8')).length+gzipSync(readFileSync('public/checklist.js','utf8')).length+gzipSync(readFileSync('public/events.js','utf8')).length<4096);
 });

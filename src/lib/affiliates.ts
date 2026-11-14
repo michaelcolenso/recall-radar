@@ -15,7 +15,7 @@ export interface AffiliatePartner {
   name: string;
   /** Builds the outbound URL. `vin` is a full 17-char VIN when available. */
   urlTemplate: (vin?: string) => string;
-  /** Payout terms as verified during signup — documentation only. */
+  /** Application status note — no program approval is implied. */
   commissionNote: string;
 }
 
@@ -30,28 +30,28 @@ export const AFFILIATE_PARTNERS: AffiliatePartner[] = [
       vin
         ? `https://detailedvehiclehistory.com/vin-check/results?vin=${encodeURIComponent(vin)}`
         : "https://detailedvehiclehistory.com/",
-    commissionNote: "25% per sale (up to $20), 90-day cookie — self-serve program",
+    commissionNote: "Application required; confirm approved tracking links and terms before enabling",
   },
   {
     id: "epicvin",
     name: "EpicVIN",
     urlTemplate: (vin) =>
       vin ? `https://epicvin.com/?vin=${encodeURIComponent(vin)}` : "https://epicvin.com/",
-    commissionNote: "Up to $30/sale (~30%), 30-day cookie — in-house program",
+    commissionNote: "Application required; confirm approved tracking links and terms before enabling",
   },
   {
     id: "vininfohub",
     name: "VinInfoHub",
     urlTemplate: (vin) =>
       vin ? `https://vininfohub.com/?vin=${encodeURIComponent(vin)}` : "https://vininfohub.com/",
-    commissionNote: "10–20% rev share, 90–180-day earning window",
+    commissionNote: "Application required; confirm approved tracking links and terms before enabling",
   },
   {
     id: "vinaudit",
     name: "VinAudit",
     urlTemplate: (vin) =>
       vin ? `https://www.vinaudit.com/?vin=${encodeURIComponent(vin)}` : "https://www.vinaudit.com/",
-    commissionNote: "NMVTIS official data — application reviewed by their team",
+    commissionNote: "Application required; confirm approved tracking links and terms before enabling",
   },
 ];
 

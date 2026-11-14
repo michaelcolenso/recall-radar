@@ -4,9 +4,10 @@ import { Hono } from 'hono';
 import { fixtureDatabase } from './database';
 import { repairCanonicalModels } from '../../src/etl/repair-models';
 import { pageRoutes } from '../../src/routes/pages';
+import { eventRoutes } from '../../src/routes/events';
 import { apiRoutes } from '../../src/routes/api';
 const {db}=fixtureDatabase();await repairCanonicalModels(db);
-const app=new Hono().route('/api',apiRoutes).route('/',pageRoutes);
+const app=new Hono().route('/',eventRoutes).get('/__fixture/conversions',async c=>c.json((await db.prepare('SELECT event,page_type,count FROM conversion_counts').all()).results)).route('/api',apiRoutes).route('/',pageRoutes);
 createServer(async(req,res)=>{
  try {
  const url=new URL(req.url!,'http://127.0.0.1:8799');
@@ -15,7 +16,8 @@ createServer(async(req,res)=>{
  const types:Record<string,string>={css:'text/css',js:'text/javascript',svg:'image/svg+xml',woff2:'font/woff2',png:'image/png'};
  res.setHeader('Content-Type',types[file.split('.').at(-1)!]);res.end(readFileSync(file));return;
  }
- const result=await app.request(url.toString(),{method:req.method},{DB:db,SITE_URL:'http://127.0.0.1:8799',ADMIN_TOKEN:'fixture',AFFILIATE_PARTNERS:'dvh'});
+ const chunks:Buffer[]=[];for await(const chunk of req)chunks.push(Buffer.from(chunk));
+ const result=await app.request(url.toString(),{method:req.method,headers:req.headers as Record<string,string>,...(['GET','HEAD'].includes(req.method!)?{}:{body:Buffer.concat(chunks)})},{DB:db,SITE_URL:'http://127.0.0.1:8799',ADMIN_TOKEN:'fixture',AFFILIATE_PARTNERS:'dvh'});
  res.writeHead(result.status,Object.fromEntries(result.headers));res.end(await result.text());
  } catch(e){res.writeHead(500);res.end(String(e));}
 }).listen(8799,'127.0.0.1',()=>console.log('Audit fixture preview: http://127.0.0.1:8799'));

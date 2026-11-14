@@ -52,3 +52,5 @@ artifacts/audit/
 
 # Generated production browser and Lighthouse evidence
 artifacts/production/
+
+artifacts/operations/
