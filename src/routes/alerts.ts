@@ -3,6 +3,7 @@ import { z } from "zod";
 import { verifyTurnstile } from "../lib/turnstile";
 import { sendEmail, confirmEmailTemplate, unsubscribeHeaders } from "../lib/email";
 import { alertConfirmedPage, alertUnsubscribedPage, alertErrorPage } from "../templates/alert-pages";
+import { displayMakeName } from "../lib/utils";
 
 export const alertRoutes = new Hono<{ Bindings: Env }>();
 
@@ -118,7 +119,7 @@ alertRoutes.post("/api/alerts/subscribe", async (c) => {
     .bind(email, vehicle.id, confirmToken, unsubToken, source ?? null, ipHash, now)
     .run();
 
-  const vehicleLabel = `${vehicle.year} ${vehicle.make_name} ${vehicle.model_name}`;
+  const vehicleLabel = `${vehicle.year} ${displayMakeName(vehicle.make_name)} ${vehicle.model_name}`;
   const confirmUrl = `${siteUrl}/api/alerts/confirm?t=${confirmToken}`;
   const unsubUrl = `${siteUrl}/api/alerts/unsubscribe?t=${unsubToken}`;
   const tpl = confirmEmailTemplate({
@@ -175,7 +176,7 @@ alertRoutes.get("/api/alerts/confirm", async (c) => {
       .run();
   }
 
-  return c.html(alertConfirmedPage(pageEnv, `${sub.year} ${sub.make_name} ${sub.model_name}`));
+  return c.html(alertConfirmedPage(pageEnv, `${sub.year} ${displayMakeName(sub.make_name)} ${sub.model_name}`));
 });
 
 // Unsubscribe — GET renders a page, POST is the RFC 8058 one-click endpoint.

@@ -86,16 +86,13 @@ test("make component page links to model year pages and campaign pages", () => {
     makeSlug: "toyota",
     component: "AIR BAG",
     componentSlug: "air-bag",
-    recalls: [
+    campaigns: [
       {
-        model_name: "Camry",
-        model_slug: "camry",
-        year: 2020,
         nhtsa_campaign_number: "20V682000",
-        component: "AIR BAGS",
         severity_level: "HIGH",
         summary: "The air bag may not deploy properly.",
         report_received_date: "2020-10-01",
+        vehicles: [{ model_name: "Camry", model_slug: "camry", year: 2020 }],
       },
     ],
     totalModelYears: 5,
