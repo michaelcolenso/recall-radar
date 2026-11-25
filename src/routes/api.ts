@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 import { scoreAllVehicleYears, scoreAllVehicleYearsForMake } from "../lib/risk-score";
+import { displayMakeName } from "../lib/utils";
 
 export const apiRoutes = new Hono<{ Bindings: Env }>();
 
@@ -84,13 +85,13 @@ apiRoutes.get("/search", async (c) => {
 
   const results = [...makesResult.results, ...modelsResult.results, ...yearsResult.results].slice(0, 8).map((r) => {
     if (r.type === "make") {
-      return { label: r.name, sublabel: "Manufacturer", href: `/${r.slug}` };
+      return { label: displayMakeName(r.name), sublabel: "Manufacturer", href: `/${r.slug}` };
     }
     if (r.type === "model") {
-      return { label: `${r.make_name} ${r.name}`, sublabel: "Model", href: `/${r.make_slug}/${r.slug}` };
+      return { label: `${displayMakeName(r.make_name ?? "")} ${r.name}`, sublabel: "Model", href: `/${r.make_slug}/${r.slug}` };
     }
     // year
-    return { label: `${r.year} ${r.make_name} ${r.name}`, sublabel: "Vehicle Year", href: `/${r.make_slug}/${r.slug}/${r.year}` };
+    return { label: `${r.year} ${displayMakeName(r.make_name ?? "")} ${r.name}`, sublabel: "Vehicle Year", href: `/${r.make_slug}/${r.slug}/${r.year}` };
   });
 
   return c.json({ results });

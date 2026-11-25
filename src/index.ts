@@ -2,6 +2,7 @@ import { Hono } from "hono";
 
 import { pageRoutes } from "./routes/pages";
 import { renderOgImage } from "./routes/og-image";
+import { caseCanonicalPath } from "./lib/utils";
 import { eventRoutes } from "./routes/events";
 import { apiRoutes } from "./routes/api";
 import { adminRoutes } from "./routes/admin";
@@ -88,6 +89,10 @@ app.use(async (c, next) => {
   const pathname = url.pathname;
   if ((c.req.method === "GET" || c.req.method === "HEAD") && pathname.length > 1 && pathname.endsWith("/")) {
     return c.redirect(pathname.slice(0, -1) + url.search, 301);
+  }
+  const lowercasePath = caseCanonicalPath(pathname);
+  if ((c.req.method === "GET" || c.req.method === "HEAD") && lowercasePath) {
+    return c.redirect(lowercasePath + url.search, 301);
   }
   await next();
 });

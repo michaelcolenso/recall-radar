@@ -7,7 +7,7 @@ import { segmentCompetitors } from "../lib/vehicle-segments";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { getCachedOrRender } from "../lib/cache";
-import { escapeHtml, normalizeNhtsaCampaignNumber, slugify, titleCase } from "../lib/utils";
+import { displayMakeName, escapeHtml, normalizeNhtsaCampaignNumber, slugify, titleCase, withDisplayMake } from "../lib/utils";
 import { layout } from "../templates/layout";
 import { homeTemplate } from "../templates/home";
 import { makePageTemplate } from "../templates/make-page";
@@ -32,7 +32,7 @@ import { campaignPageTemplate } from "../templates/campaign-page";
 import type { SeverityLevel } from "../db/schema";
 import { aboutTemplate } from "../templates/about";
 import { componentPageTemplate } from "../templates/component-page";
-import { makeComponentPageTemplate } from "../templates/make-component-page";
+import { makeComponentPageTemplate, type MakeComponentCampaign } from "../templates/make-component-page";
 import { modelStatsPageTemplate } from "../templates/model-stats-page";
 import { vinLookupPageTemplate } from "../templates/vin-lookup-page";
 import { newRecallsPageTemplate, NEW_RECALLS_PAGE_SIZE } from "../templates/new-recalls-page";
@@ -67,7 +67,7 @@ pageRoutes.use('*', async (c,next) => {
 
 const CACHE_CONTROL = "public, s-maxage=43200, stale-while-revalidate=86400";
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" };
-const PAGE_CACHE_VERSION = "v38";
+const PAGE_CACHE_VERSION = "v39";
 
 function linkHeaders(siteUrl: string): Record<string, string> {
   return {
@@ -204,8 +204,8 @@ pageRoutes.get("/og/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}.s
   const { makeSlug, modelSlug, year } = c.req.param();
   const yearNum = Number(year);
 
-  const make = await c.env.DB.prepare("SELECT name FROM makes WHERE slug = ?")
-    .bind(makeSlug).first<{ name: string }>();
+  const make = withDisplayMake(await c.env.DB.prepare("SELECT name FROM makes WHERE slug = ?")
+    .bind(makeSlug).first<{ name: string }>());
   const model = await c.env.DB.prepare("SELECT name FROM models WHERE slug = ?")
     .bind(modelSlug).first<{ name: string }>();
 
@@ -326,7 +326,8 @@ pageRoutes.get("/", async (c) => {
       const [recallCount, yearCount, makeCount] = statsResult;
 
       const popularNames = new Set(POPULAR_MAKES.map((n) => n.toUpperCase()));
-      const popularMakes = makesResult.results
+      const displayMakes = makesResult.results.map(withDisplayMake);
+      const popularMakes = displayMakes
         .filter((m) => popularNames.has(m.name.toUpperCase()))
         .slice(0, 6);
 
@@ -347,11 +348,11 @@ pageRoutes.get("/", async (c) => {
         ogType: "website",
         ogImage: "/og-image-home.svg",
         lastUpdated: lastUpdatedResult?.last_run ? new Date(lastUpdatedResult.last_run).toLocaleDateString("en-US", { month: "long", year: "numeric" }) : undefined,
-        body: homeTemplate(makesResult.results, {
+        body: homeTemplate(displayMakes, {
           recalls: recallCount?.count ?? 0,
           vehicles: yearCount?.count ?? 0,
           makes: makeCount?.count ?? 0,
-        }, popularMakes, popularModelsResult.results, latestRecallsResult.results),
+        }, popularMakes, popularModelsResult.results.map(withDisplayMake), latestRecallsResult.results.map(withDisplayMake)),
         jsonLd,
       });
     },
@@ -417,6 +418,7 @@ pageRoutes.get("/new", async (c) => {
       model_slug: string;
       year: number;
     }>();
+    recallsResult.results = recallsResult.results.map(withDisplayMake);
 
     const canonicalUrl = severity
       ? `${siteUrl}/new?severity=${encodeURIComponent(severity)}${safePage > 1 ? `&page=${safePage}` : ""}`
@@ -448,7 +450,7 @@ pageRoutes.get("/new", async (c) => {
         component: f.component,
         severity_level: severityOf(f.component),
         report_received_date: f.reportReceivedDate,
-        make_name: f.vehicles[0]?.make ?? f.manufacturer,
+        make_name: displayMakeName(f.vehicles[0]?.make ?? f.manufacturer),
         model_name: f.vehicles[0]?.model ?? "",
       }));
 
@@ -607,7 +609,7 @@ pageRoutes.get("/vin-lookup", async (c) => {
 // Service helpers are intentionally noindex; canonical recall pages carry the filing.
 pageRoutes.get("/dealers/:makeSlug{[a-z0-9-]+}", async c => {
  const {makeSlug}=c.req.param();
- const make=await c.env.DB.prepare('SELECT name FROM makes WHERE slug=?').bind(makeSlug).first<{name:string}>();
+ const make=withDisplayMake(await c.env.DB.prepare('SELECT name FROM makes WHERE slug=?').bind(makeSlug).first<{name:string}>());
  if(!make) return c.notFound();
  const campaign=c.req.query('campaign');
  const recall=campaign ? await c.env.DB.prepare(`SELECT r.remedy_raw FROM recalls r JOIN vehicle_years vy ON vy.id=r.vehicle_year_id JOIN models m ON m.id=vy.model_id JOIN makes mk ON mk.id=m.make_id WHERE mk.slug=? AND r.nhtsa_campaign_number=? LIMIT 1`).bind(makeSlug,campaign).first<{remedy_raw:string}>() : null;
@@ -633,9 +635,9 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
     withPageCacheVersion(`page:stats:${makeSlug}:${modelSlug}`),
     86400,
     async () => {
-      const make = await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
+      const make = withDisplayMake(await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
         .bind(makeSlug)
-        .first<{ id: number; name: string }>();
+        .first<{ id: number; name: string }>());
       if (!make) {
         return {
           html: layout({
@@ -793,17 +795,25 @@ pageRoutes.get("/stats/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) 
 });
 
 // GET /:makeSlug/:componentSlug-recalls — Make-level component aggregation
-pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentSlug{[a-z0-9-]+}-recalls", async (c) => {
-  const { makeSlug, componentSlug } = c.req.param();
+function makeComponentTitle(make: string, component: string): string {
+  const full = `${make} ${titleCase(component)} Recalls by Model & Year | Recalled Rides`;
+  return full.length <= 66 ? full : `${make} ${titleCase(component)} Recalls | Recalled Rides`;
+}
+
+// The suffix must live inside the regex: Hono ignores a literal after `{...}` in the
+// same segment, which let every /make/<component>-recalls URL fall through to the model route.
+pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentPath{[a-z0-9-]+-recalls}", async (c) => {
+  const { makeSlug, componentPath } = c.req.param();
+  const componentSlug = componentPath.slice(0, -"-recalls".length);
   const siteUrl = c.env.SITE_URL || "https://recalledrides.com";
 
   const { value, hit } = await getCachedOrRender<CachedPageResponse>(
     withPageCacheVersion(`page:make-component:${makeSlug}:${componentSlug}`),
     86400,
     async () => {
-      const make = await c.env.DB.prepare("SELECT id, name, slug FROM makes WHERE slug = ?")
+      const make = withDisplayMake(await c.env.DB.prepare("SELECT id, name, slug FROM makes WHERE slug = ?")
         .bind(makeSlug)
-        .first<{ id: number; name: string; slug: string }>();
+        .first<{ id: number; name: string; slug: string }>());
       if (!make) {
         return {
           html: layout({
@@ -818,36 +828,23 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentSlug{[a-z0-9-]+}-recalls", asyn
         };
       }
 
-      const recallsResult = await c.env.DB.prepare(
-        `SELECT m.name as model_name, m.slug as model_slug, vy.year,
-              r.nhtsa_campaign_number, r.component, r.severity_level,
-              COALESCE(r.summary_enriched, r.summary_raw) as summary,
-              r.report_received_date
+      const primaryComponentSql = `UPPER(TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END))`;
+      const componentsResult = await c.env.DB.prepare(
+        `SELECT ${primaryComponentSql} as name,
+              COUNT(DISTINCT r.nhtsa_campaign_number) as count
        FROM recalls r
        JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
        JOIN models m ON m.id = vy.model_id
        WHERE m.make_id = ?
-       ORDER BY r.report_received_date DESC`
+       GROUP BY 1
+       ORDER BY count DESC`
       )
         .bind(make.id)
-        .all<{
-          model_name: string;
-          model_slug: string;
-          year: number;
-          nhtsa_campaign_number: string;
-          component: string;
-          severity_level: SeverityLevel;
-          summary: string;
-          report_received_date: string | null;
-        }>();
+        .all<{ name: string; count: number }>();
 
-      // Filter by component slug
-      const filteredRecalls = recallsResult.results.filter((r) => {
-        const primary = r.component.split(":")[0].trim();
-        return slugify(primary) === componentSlug;
-      });
+      const matched = componentsResult.results.find((row) => slugify(row.name) === componentSlug);
 
-      if (filteredRecalls.length === 0) {
+      if (!matched) {
         return {
           html: layout({
             googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
@@ -861,7 +858,57 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentSlug{[a-z0-9-]+}-recalls", asyn
         };
       }
 
-      const componentName = filteredRecalls[0].component.split(":")[0].trim();
+      // Filter in SQL so large makes don't pull every recall row into the Worker.
+      const recallsResult = await c.env.DB.prepare(
+        `SELECT m.name as model_name, m.slug as model_slug, vy.year,
+              r.nhtsa_campaign_number, r.component, r.severity_level,
+              COALESCE(r.summary_enriched, r.summary_raw) as summary,
+              r.report_received_date
+       FROM recalls r
+       JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
+       JOIN models m ON m.id = vy.model_id
+       WHERE m.make_id = ? AND ${primaryComponentSql} = ?
+       ORDER BY r.report_received_date DESC, r.nhtsa_campaign_number, m.name, vy.year DESC`
+      )
+        .bind(make.id, matched.name)
+        .all<{
+          model_name: string;
+          model_slug: string;
+          year: number;
+          nhtsa_campaign_number: string;
+          component: string;
+          severity_level: SeverityLevel;
+          summary: string;
+          report_received_date: string | null;
+        }>();
+
+      // One entry per campaign: a campaign filed against several model-years is one recall.
+      const campaignMap = new Map<string, MakeComponentCampaign>();
+      const modelYearSet = new Set<string>();
+      const years: number[] = [];
+      for (const r of recallsResult.results) {
+        let campaign = campaignMap.get(r.nhtsa_campaign_number);
+        if (!campaign) {
+          campaign = {
+            nhtsa_campaign_number: r.nhtsa_campaign_number,
+            severity_level: r.severity_level,
+            summary: r.summary ?? "",
+            report_received_date: r.report_received_date,
+            vehicles: [],
+          };
+          campaignMap.set(r.nhtsa_campaign_number, campaign);
+        }
+        if (!campaign.vehicles.some((v) => v.model_slug === r.model_slug && v.year === r.year)) {
+          campaign.vehicles.push({ model_name: r.model_name, model_slug: r.model_slug, year: r.year });
+        }
+        const key = `${r.model_slug}-${r.year}`;
+        if (!modelYearSet.has(key)) {
+          modelYearSet.add(key);
+          years.push(r.year);
+        }
+      }
+      const campaigns = [...campaignMap.values()];
+      const componentName = matched.name;
 
       const severityBreakdown: Record<SeverityLevel, number> = {
         CRITICAL: 0,
@@ -870,44 +917,21 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentSlug{[a-z0-9-]+}-recalls", asyn
         LOW: 0,
         UNKNOWN: 0,
       };
-      for (const r of filteredRecalls) {
-        severityBreakdown[r.severity_level]++;
+      for (const campaign of campaigns) {
+        severityBreakdown[campaign.severity_level]++;
       }
 
-      const modelYearSet = new Set<string>();
-      const years: number[] = [];
-      for (const r of filteredRecalls) {
-        const key = `${r.model_slug}-${r.year}`;
-        if (!modelYearSet.has(key)) {
-          modelYearSet.add(key);
-          years.push(r.year);
-        }
-      }
       const totalModelYears = modelYearSet.size;
       const yearRange = years.length > 0 ? `${Math.min(...years)}–${Math.max(...years)}` : "—";
 
-      // Other components for this make
-      const otherComponentsResult = await c.env.DB.prepare(
-        `SELECT UPPER(TRIM(CASE WHEN INSTR(r.component, ':') > 0 THEN SUBSTR(r.component, 1, INSTR(r.component, ':') - 1) ELSE r.component END)) as name,
-              COUNT(DISTINCT r.nhtsa_campaign_number) as count
-       FROM recalls r
-       JOIN vehicle_years vy ON vy.id = r.vehicle_year_id
-       JOIN models m ON m.id = vy.model_id
-       WHERE m.make_id = ?
-       GROUP BY 1
-       ORDER BY count DESC`
-      )
-        .bind(make.id)
-        .all<{ name: string; count: number }>();
-
-      const otherComponents = otherComponentsResult.results
-        .filter((c) => slugify(c.name) !== componentSlug)
-        .map((c) => ({ name: c.name, slug: slugify(c.name), count: c.count }));
+      const otherComponents = componentsResult.results
+        .filter((row) => slugify(row.name) !== componentSlug)
+        .map((row) => ({ name: row.name, slug: slugify(row.name), count: row.count }));
 
       const crumbs = breadcrumbs([
         { href: "/", label: "Home" },
         { href: `/${makeSlug}`, label: make.name },
-        { href: `/${makeSlug}/${componentSlug}-recalls`, label: `${componentName} Recalls` },
+        { href: `/${makeSlug}/${componentSlug}-recalls`, label: `${titleCase(componentName)} Recalls` },
       ]);
 
       const body =
@@ -917,7 +941,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentSlug{[a-z0-9-]+}-recalls", asyn
           makeSlug,
           component: componentName,
           componentSlug,
-          recalls: filteredRecalls,
+          campaigns,
           totalModelYears,
           yearRange,
           severityBreakdown,
@@ -930,8 +954,8 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentSlug{[a-z0-9-]+}-recalls", asyn
         html: layout({
           googleVerification: c.env.GOOGLE_SITE_VERIFICATION,
           analyticsToken: c.env.CF_ANALYTICS_TOKEN,
-          title: `${make.name} ${titleCase(componentName)} Recalls — Complete List by Model & Year | Recalled Rides`,
-          description: `Complete list of ${filteredRecalls.length} ${componentName} recalls for ${make.name} vehicles. Covers ${totalModelYears} model-years from ${yearRange}.`,
+          title: makeComponentTitle(make.name, componentName),
+          description: `${campaigns.length} ${titleCase(componentName).toLowerCase()} recall campaign${campaigns.length === 1 ? "" : "s"} for ${make.name} vehicles, covering ${totalModelYears} model-years from ${yearRange}. Plain-English summaries from NHTSA filings.`,
           canonical: pageUrl,
           ogType: "website",
           ogImage: "/og-image-home.svg",
@@ -940,7 +964,7 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:componentSlug{[a-z0-9-]+}-recalls", asyn
             breadcrumbListJsonLd(siteUrl, [
               { name: "Home", item: siteUrl },
               { name: make.name, item: `${siteUrl}/${makeSlug}` },
-              { name: `${componentName} Recalls`, item: pageUrl },
+              { name: `${titleCase(componentName)} Recalls`, item: pageUrl },
             ]) +
             organizationJsonLd({ name: "Recalled Rides", url: siteUrl }),
         }),
@@ -1112,9 +1136,9 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}", async (c) => {
     withPageCacheVersion(`page:make:${makeSlug}`),
     86400,
     async () => {
-      const make = await c.env.DB.prepare("SELECT id, name, slug FROM makes WHERE slug = ?")
+      const make = withDisplayMake(await c.env.DB.prepare("SELECT id, name, slug FROM makes WHERE slug = ?")
         .bind(makeSlug)
-        .first<{ id: number; name: string; slug: string }>();
+        .first<{ id: number; name: string; slug: string }>());
       if (!make) {
         return {
           html: layout({
@@ -1214,9 +1238,9 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}", async (c) => {
     withPageCacheVersion(`page:model:${makeSlug}:${modelSlug}`),
     86400,
     async () => {
-      const make = await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
+      const make = withDisplayMake(await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
         .bind(makeSlug)
-        .first<{ id: number; name: string }>();
+        .first<{ id: number; name: string }>());
       if (!make) {
         return {
           html: layout({
@@ -1512,9 +1536,9 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
     withPageCacheVersion(`page:component:${makeSlug}:${modelSlug}:${year}:${componentSlug}`),
     43200,
     async () => {
-      const make = await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
+      const make = withDisplayMake(await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
         .bind(makeSlug)
-        .first<{ id: number; name: string }>();
+        .first<{ id: number; name: string }>());
       if (!make) {
         return {
           html: layout({
@@ -1676,6 +1700,7 @@ pageRoutes.get("/:makeSlug/:modelSlug/:year/:componentSlug", async (c) => {
           year: number;
           recall_count: number;
         }>();
+      relatedRecallsResult.results = relatedRecallsResult.results.map(withDisplayMake);
 
       const crumbs = breadcrumbs([
         { href: "/", label: "Home" },
@@ -1795,9 +1820,9 @@ pageRoutes.get("/:makeSlug{[a-z0-9-]+}/:modelSlug{[a-z0-9-]+}/:year{[0-9]+}", as
     withPageCacheVersion(`page:year:${makeSlug}:${modelSlug}:${year}`),
     43200,
     async () => {
-      const make = await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
+      const make = withDisplayMake(await c.env.DB.prepare("SELECT id, name FROM makes WHERE slug = ?")
         .bind(makeSlug)
-        .first<{ id: number; name: string }>();
+        .first<{ id: number; name: string }>());
       if (!make) {
         return {
           html: layout({
@@ -2138,6 +2163,7 @@ pageRoutes.get("/recall/:campaignNumber{[A-Za-z0-9]+}", async (c) => {
         };
       }
 
+      rows = rows.map(withDisplayMake);
       const primaryRecall = rows[0];
       const campaignModified = rows.map(row=>verifiedTimestamp(row.last_ingested_at)).filter((date): date is string => Boolean(date)).sort().at(-1);
       const componentShort = primaryRecall.component.split(":")[0].trim();

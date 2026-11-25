@@ -10,6 +10,7 @@ import {
 } from "../lib/email";
 import { primaryPartner } from "../lib/affiliates";
 import { vinReportEmailCta } from "../templates/components/affiliate-box";
+import { displayMakeName } from "../lib/utils";
 import type { SeverityLevel } from "../db/schema";
 
 const AlertDigestParamsSchema = z.object({
@@ -192,7 +193,7 @@ export class AlertDigestWorkflow extends WorkflowEntrypoint<Env, AlertDigestPara
 
     for (const [subId, rows] of bySub) {
       const first = rows[0];
-      const vehicleLabel = `${first.year} ${first.make_name} ${first.model_name}`;
+      const vehicleLabel = `${first.year} ${displayMakeName(first.make_name)} ${first.model_name}`;
       const yearPageUrl = `${siteUrl}/${first.make_slug}/${first.model_slug}/${first.year}`;
       const unsubUrl = `${siteUrl}/api/alerts/unsubscribe?t=${first.unsub_token}`;
       const recallItems: DigestRecallItem[] = rows.map((r) => ({

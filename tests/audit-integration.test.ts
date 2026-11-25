@@ -18,7 +18,7 @@ test('migrated SQLite supports canonical repairs and real audited page routes', 
  const make=await get('/ram');assert.equal((make.match(/rr-card__title">ELECTRICAL SYSTEM</g)||[]).length,1);
  const mercedes=await get('/mercedes-benz');for(const family of ['C-Class','E-Class','S-Class','GLC-Class','GLE-Class','Sprinter'])assert.ok(mercedes.includes(family),family);
  const model=await get('/ram/1500');for(const year of [2008,2020,2026])assert.ok(model.includes(`/ram/1500/${year}`));
- const campaign=await get('/recall/24V653000');assert.match(campaign,/<title>Recall #24V653000: 2019 RAM 1500/);assert.match(campaign,/Show original NHTSA language/);
+ const campaign=await get('/recall/24V653000');assert.match(campaign,/<title>Recall #24V653000: 2019 Ram 1500/);assert.match(campaign,/Show original NHTSA language/);
  const schemas=[...ram.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(m=>JSON.parse(m[1]));assert.ok(schemas.some(s=>s['@type']==='WebPage'&&s.dateModified==='2026-10-01T12:00:00.000Z'));
  const auth=await app.request('/api/admin/repair-models',{method:'POST'},env);assert.equal(auth.status,401);
  const options=await get('/api/vehicles?make=ram&model=1500');assert.ok(options.includes('2026'));

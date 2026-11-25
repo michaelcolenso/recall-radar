@@ -23,6 +23,29 @@ export function normalizeNhtsaCampaignNumber(value: string): string | null {
   return /^\d{2}[A-Z]\d{6}$/.test(normalized) ? normalized : null;
 }
 
+// Brands whose official styling is all caps. Everything else NHTSA sends in caps
+// ("TOYOTA", "MERCEDES-BENZ", "RAM") reads better in title case.
+const UPPERCASE_MAKES = new Set(["BMW", "GMC", "MINI"]);
+
+/**
+ * Display form of a make name. The database keeps NHTSA's uppercase spelling
+ * because ingestion matches on it; apply this only when rendering.
+ */
+export function displayMakeName(name: string): string {
+  const trimmed = name.trim();
+  if (UPPERCASE_MAKES.has(trimmed.toUpperCase())) return trimmed.toUpperCase();
+  return titleCase(trimmed);
+}
+
+/** Copy of a row with its make name (`name` for make rows, `make_name` for joins) in display form. */
+export function withDisplayMake<T extends { name?: string; make_name?: string } | null | undefined>(row: T): T {
+  if (!row) return row;
+  const copy: any = { ...row };
+  if (typeof copy.make_name === "string") copy.make_name = displayMakeName(copy.make_name);
+  else if (typeof copy.name === "string") copy.name = displayMakeName(copy.name);
+  return copy;
+}
+
 export function titleCase(str: string): string {
   return str
     .toLowerCase()
@@ -104,4 +127,14 @@ export function htmlToMarkdown(html: string): string {
 export function acceptsMarkdown(c: { req: { header: (name: string) => string | undefined } }): boolean {
   const accept = c.req.header("accept") || "";
   return accept.includes("text/markdown") || accept.includes("text/md");
+}
+
+// Vehicle, make and component URLs are lowercase slugs; "/TOYOTA/Camry" used to
+// return Hono's bare plain-text 404. Campaign and VIN paths keep their case.
+const CASE_SENSITIVE_ROOTS = new Set(["recall", "vin", "api", "go", "og", "admin", ".well-known"]);
+export function caseCanonicalPath(pathname: string): string | null {
+  if (!/[A-Z]/.test(pathname) || !/^(\/[A-Za-z0-9-]+){1,4}$/.test(pathname)) return null;
+  const root = pathname.split("/")[1].toLowerCase();
+  if (CASE_SENSITIVE_ROOTS.has(root)) return null;
+  return pathname.toLowerCase();
 }

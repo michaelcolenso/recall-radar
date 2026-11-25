@@ -2,16 +2,15 @@ import { escapeHtml, makeLogoImg, titleCase } from "../lib/utils";
 import { severityBadge } from "./components/severity-badge";
 import type { SeverityLevel } from "../db/schema";
 
-interface ComponentRecall {
-  model_name: string;
-  model_slug: string;
-  year: number;
+export interface MakeComponentCampaign {
   nhtsa_campaign_number: string;
-  component: string;
   severity_level: SeverityLevel;
   summary: string;
   report_received_date: string | null;
+  vehicles: { model_name: string; model_slug: string; year: number }[];
 }
+
+const MAX_VEHICLE_LINKS = 12;
 
 interface ComponentStat {
   name: string;
@@ -24,7 +23,7 @@ interface MakeComponentPageOptions {
   makeSlug: string;
   component: string;
   componentSlug: string;
-  recalls: ComponentRecall[];
+  campaigns: MakeComponentCampaign[];
   totalModelYears: number;
   yearRange: string;
   severityBreakdown: Record<SeverityLevel, number>;
@@ -35,7 +34,7 @@ export function makeComponentPageTemplate({
   make,
   makeSlug,
   component,
-  recalls,
+  campaigns,
   totalModelYears,
   yearRange,
   severityBreakdown,
@@ -46,7 +45,7 @@ export function makeComponentPageTemplate({
     .filter((s) => severityBreakdown[s] > 0)
     .map((s) => {
       const count = severityBreakdown[s];
-      const pct = Math.round((count / recalls.length) * 100);
+      const pct = Math.round((count / campaigns.length) * 100);
       return `
         <div class="rr-severity-bar" style="--severity-pct: ${pct}%">
           <span class="rr-severity-bar__label">${severityBadge(s)}</span>
@@ -56,24 +55,26 @@ export function makeComponentPageTemplate({
     })
     .join("");
 
-  const recallRows = recalls
+  const recallRows = campaigns
     .map((r) => {
       const summary = r.summary;
-      const yearPageUrl = `/${makeSlug}/${r.model_slug}/${r.year}`;
+      const shown = r.vehicles.slice(0, MAX_VEHICLE_LINKS);
+      const hidden = r.vehicles.length - shown.length;
+      const vehicleLinks = shown
+        .map((v) => `<a href="/${makeSlug}/${v.model_slug}/${v.year}">${v.year} ${escapeHtml(make)} ${escapeHtml(v.model_name)}</a>`)
+        .join(", ");
       return `
         <article class="rr-readout">
           <div class="rr-readout__header">
             <div class="rr-readout__meta">
-              <a href="${yearPageUrl}" class="rr-readout__title-link">${r.year} ${escapeHtml(make)} ${escapeHtml(r.model_name)}</a>
+              <a href="/recall/${r.nhtsa_campaign_number}" class="rr-readout__title-link">Campaign ${r.nhtsa_campaign_number}</a>
               <span class="rr-readout__date">${r.report_received_date ?? "Date unknown"}</span>
             </div>
             ${severityBadge(r.severity_level)}
           </div>
           <div class="rr-readout__body">
             <p>${escapeHtml(summary.slice(0, 200))}${summary.length > 200 ? "…" : ""}</p>
-          </div>
-          <div class="rr-readout__footer">
-            <a href="/recall/${r.nhtsa_campaign_number}">Campaign ${r.nhtsa_campaign_number} →</a>
+            <p class="rr-body">Affects: ${vehicleLinks}${hidden > 0 ? ` and ${hidden} more model-year${hidden === 1 ? "" : "s"}` : ""}</p>
           </div>
         </article>
       `;
@@ -100,8 +101,8 @@ export function makeComponentPageTemplate({
 
     <section class="rr-stats-grid" style="margin-bottom: var(--space-16);">
       <div class="rr-stat-card">
-        <div class="rr-stat-card__value">${recalls.length}</div>
-        <div class="rr-stat-card__label">Total Recalls</div>
+        <div class="rr-stat-card__value">${campaigns.length}</div>
+        <div class="rr-stat-card__label">Recall Campaigns</div>
       </div>
       <div class="rr-stat-card">
         <div class="rr-stat-card__value">${totalModelYears}</div>
